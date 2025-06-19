@@ -1,0 +1,121 @@
+{
+    "constants": [],
+    "header": {
+        "major": 0,
+        "minor": 3,
+        "patch": 0
+    },
+    "model_sequence": {
+        "inputs": [
+            {
+                "binding": 0,
+                "index": 0,
+                "mrt_index": 0,
+                "name": "serving_default_input_1:0"
+            },
+            {
+                "binding": 1,
+                "index": 1,
+                "mrt_index": 1,
+                "name": "serving_default_input_2:0"
+            }
+        ],
+        "outputs": [
+            {
+                "binding": 2,
+                "index": 0,
+                "mrt_index": 2,
+                "name": "PartitionedCall:0"
+            }
+        ],
+        "segments": [
+            {
+                "constants": [],
+                "descriptor_set_infos": [
+                    [
+                        {
+                            "binding": 0,
+                            "index": 0,
+                            "mrt_index": 0
+                        },
+                        {
+                            "binding": 1,
+                            "index": 1,
+                            "mrt_index": 1
+                        },
+                        {
+                            "binding": 2,
+                            "index": 2,
+                            "mrt_index": 2
+                        }
+                    ]
+                ],
+                "dispatch_shape": [
+                    0,
+                    0,
+                    0
+                ],
+                "index": 0,
+                "inputs": [
+                    {
+                        "binding": 0,
+                        "index": 0,
+                        "mrt_index": 0
+                    },
+                    {
+                        "binding": 1,
+                        "index": 1,
+                        "mrt_index": 1
+                    }
+                ],
+                "module_index": 0,
+                "name": "graph_segment_0",
+                "outputs": [
+                    {
+                        "binding": 2,
+                        "index": 0,
+                        "mrt_index": 2
+                    }
+                ],
+                "push_constant_ranges": [],
+                "type": "GRAPH"
+            }
+        ]
+    },
+    "modules": [
+        {
+            "code_size": 178,
+            "entry_point": "graph_partition_0",
+            "has_spirv": true,
+            "index": 0,
+            "name": "graph_partition_0",
+            "type": "GRAPH"
+        }
+    ],
+    "resources": [
+        {
+            "category": "INPUT",
+            "index": 0,
+            "shape": [],
+            "stride": [],
+            "vk_descriptor_type": "VK_DESCRIPTOR_TYPE_TENSOR_ARM",
+            "vk_format": "VK_FORMAT_R32_SFLOAT"
+        },
+        {
+            "category": "INPUT",
+            "index": 1,
+            "shape": [],
+            "stride": [],
+            "vk_descriptor_type": "VK_DESCRIPTOR_TYPE_TENSOR_ARM",
+            "vk_format": "VK_FORMAT_R32_SFLOAT"
+        },
+        {
+            "category": "OUTPUT",
+            "index": 2,
+            "shape": [],
+            "stride": [],
+            "vk_descriptor_type": "VK_DESCRIPTOR_TYPE_TENSOR_ARM",
+            "vk_format": "VK_FORMAT_R32_SFLOAT"
+        }
+    ]
+}

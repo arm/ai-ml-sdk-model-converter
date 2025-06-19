@@ -1,0 +1,289 @@
+{
+    "constants": [],
+    "header": {
+        "major": 0,
+        "minor": 3,
+        "patch": 0
+    },
+    "model_sequence": {
+        "inputs": [
+            {
+                "binding": 0,
+                "index": 0,
+                "mrt_index": 0,
+                "name": "input_0"
+            },
+            {
+                "binding": 1,
+                "index": 1,
+                "mrt_index": 1,
+                "name": "input_1"
+            },
+            {
+                "binding": 2,
+                "index": 2,
+                "mrt_index": 2,
+                "name": "input_2"
+            }
+        ],
+        "outputs": [
+            {
+                "binding": 5,
+                "index": 0,
+                "mrt_index": 5,
+                "name": "output_0"
+            }
+        ],
+        "segments": [
+            {
+                "constants": [],
+                "descriptor_set_infos": [
+                    [
+                        {
+                            "binding": 0,
+                            "index": 0,
+                            "mrt_index": 0
+                        },
+                        {
+                            "binding": 2,
+                            "index": 1,
+                            "mrt_index": 2
+                        },
+                        {
+                            "binding": 3,
+                            "index": 2,
+                            "mrt_index": 3
+                        }
+                    ]
+                ],
+                "dispatch_shape": [
+                    16,
+                    16,
+                    16
+                ],
+                "index": 0,
+                "inputs": [
+                    {
+                        "binding": 0,
+                        "index": 0,
+                        "mrt_index": 0
+                    },
+                    {
+                        "binding": 2,
+                        "index": 1,
+                        "mrt_index": 2
+                    }
+                ],
+                "module_index": 0,
+                "name": "compute_segment_0",
+                "outputs": [
+                    {
+                        "binding": 3,
+                        "index": 0,
+                        "mrt_index": 3
+                    }
+                ],
+                "push_constant_ranges": [],
+                "type": "COMPUTE"
+            },
+            {
+                "constants": [],
+                "descriptor_set_infos": [
+                    [
+                        {
+                            "binding": 3,
+                            "index": 0,
+                            "mrt_index": 3
+                        },
+                        {
+                            "binding": 4,
+                            "index": 1,
+                            "mrt_index": 4
+                        }
+                    ]
+                ],
+                "dispatch_shape": [
+                    0,
+                    0,
+                    0
+                ],
+                "index": 1,
+                "inputs": [
+                    {
+                        "binding": 3,
+                        "index": 0,
+                        "mrt_index": 3
+                    }
+                ],
+                "module_index": 1,
+                "name": "graph_segment_0",
+                "outputs": [
+                    {
+                        "binding": 4,
+                        "index": 0,
+                        "mrt_index": 4
+                    }
+                ],
+                "push_constant_ranges": [],
+                "type": "GRAPH"
+            },
+            {
+                "constants": [],
+                "descriptor_set_infos": [
+                    [
+                        {
+                            "binding": 1,
+                            "index": 0,
+                            "mrt_index": 1
+                        },
+                        {
+                            "binding": 4,
+                            "index": 1,
+                            "mrt_index": 4
+                        },
+                        {
+                            "binding": 5,
+                            "index": 2,
+                            "mrt_index": 5
+                        }
+                    ]
+                ],
+                "dispatch_shape": [
+                    8,
+                    8,
+                    16
+                ],
+                "index": 2,
+                "inputs": [
+                    {
+                        "binding": 1,
+                        "index": 0,
+                        "mrt_index": 1
+                    },
+                    {
+                        "binding": 4,
+                        "index": 1,
+                        "mrt_index": 4
+                    }
+                ],
+                "module_index": 2,
+                "name": "compute_segment_1",
+                "outputs": [
+                    {
+                        "binding": 5,
+                        "index": 0,
+                        "mrt_index": 5
+                    }
+                ],
+                "push_constant_ranges": [],
+                "type": "COMPUTE"
+            }
+        ]
+    },
+    "modules": [
+        {
+            "code_size": 0,
+            "entry_point": "main",
+            "has_spirv": false,
+            "index": 0,
+            "name": "graph_partition_0",
+            "type": "COMPUTE"
+        },
+        {
+            "code_size": 231,
+            "entry_point": "graph_partition_1",
+            "has_spirv": true,
+            "index": 1,
+            "name": "graph_partition_1",
+            "type": "GRAPH"
+        },
+        {
+            "code_size": 0,
+            "entry_point": "main",
+            "has_spirv": false,
+            "index": 2,
+            "name": "graph_partition_2",
+            "type": "COMPUTE"
+        }
+    ],
+    "resources": [
+        {
+            "category": "INPUT",
+            "index": 0,
+            "shape": [
+                1,
+                16,
+                16,
+                16
+            ],
+            "stride": [],
+            "vk_descriptor_type": "VK_DESCRIPTOR_TYPE_TENSOR_ARM",
+            "vk_format": "VK_FORMAT_R8_SINT"
+        },
+        {
+            "category": "INPUT",
+            "index": 1,
+            "shape": [
+                1,
+                8,
+                8,
+                16
+            ],
+            "stride": [],
+            "vk_descriptor_type": "VK_DESCRIPTOR_TYPE_TENSOR_ARM",
+            "vk_format": "VK_FORMAT_R8_SINT"
+        },
+        {
+            "category": "INPUT",
+            "index": 2,
+            "shape": [
+                1,
+                16,
+                16,
+                16
+            ],
+            "stride": [],
+            "vk_descriptor_type": "VK_DESCRIPTOR_TYPE_TENSOR_ARM",
+            "vk_format": "VK_FORMAT_R8_SINT"
+        },
+        {
+            "category": "INTERMEDIATE",
+            "index": 3,
+            "shape": [
+                1,
+                16,
+                16,
+                16
+            ],
+            "stride": [],
+            "vk_descriptor_type": "VK_DESCRIPTOR_TYPE_TENSOR_ARM",
+            "vk_format": "VK_FORMAT_R8_SINT"
+        },
+        {
+            "category": "INTERMEDIATE",
+            "index": 4,
+            "shape": [
+                1,
+                8,
+                8,
+                16
+            ],
+            "stride": [],
+            "vk_descriptor_type": "VK_DESCRIPTOR_TYPE_TENSOR_ARM",
+            "vk_format": "VK_FORMAT_R8_SINT"
+        },
+        {
+            "category": "OUTPUT",
+            "index": 5,
+            "shape": [
+                1,
+                8,
+                8,
+                16
+            ],
+            "stride": [],
+            "vk_descriptor_type": "VK_DESCRIPTOR_TYPE_TENSOR_ARM",
+            "vk_format": "VK_FORMAT_R8_SINT"
+        }
+    ]
+}

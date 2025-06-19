@@ -1,0 +1,11 @@
+//
+// SPDX-FileCopyrightText: Copyright 2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+module attributes {tf_saved_model.semantics, tosa.description = "Tosa FBS Converted", tosa.fbs_version = "1.0.0d"} {
+  func.func @main() -> (tensor<55xf32> {tf_saved_model.index_path = ["output_0"]}) attributes {tf.entry_function = {outputs = "tosa_deserialized_output_0:0"}, tf_saved_model.exported_names = ["tosa_deserialized"]} {
+    %0 = "tosa.const"() <{values = dense<[3.40282347E+38, -3.40282347E+38, 0.000000e+00, -0.000000e+00, 1.000000e+00, -1.000000e+00, 0x7FC00000, 0.000000e+00, -0.000000e+00, 0x7F800000, 0xFF800000, 1.17549435E-38, -1.17549435E-38, 3.40282347E+38, -3.40282347E+38, 0.000000e+00, -0.000000e+00, 1.000000e+00, -1.000000e+00, 0x7FC00000, 0.000000e+00, -0.000000e+00, 0x7F800000, 0xFF800000, 1.17549435E-38, -1.17549435E-38, 3.40282347E+38, -3.40282347E+38, 0.000000e+00, -0.000000e+00, 1.000000e+00, -1.000000e+00, 0x7FC00000, 0.000000e+00, -0.000000e+00, 0x7F800000, 0xFF800000, 1.17549435E-38, -1.17549435E-38, 3.40282347E+38, -3.40282347E+38, 0.000000e+00, -0.000000e+00, 1.000000e+00, -1.000000e+00, 0x7FC00000, 0.000000e+00, -0.000000e+00, 0x7F800000, 0xFF800000, 1.17549435E-38, -1.17549435E-38, 3.40282347E+38, -3.40282347E+38, 0.000000e+00]> : tensor<55xf32>}> : () -> tensor<55xf32>
+    %1 = tosa.abs %0 : (tensor<55xf32>) -> tensor<55xf32>
+    return %1 : tensor<55xf32>
+  }
+}
