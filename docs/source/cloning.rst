@@ -1,12 +1,12 @@
 Cloning the repository
 ======================
 
-To clone the |BE_project| as a stand-alone repository, you can use regular git clone commands. However we recommend
-using the :code:`git-repo` tool to clone the repository as part of the SDK suite. The tool is available here:
+To clone the |MC_project| as a stand-alone repository, you can use regular git clone commands. However we recommend
+using the :code:`git-repo` tool to clone the repository as part of the ML SDK for Vulkan® suite. The tool is available here:
 (|git_repo_tool_url|). This ensures all dependencies are fetched and in a suitable default location on the file
 system.
 
-For a minimal build and to initialize only the |BE_project| and its dependencies, run:
+For a minimal build and to initialize only the |MC_project| and its dependencies, run:
 
 .. code-block:: bash
 

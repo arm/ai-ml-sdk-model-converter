@@ -9,19 +9,19 @@ sys.path.insert(0, os.path.abspath("."))
 
 
 # ML SDK Model Converter project config
-BE_project = "ML SDK Model Converter"
+MC_project = "ML SDK Model Converter"
 copyright = "2022-2025, Arm Limited and/or its affiliates <open-source-office@arm.com>"
 author = "Arm Limited"
 git_repo_tool_url = "https://gerrit.googlesource.com/git-repo"
 
 # Set home project name
-project = BE_project
+project = MC_project
 
 rst_epilog = """
-.. |BE_project| replace:: %s
+.. |MC_project| replace:: %s
 .. |git_repo_tool_url| replace:: %s
 """ % (
-    BE_project,
+    MC_project,
     git_repo_tool_url,
 )
 
