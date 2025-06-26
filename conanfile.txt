@@ -1,0 +1,10 @@
+#
+# SPDX-FileCopyrightText: Copyright 2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+# SPDX-License-Identifier: Apache-2.0
+#
+
+# This file serves only as a manifest for listing project dependencies.
+# It is not intended for use in building or packaging with Conan.
+
+[requires]
+flatbuffers/23.5.26
