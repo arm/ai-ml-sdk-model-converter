@@ -139,7 +139,7 @@ class Builder:
         if self.run_linting:
             cmake_setup_cmd.append("-DMODEL_CONVERTER_ENABLE_LINT=ON")
         if self.doc:
-            cmake_setup_cmd.append("-DML_SDK_BUILD_DOCS=ON")
+            cmake_setup_cmd.append("-DMODEL_CONVERTER_BUILD_DOCS=ON")
 
         if self.enable_gcc_sanitizers:
             cmake_setup_cmd.append("-DMODEL_CONVERTER_GCC_SANITIZERS=ON")
