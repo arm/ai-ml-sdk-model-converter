@@ -15,6 +15,12 @@
 #include <sstream>
 #include <vector>
 
+#ifdef _WIN32
+#    include <io.h>
+#else
+#    include <unistd.h>
+#endif
+
 using namespace mlsdk::model_converter;
 using namespace mlsdk::vgflib;
 
@@ -131,6 +137,16 @@ int main(int argc, const char *argv[]) {
             llvm::errs() << "Unable to print parser\n";
         }
         return -1;
+    }
+
+    if (input == "-") {
+#ifdef _WIN32
+        if (_isatty(0)) {
+#else
+        if (isatty(0)) {
+#endif
+            llvm::errs() << "Warning: Using terminal input\n";
+        }
     }
 
     if (options.filename_output != "-" && input == options.filename_output) {
