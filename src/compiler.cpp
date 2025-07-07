@@ -10,6 +10,7 @@
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/Transforms/Passes.h"
 #include "mlir/Dialect/Tosa/Transforms/Passes.h"
+#include "mlir/Transforms/Passes.h"
 #include "vgf-dialect/VGFDialect.h"
 #include "vgf_builder.hpp"
 
@@ -56,6 +57,10 @@ void Compiler::SetPassManager() {
     }
     if (_options.dump_mlir) {
         _pm.enableIRPrinting();
+    }
+
+    if (!_options.emit_debug_info) {
+        _pm.addPass(createStripDebugInfoPass());
     }
 
     // Inline dense resources for now until properly handled throughout the stack
