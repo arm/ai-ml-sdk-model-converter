@@ -45,7 +45,11 @@ set(MODEL_CONVERTER_LOG_TRACE_MASK "" CACHE STRING "Log trace enable mask")
 
 set(MODEL_CONVERTER_PACKAGE_NAME ${PROJECT_NAME})
 set(MODEL_CONVERTER_NAMESPACE ${PROJECT_NAME})
-set(CPACK_PACKAGE_NAME "ml-sdk-model-converter")
+if(ML_SDK_GENERATE_CPACK)
+    set(MODEL_CONVERTER_PACKAGE_NAME "ml-sdk")
+else()
+    set(CPACK_PACKAGE_NAME "ml-sdk-model-converter")
+endif()
 
 #########################################################################################
 # Third Party Dependency path resolver
@@ -244,10 +248,12 @@ add_custom_target(model-converter-tests ALL DEPENDS VGF::vgf_dump)
 ###############################################################################
 include(package)
 
-mlsdk_package(PACKAGE_NAME ${MODEL_CONVERTER_PACKAGE_NAME}
-    NAMESPACE ${MODEL_CONVERTER_NAMESPACE}
-    LICENSES "${CMAKE_CURRENT_LIST_DIR}/LICENSES/Apache-2.0.txt"
-        "${CMAKE_CURRENT_LIST_DIR}/LICENSES/LLVM-exception.txt")
+if(NOT ML_SDK_GENERATE_CPACK)
+    mlsdk_package(PACKAGE_NAME ${MODEL_CONVERTER_PACKAGE_NAME}
+        NAMESPACE ${MODEL_CONVERTER_NAMESPACE}
+        LICENSES "${CMAKE_CURRENT_LIST_DIR}/LICENSES/Apache-2.0.txt"
+            "${CMAKE_CURRENT_LIST_DIR}/LICENSES/LLVM-exception.txt")
+endif()
 
 ###############################################################################
 # MLIR Optimizer
