@@ -2,8 +2,8 @@
 
 The ML SDK Model Converter is a command line application that translate TOSA ML
 Models to VGF files. A VGF file is a model file containing SPIR-V™ modules and
-constants that are required to execute the model through the Arm® Vulkan® ML
-extensions. The ML SDK Model Converter supports several different TOSA encodings
+constants that are required to execute the model through the ML extensions for
+Vulkan®. The ML SDK Model Converter supports several different TOSA encodings
 as inputs:
 
 - TOSA FlatBuffers
@@ -25,8 +25,8 @@ The suggested workflow for this tool as part of the ML SDK for Vulkan® is:
     JSON scenario template file. The template file is edited with the correct
     filenames and paths.
 3.  Using the generated VGF file and scenario file, the ML SDK Scenario Runner
-    then dispatches the contained SPIR-V™ modules to the Arm® Vulkan® ML
-    extensions.
+    then dispatches the contained SPIR-V™ modules to the ML extensions for
+    Vulkan®.
 
 ### Building the ML SDK Model Converter from source
 
