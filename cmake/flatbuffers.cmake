@@ -23,8 +23,8 @@ if(EXISTS ${FLATBUFFERS_PATH}/CMakeLists.txt)
 else()
     find_package(flatbuffers REQUIRED CONFIG)
 
-    if(NOT TARGET flatbuffers)
-        add_library(flatbuffers ALIAS flatbuffers::flatbuffers)
+    if(NOT TARGET flatbuffers::flatbuffers AND TARGET flatbuffers)
+        add_library(flatbuffers::flatbuffers ALIAS flatbuffers)
     endif()
 endif()
 
