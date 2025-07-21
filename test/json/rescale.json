@@ -68,7 +68,7 @@
     },
     "modules": [
         {
-            "code_size": 249,
+            "code_size": 247,
             "entry_point": "graph_partition_0",
             "has_spirv": true,
             "index": 0,
