@@ -16,6 +16,7 @@ repos:
         exclude: \.cp?p?$
       - id: trailing-whitespace
         stages: [pre-commit]
+        exclude: '\.patch$'
       - id: mixed-line-ending
         args: ['--fix=lf']
         description: Forces to replace line ending by the UNIX 'lf' character.
@@ -26,6 +27,7 @@ repos:
       - id: check-added-large-files
         args: ['--maxkb=100']
         stages: [pre-commit]
+        exclude: '\.patch$'
   - repo: https://github.com/Lucas-C/pre-commit-hooks
     rev: v1.5.5
     hooks:

@@ -7,6 +7,8 @@ set(LLVM_PATH "LLVM-NOTFOUND" CACHE PATH "Path to LLVM")
 set(LLVM_VERSION "unknown")
 set(MLIR_VERSION "unknown")
 
+option(MODEL_CONVERTER_APPLY_LLVM_PATCH "Apply LLVM patch" ON)
+
 # Recursively collect compiled library targets
 function(mlsdk_get_compiled_targets dir collected_targets)
     get_directory_property(DIR_TARGETS DIRECTORY ${dir} BUILDSYSTEM_TARGETS)
@@ -30,21 +32,32 @@ function(mlsdk_get_compiled_targets dir collected_targets)
 endfunction()
 
 if(EXISTS ${LLVM_PATH}/llvm/CMakeLists.txt)
-
-    # Try applying LLVM changes patch
-    if(LLVM_PROJECT_PATCH_FILE)
+    if(MODEL_CONVERTER_APPLY_LLVM_PATCH)
+        set(LLVM_PATCH_COMMIT_MESSAGE "llvm-changes-for-model-converter-28-07-2025")
         execute_process(
-            COMMAND git apply --check "${LLVM_PROJECT_PATCH_FILE}"
+            COMMAND git log --grep=${LLVM_PATCH_COMMIT_MESSAGE}
             WORKING_DIRECTORY "${LLVM_PATH}"
-            RESULT_VARIABLE LLVM_PATCH_APPLY_RESULT
-            ERROR_QUIET)
-        if(LLVM_PATCH_APPLY_RESULT EQUAL 0)
-            message(STATUS "Applying LLVM changes patch")
-            execute_process(
-                COMMAND git apply "${LLVM_PROJECT_PATCH_FILE}"
-                WORKING_DIRECTORY "${LLVM_PATH}")
+            RESULT_VARIABLE LLVM_PATCH_SEARCH_RESULT
+            OUTPUT_VARIABLE LLVM_PATCH_SEARCH_OUTPUT
+        )
+        if(LLVM_PATCH_SEARCH_OUTPUT)
+            message(STATUS "LLVM patch is already applied")
         else()
-            message(STATUS "LLVM changes patch is not applicable or failed to apply")
+            set(LLVM_PROJECT_PATCH_FILE "${CMAKE_CURRENT_LIST_DIR}/../patches/llvm.patch")
+            execute_process(
+                COMMAND git apply --check "${LLVM_PROJECT_PATCH_FILE}"
+                WORKING_DIRECTORY "${LLVM_PATH}"
+                RESULT_VARIABLE CAN_APPLY_LLVM_PATCH
+                ERROR_QUIET)
+            if(CAN_APPLY_LLVM_PATCH EQUAL 0)
+                execute_process(
+                    COMMAND git am "${LLVM_PROJECT_PATCH_FILE}"
+                    WORKING_DIRECTORY "${LLVM_PATH}"
+                    ERROR_QUIET)
+                message(STATUS "LLVM patch applied")
+            else()
+                message(FATAL ERROR "Failed to apply LLVM patch")
+            endif()
         endif()
     endif()
 
