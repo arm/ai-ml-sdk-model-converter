@@ -34,7 +34,7 @@ class Builder:
         self.threads = args.threads
         self.prefix_path = args.prefix_path
         self.external_llvm = args.external_llvm
-        self.llvm_changes_patch = args.llvm_changes_patch
+        self.skip_llvm_patch = args.skip_llvm_patch
         self.run_tests = args.test
         self.build_type = args.build_type
         self.flatc_path = args.flatc_path
@@ -108,11 +108,6 @@ class Builder:
         if self.external_llvm:
             cmake_setup_cmd.append(f"-DLLVM_PATH={self.external_llvm}")
 
-        if self.llvm_changes_patch:
-            cmake_setup_cmd.append(
-                f"-DLLVM_PROJECT_PATCH_FILE={self.llvm_changes_patch}"
-            )
-
         if not self.setup_platform_build(cmake_setup_cmd):
             return 1
 
@@ -143,6 +138,8 @@ class Builder:
 
         if self.enable_gcc_sanitizers:
             cmake_setup_cmd.append("-DMODEL_CONVERTER_GCC_SANITIZERS=ON")
+        if self.skip_llvm_patch:
+            cmake_setup_cmd.append("-DMODEL_CONVERTER_APPLY_LLVM_PATCH=OFF")
 
         cmake_build_cmd = [
             "cmake",
@@ -234,10 +231,6 @@ def parse_arguments():
         default=f"{DEPENDENCY_DIR / 'llvm-project'}",
     )
     parser.add_argument(
-        "--llvm-changes-patch",
-        help="Path to the LLVM changes patch file",
-    )
-    parser.add_argument(
         "-t",
         "--test",
         help="Run unit tests after build. Default: %(default)s",
@@ -288,6 +281,12 @@ def parse_arguments():
     parser.add_argument(
         "--enable-gcc-sanitizers",
         help="Enable GCC sanitizers. Default: %(default)s",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--skip-llvm-patch",
+        help="Skip applying LLVM patch. Default: %(default)s",
         action="store_true",
         default=False,
     )
