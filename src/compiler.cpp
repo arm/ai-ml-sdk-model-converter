@@ -63,9 +63,10 @@ void Compiler::SetPassManager() {
         _pm.addPass(createStripDebugInfoPass());
     }
 
-    // Inline dense resources for now until properly handled throughout the stack
     {
         OpPassManager &funcNestedPM = _pm.nest<func::FuncOp>();
+        funcNestedPM.addPass(mlir::tosa::createTosaConvertIntegerTypeToSignless());
+        // Inline dense resources for now until properly handled throughout the stack
         funcNestedPM.addPass(createDenseResourceInlinerPass());
     }
 
