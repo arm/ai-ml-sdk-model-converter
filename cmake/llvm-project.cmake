@@ -33,7 +33,7 @@ endfunction()
 
 if(EXISTS ${LLVM_PATH}/llvm/CMakeLists.txt)
     if(MODEL_CONVERTER_APPLY_LLVM_PATCH)
-        set(LLVM_PATCH_COMMIT_MESSAGE "llvm-changes-for-model-converter-28-07-2025")
+        set(LLVM_PATCH_COMMIT_MESSAGE "llvm-changes-for-model-converter-29-07-2025")
         execute_process(
             COMMAND git log --grep=${LLVM_PATCH_COMMIT_MESSAGE}
             WORKING_DIRECTORY "${LLVM_PATH}"
@@ -45,18 +45,31 @@ if(EXISTS ${LLVM_PATH}/llvm/CMakeLists.txt)
         else()
             set(LLVM_PROJECT_PATCH_FILE "${CMAKE_CURRENT_LIST_DIR}/../patches/llvm.patch")
             execute_process(
-                COMMAND git apply --check "${LLVM_PROJECT_PATCH_FILE}"
+                COMMAND git am "${LLVM_PROJECT_PATCH_FILE}"
                 WORKING_DIRECTORY "${LLVM_PATH}"
-                RESULT_VARIABLE CAN_APPLY_LLVM_PATCH
-                ERROR_QUIET)
-            if(CAN_APPLY_LLVM_PATCH EQUAL 0)
+                RESULT_VARIABLE LLVM_APPLY_AND_COMMIT_PATCH
+                OUTPUT_VARIABLE LLVM_APPLY_AND_COMMIT_PATCH_OUTPUT
+                ERROR_VARIABLE LLVM_APPLY_AND_COMMIT_PATCH_ERROR
+            )
+            if(LLVM_APPLY_AND_COMMIT_PATCH EQUAL 0)
                 execute_process(
-                    COMMAND git am "${LLVM_PROJECT_PATCH_FILE}"
+                    COMMAND git log -1 --oneline
                     WORKING_DIRECTORY "${LLVM_PATH}"
-                    ERROR_QUIET)
-                message(STATUS "LLVM patch applied")
+                    OUTPUT_VARIABLE LLVM_PATCH_COMMIT
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                )
+                message(STATUS "LLVM patch ${LLVM_PATCH_COMMIT} applied")
             else()
-                message(FATAL ERROR "Failed to apply LLVM patch")
+                execute_process(
+                    COMMAND git am --abort
+                    WORKING_DIRECTORY "${LLVM_PATH}"
+                    OUTPUT_QUIET
+                    ERROR_QUIET
+                )
+                message(STATUS "${LLVM_APPLY_AND_COMMIT_PATCH}")
+                message(STATUS "${LLVM_APPLY_AND_COMMIT_PATCH_OUTPUT}")
+                message(STATUS "${LLVM_APPLY_AND_COMMIT_PATCH_ERROR}")
+                message(FATAL_ERROR "Failed to apply LLVM patch")
             endif()
         endif()
     endif()
