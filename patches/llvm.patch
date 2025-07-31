@@ -1,6 +1,6 @@
-From: - <->
+From: svc_sdk <svc_sdk@arm.com>
 Date: Tue Jul 29 00:00:00 2025 
-Subject: llvm-changes-for-model-converter-28-07-2025
+Subject: llvm-changes-for-model-converter-29-07-2025
 
 diff --git a/llvm/tools/spirv-tools/CMakeLists.txt b/llvm/tools/spirv-tools/CMakeLists.txt
 index c2c0f3e3c2e4..5db7aec99759 100644
