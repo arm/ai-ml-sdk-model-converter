@@ -10,13 +10,13 @@ For a minimal build and to initialize only the |MC_project| and its dependencies
 
 .. code-block:: bash
 
-    repo init -u <server>/ml-sdk-for-vulkan-manifest -g model-converter
+    repo init -u https://github.com/arm/ai-ml-sdk-manifest -g model-converter
 
 Alternatively, to initialize the repo structure for the entire ML SDK for Vulkan®, including the ML SDK Model Converter, run:
 
 .. code-block:: bash
 
-    repo init -u <server>/ml-sdk-for-vulkan-manifest -g all
+    repo init -u https://github.com/arm/ai-ml-sdk-manifest -g all
 
 After the repo is initialized, you can fetch the contents with:
 
