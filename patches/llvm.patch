@@ -513,7 +513,7 @@ index 000000000000..5bab8aa6e41a
 +  SPIRV_ExtInstOp<mnemonic, "Tosa", "TOSA.001000.1", opcode, !listconcat(traits, [InGraphScope])> {
 +
 +  let availability = [
-+    MinVersion<SPIRV_V_1_6>,
++    MinVersion<SPIRV_V_1_5>,
 +    MaxVersion<SPIRV_V_1_6>,
 +    Extension<[SPV_ARM_graph]>,
 +    Capability<[SPIRV_C_GraphARM]>
@@ -4560,7 +4560,7 @@ index 000000000000..6ece228571a7
 +
 +spirv::VerCapExtAttr getVerCapExtAttr(MLIRContext *context) {
 +  return spirv::VerCapExtAttr::get(
-+      spirv::Version::V_1_6,
++      spirv::Version::V_1_5,
 +      {
 +          spirv::Capability::VulkanMemoryModel,
 +          spirv::Capability::Shader,
