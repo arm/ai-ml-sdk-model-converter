@@ -45,7 +45,7 @@ if(EXISTS ${LLVM_PATH}/llvm/CMakeLists.txt)
         else()
             set(LLVM_PROJECT_PATCH_FILE "${CMAKE_CURRENT_LIST_DIR}/../patches/llvm.patch")
             execute_process(
-                COMMAND git am "${LLVM_PROJECT_PATCH_FILE}"
+                COMMAND git -c user.name=svc_sdk -c user.email=svc_sdk@arm.com am "${LLVM_PROJECT_PATCH_FILE}"
                 WORKING_DIRECTORY "${LLVM_PATH}"
                 RESULT_VARIABLE LLVM_APPLY_AND_COMMIT_PATCH
                 OUTPUT_VARIABLE LLVM_APPLY_AND_COMMIT_PATCH_OUTPUT
