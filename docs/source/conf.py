@@ -35,7 +35,11 @@ extensions = [
 ]
 
 # Disable superfluous warnings
-suppress_warnings = ["sphinx.ext.autosectionlabel.*"]
+suppress_warnings = [
+    "autosectionlabel.*",
+    "myst.xref_missing",
+    "myst.header",
+]
 # Breathe Configuration
 breathe_projects = {"ModelConverter": "../generated/xml"}
 breathe_default_project = "ModelConverter"
