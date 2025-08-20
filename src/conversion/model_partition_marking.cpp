@@ -17,7 +17,7 @@ class ModelPartitionMarkingPass : public ModelPartitionMarkingPassBase<ModelPart
         mlir::ModuleOp moduleOp = getOperation();
         const Type tI32 = IntegerType::get(moduleOp.getContext(), 32);
         int64_t highestPartitionId{-1};
-        moduleOp.walk([this, &tI32, &highestPartitionId](Operation *op) {
+        moduleOp.walk([&tI32, &highestPartitionId](Operation *op) {
             if (llvm::isa<mlir::ModuleOp>(op) || llvm::isa<mlir::func::FuncOp>(op)) {
                 return;
             }

@@ -52,11 +52,17 @@ class Builder:
         self.target_platform = args.target_platform
 
     def setup_platform_build(self, cmake_cmd):
+        system = platform.system()
         if self.target_platform == "host":
-            system = platform.system()
             if system == "Linux":
                 cmake_cmd.append(
-                    f"-DCMAKE_TOOLCHAIN_FILE={CMAKE_TOOLCHAIN_PATH / 'linux-gcc.cmake'}"
+                    f"-DCMAKE_TOOLCHAIN_FILE={CMAKE_TOOLCHAIN_PATH / 'gcc.cmake'}"
+                )
+                return True
+
+            if system == "Darwin":
+                cmake_cmd.append(
+                    f"-DCMAKE_TOOLCHAIN_FILE={CMAKE_TOOLCHAIN_PATH / 'clang.cmake'}"
                 )
                 return True
 
@@ -70,6 +76,18 @@ class Builder:
             print(f"Unsupported host platform {system}", file=sys.stderr)
             return False
 
+        if self.target_platform == "linux-clang":
+            if system != "Linux":
+                print(
+                    f"ERROR: target {self.target_platform} only supported on Linux. Host platform {system}",
+                    file=sys.stderr,
+                )
+                return False
+            cmake_cmd.append(
+                f"-DCMAKE_TOOLCHAIN_FILE={CMAKE_TOOLCHAIN_PATH / 'clang.cmake'}"
+            )
+            return True
+
         if self.target_platform == "aarch64":
             cmake_cmd.append(
                 f"-DCMAKE_TOOLCHAIN_FILE={CMAKE_TOOLCHAIN_PATH / 'linux-aarch64-gcc.cmake'}"
@@ -81,7 +99,6 @@ class Builder:
             cmake_cmd.append("-DBUILD_DOC=OFF")
 
             cmake_cmd.append("-DBUILD_WSI_WAYLAND_SUPPORT=OFF")
-            cmake_cmd.append("-DBUILD_WSI_XLIB_SUPPORT=OFF")
             cmake_cmd.append("-DBUILD_WSI_XLIB_SUPPORT=OFF")
             cmake_cmd.append("-DBUILD_WSI_XCB_SUPPORT=OFF")
             return True
@@ -157,7 +174,7 @@ class Builder:
 
             if self.run_tests:
                 pytest_cmd = [
-                    "python",
+                    sys.executable,
                     "-m",
                     "pytest",
                     "test",
@@ -313,7 +330,7 @@ def parse_arguments():
     parser.add_argument(
         "--target-platform",
         help="Specify the target build platform",
-        choices=["host", "aarch64"],
+        choices=["host", "aarch64", "linux-clang"],
         default="host",
     )
 
