@@ -93,7 +93,7 @@ if(EXISTS ${LLVM_PATH}/llvm/CMakeLists.txt)
         # which clashes with the glslang SPIRV target
         if(${CMAKE_HOST_SYSTEM_PROCESSOR} MATCHES "^(x86|x86_64|AMD64|x64)$")
             set(TARGETS_TO_BUILD "X86")
-        elseif(${CMAKE_HOST_SYSTEM_PROCESSOR} MATCHES "^arm64")
+        elseif(${CMAKE_HOST_SYSTEM_PROCESSOR} MATCHES "^(aarch64|arm64)$")
             set(TARGETS_TO_BUILD "AArch64")
         endif()
 
