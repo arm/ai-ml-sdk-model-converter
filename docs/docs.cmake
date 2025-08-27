@@ -18,20 +18,31 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/SECURITY.md ${SPHINX_GEN_DIR}/SECURIT
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/LICENSES/Apache-2.0.txt ${SPHINX_GEN_DIR}/LICENSES/Apache-2.0.txt COPYONLY)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/LICENSES/LLVM-exception.txt ${SPHINX_GEN_DIR}/LICENSES/LLVM-exception.txt COPYONLY)
 
+# Generate a text file with model-converter tool help text
+set(MODEL_CONVERTER_ARG_HELP_TXT ${SPHINX_GEN_DIR}/model_converter_help.txt)
+add_custom_command(
+    OUTPUT ${MODEL_CONVERTER_ARG_HELP_TXT}
+    DEPENDS model-converter
+    COMMAND ./model-converter --help > ${MODEL_CONVERTER_ARG_HELP_TXT}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Generating model-converter tool ARGPARSE help documentation"
+    VERBATIM
+)
+
+set(DOC_SRC_FILES_FULL_PATHS
+    ${SPHINX_GEN_DIR}/CONTRIBUTING.md
+    ${SPHINX_GEN_DIR}/README.md
+    ${SPHINX_GEN_DIR}/SECURITY.md
+    ${MODEL_CONVERTER_ARG_HELP_TXT})
+
 # Set source inputs list
 file(GLOB_RECURSE DOC_SRC_FILES CONFIGURE_DEPENDS RELATIVE ${SPHINX_SRC_DIR_IN} ${SPHINX_SRC_DIR_IN}/*)
-set(DOC_SRC_FILES_FULL_PATHS "")
 foreach(SRC_IN IN LISTS DOC_SRC_FILES)
     set(DOC_SOURCE_FILE_IN "${SPHINX_SRC_DIR_IN}/${SRC_IN}")
     set(DOC_SOURCE_FILE "${SPHINX_SRC_DIR}/${SRC_IN}")
     configure_file(${DOC_SOURCE_FILE_IN} ${DOC_SOURCE_FILE} COPYONLY)
     list(APPEND DOC_SRC_FILES_FULL_PATHS ${DOC_SOURCE_FILE})
 endforeach()
-
-list(APPEND DOC_SRC_FILES_FULL_PATHS
-    ${SPHINX_GEN_DIR}/CONTRIBUTING.md
-    ${SPHINX_GEN_DIR}/README.md
-    ${SPHINX_GEN_DIR}/SECURITY.md)
 
 add_custom_command(
     OUTPUT ${SPHINX_INDEX_HTML}
