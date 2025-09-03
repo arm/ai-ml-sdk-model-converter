@@ -8,6 +8,7 @@ import pathlib
 import platform
 import subprocess
 import sys
+from datetime import datetime
 
 try:
     import argcomplete
@@ -199,7 +200,7 @@ class Builder:
                 ]
                 subprocess.run(cmake_install_cmd, check=True)
 
-            if self.package:
+            if self.package and self.package_type != "pip":
                 package_type = self.package_type or "tgz"
                 cpack_generator = package_type.upper()
 
@@ -217,6 +218,31 @@ class Builder:
                     "CPACK_INCLUDE_TOPLEVEL_DIRECTORY=OFF",
                 ]
                 subprocess.run(cmake_package_cmd, check=True)
+
+            if self.package_type == "pip":
+                subprocess.run(
+                    [
+                        "install",
+                        "-D",
+                        f"{self.build_dir}/model-converter",
+                        "pip_package/model_converter/binaries/model-converter",
+                    ]
+                )
+                result = subprocess.Popen(
+                    [
+                        "python",
+                        "setup.py",
+                        "bdist_wheel",
+                        "--plat-name",
+                        "manyLinux2014_x86_64",
+                    ],
+                    cwd="pip_package",
+                )
+                result.communicate()
+                if result.returncode != 0:
+                    print("ERROR: Failed to generate pip package")
+                    return 1
+
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             print(f"ModelConverterBuilder failed with {e}", file=sys.stderr)
             return 1
@@ -324,7 +350,7 @@ def parse_arguments():
     )
     parser.add_argument(
         "--package-type",
-        choices=["zip", "tgz"],
+        choices=["zip", "tgz", "pip"],
         help="Package type",
     )
     parser.add_argument(
