@@ -154,7 +154,7 @@ To build on Linux, run:
 
 ```bash
 SDK_PATH="path/to/sdk"
-python3 ${SDK_PATH}/sw/scenario-runner/scripts/build.py -j $(nproc) \
+python3 ${SDK_PATH}/sw/model-converter/scripts/build.py -j $(nproc) \
     --vgf-lib-path ${SDK_PATH}/sw/vgf-lib \
     --flatbuffers-path ${SDK_PATH}/dependencies/flatbuffers \
     --argparse-path ${SDK_PATH}/dependencies/argparse \
@@ -167,7 +167,7 @@ To build on Windows®, run:
 ```powershell
 $env:SDK_PATH="path\to\sdk"
 $cores = [System.Environment]::ProcessorCount
-python3 "$env:SDK_PATH\sw\scenario-runner\scripts\build.py" -j $cores `
+python3 "$env:SDK_PATH\sw\model-converter\scripts\build.py" -j $cores `
     --vgf-lib-path "$env:SDK_PATH\sw\vgf-lib" `
     --flatbuffers-path "$env:SDK_PATH\dependencies\flatbuffers" `
     --argparse-path "$env:SDK_PATH\dependencies\argparse" `
