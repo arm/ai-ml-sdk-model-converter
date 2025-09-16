@@ -9,6 +9,11 @@ if(NOT DOXYGEN_FOUND OR NOT SPHINX_FOUND)
   return()
 endif()
 
+if(CMAKE_CROSSCOMPILING)
+    message(WARNING "Cannot build the documentation when cross-compiling. Skipping.")
+    return()
+endif()
+
 file(MAKE_DIRECTORY ${SPHINX_GEN_DIR})
 
 # Copy MD files for inclusion into the published docs
@@ -21,12 +26,18 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/LICENSES/LLVM-exception.txt ${SPHINX_
 # Generate a text file with model-converter tool help text
 set(MODEL_CONVERTER_ARG_HELP_TXT ${SPHINX_GEN_DIR}/model_converter_help.txt)
 add_custom_command(
-    OUTPUT ${MODEL_CONVERTER_ARG_HELP_TXT}
-    DEPENDS model-converter
-    COMMAND ./model-converter --help > ${MODEL_CONVERTER_ARG_HELP_TXT}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Generating model-converter tool ARGPARSE help documentation"
+    OUTPUT "${MODEL_CONVERTER_ARG_HELP_TXT}"
+    COMMAND ${CMAKE_COMMAND}
+            -Dcmd=$<IF:$<PLATFORM_ID:Windows>,.\\,./>$<TARGET_FILE_NAME:${MODEL_CONVERTER_NAMESPACE}::model-converter>
+            -Dargs=--help
+            -Dwd=$<TARGET_FILE_DIR:${MODEL_CONVERTER_NAMESPACE}::model-converter>
+            -Dout=${MODEL_CONVERTER_ARG_HELP_TXT}
+            -P ${CMAKE_CURRENT_LIST_DIR}/redirect-output.cmake
+    COMMAND_EXPAND_LISTS
+    DEPENDS ${MODEL_CONVERTER_NAMESPACE}::model-converter
+    BYPRODUCTS ${MODEL_CONVERTER_ARG_HELP_TXT}
     VERBATIM
+    COMMENT "Generating model-converter tool ARGPARSE help documentation"
 )
 
 set(DOC_SRC_FILES_FULL_PATHS
