@@ -4,8 +4,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 import argparse
+import os
 import pathlib
 import platform
+import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -220,13 +222,22 @@ class Builder:
                 subprocess.run(cmake_package_cmd, check=True)
 
             if self.package_type == "pip":
-                subprocess.run(
-                    [
-                        "install",
-                        "-D",
-                        f"{self.build_dir}/model-converter",
-                        "pip_package/model_converter/binaries/model-converter",
-                    ]
+                if sys.platform.startswith("win"):
+                    platformName = "win_amd64"
+                    executablePath = (
+                        f"{self.build_dir}/{self.build_type}/model-converter.exe"
+                    )
+                elif sys.platform.startswith("linux"):
+                    platformName = "manyLinux2014_x86_64"
+                    executablePath = f"{self.build_dir}/model-converter"
+                else:
+                    print(f"ERROR: Unknown platform: {sys.platform}")
+                    return 1
+
+                os.makedirs("pip_package/model_converter/binaries/", exist_ok=True)
+                shutil.copy(
+                    executablePath,
+                    "pip_package/model_converter/binaries/",
                 )
                 result = subprocess.Popen(
                     [
@@ -234,7 +245,7 @@ class Builder:
                         "setup.py",
                         "bdist_wheel",
                         "--plat-name",
-                        "manyLinux2014_x86_64",
+                        platformName,
                     ],
                     cwd="pip_package",
                 )
