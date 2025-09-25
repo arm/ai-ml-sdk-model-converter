@@ -40,7 +40,6 @@ option(MODEL_CONVERTER_BUILD_DOCS "Build documentation" OFF)
 option(MODEL_CONVERTER_ENABLE_COVERAGE "Enable coverage build" OFF)
 option(MODEL_CONVERTER_ENABLE_LINT "Enable linting using cppcheck" OFF)
 option(MODEL_CONVERTER_ENABLE_LTO "Enable Link Time Optimization when CMAKE_BUILD_TYPE=Release" ON)
-option(MODEL_CONVERTER_GCC_SANITIZERS "Sanitizers" OFF)
 set(MODEL_CONVERTER_LOG_TRACE_MASK "" CACHE STRING "Log trace enable mask")
 
 set(MODEL_CONVERTER_PACKAGE_NAME ${PROJECT_NAME})
