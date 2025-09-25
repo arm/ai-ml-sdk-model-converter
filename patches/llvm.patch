@@ -1,6 +1,6 @@
 From: svc_sdk <svc_sdk@arm.com>
-Date: Mon Sep 08 00:00:00 2025 
-Subject: llvm-changes-for-model-converter-08-09-2025
+Date: Mon Sep 08 00:00:00 2025
+Subject: llvm-changes-for-model-converter-25-09-2025
 
 diff --git a/llvm/tools/spirv-tools/CMakeLists.txt b/llvm/tools/spirv-tools/CMakeLists.txt
 index c2c0f3e3c2e4..5db7aec99759 100644
@@ -9,7 +9,7 @@ index c2c0f3e3c2e4..5db7aec99759 100644
 @@ -5,10 +5,6 @@ if (NOT LLVM_INCLUDE_SPIRV_TOOLS_TESTS)
    return()
  endif ()
- 
+
 -if (NOT "SPIRV" IN_LIST LLVM_TARGETS_TO_BUILD)
 -  message(FATAL_ERROR "Building SPIRV-Tools tests is unsupported without the SPIR-V target")
 -endif ()
@@ -37,7 +37,7 @@ index 76e751243a12..2239d065fcd6 100644
 @@ -1262,6 +1262,38 @@ def TosaToSCFPass : Pass<"tosa-to-scf"> {
    }];
  }
- 
+
 +//===----------------------------------------------------------------------===//
 +// TosaToSPIRV
 +//===----------------------------------------------------------------------===//
@@ -161,10 +161,10 @@ index 90383265002a..40a90eee55d7 100644
 +++ b/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVBase.td
 @@ -424,6 +424,7 @@ def SPV_NV_ray_tracing_motion_blur       : I32EnumAttrCase<"SPV_NV_ray_tracing_m
  def SPV_NVX_multiview_per_view_attributes : I32EnumAttrCase<"SPV_NVX_multiview_per_view_attributes", 5015>;
- 
+
  def SPV_ARM_tensors                      : I32EnumAttrCase<"SPV_ARM_tensors", 6000>;
 +def SPV_ARM_graph                        : I32EnumAttrCase<"SPV_ARM_graph", 6001>;
- 
+
  def SPIRV_ExtensionAttr :
      SPIRV_I32EnumAttr<"Extension", "supported SPIR-V extensions", "ext", [
 @@ -448,7 +449,7 @@ def SPIRV_ExtensionAttr :
@@ -207,7 +207,7 @@ index 90383265002a..40a90eee55d7 100644
  def SPIRV_Int32 : TypeAlias<I32, "Int32">;
  def SPIRV_Float32 : TypeAlias<F32, "Float32">;
 @@ -4252,6 +4260,7 @@ def SPIRV_AnyTensorArm : DialectType<SPIRV_Dialect, SPIRV_IsTensorArmType,
- 
+
  def SPIRV_Numerical : AnyTypeOf<[SPIRV_Integer, SPIRV_AnyFloat]>;
  def SPIRV_Scalar : AnyTypeOf<[SPIRV_Numerical, SPIRV_Bool]>;
 +
@@ -241,7 +241,7 @@ index 90383265002a..40a90eee55d7 100644
 @@ -4849,6 +4868,11 @@ class SPIRV_NvVendorOp<string mnemonic, list<Trait> traits = []> :
    SPIRV_VendorOp<mnemonic, "NV", traits> {
  }
- 
+
 +class SPIRV_ArmVendorOp<string mnemonic, list<Trait> traits = []> :
 +  SPIRV_VendorOp<mnemonic, "ARM", traits> {
 +}
@@ -476,11 +476,11 @@ index 0fa1bb9d5bd0..3ef9699154cd 100644
  include "mlir/Dialect/SPIRV/IR/SPIRVStructureOps.td"
 +include "mlir/Dialect/SPIRV/IR/SPIRVTosaOps.td"
  include "mlir/Interfaces/SideEffectInterfaces.td"
- 
+
  #endif // MLIR_DIALECT_SPIRV_IR_OPS
 diff --git a/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTosaOps.td b/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTosaOps.td
 new file mode 100644
-index 000000000000..5bab8aa6e41a
+index 000000000000..0e55fd28e99c
 --- /dev/null
 +++ b/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTosaOps.td
 @@ -0,0 +1,1806 @@
@@ -2412,7 +2412,7 @@ index 5a2520b48a7b..4f3390454d79 100644
 +  GraphType getGraphType(TypeRange inputs, TypeRange results);
    TupleType getTupleType(TypeRange elementTypes);
    NoneType getNoneType();
- 
+
 diff --git a/mlir/include/mlir/IR/BuiltinTypes.td b/mlir/include/mlir/IR/BuiltinTypes.td
 index a0c8acea91dc..08847dd11c68 100644
 --- a/mlir/include/mlir/IR/BuiltinTypes.td
@@ -2420,7 +2420,7 @@ index a0c8acea91dc..08847dd11c68 100644
 @@ -403,7 +403,7 @@ def Builtin_Float128 : Builtin_CachedFloatType<"Float128", "f128"> {
  // FunctionType
  //===----------------------------------------------------------------------===//
- 
+
 -def Builtin_Function : Builtin_Type<"Function", "function"> {
 +class Builtin_FunctionLike<string Name, string typeMnemonic> : Builtin_Type<Name, typeMnemonic> {
    let summary = "Map from a list of inputs to a list of results";
@@ -2437,13 +2437,13 @@ index a0c8acea91dc..08847dd11c68 100644
 @@ -444,23 +445,26 @@ def Builtin_Function : Builtin_Type<"Function", "function"> {
      unsigned getNumResults() const;
      Type getResult(unsigned i) const { return getResults()[i]; }
- 
+
 -    /// Returns a clone of this function type with the given argument
 +    /// Returns a clone of this function-like type with the given argument
      /// and result types.
 -    FunctionType clone(TypeRange inputs, TypeRange results) const;
 +    }] # Name # "Type" # [{ clone(TypeRange inputs, TypeRange results) const;
- 
+
 -    /// Returns a new function type with the specified arguments and results
 +    /// Returns a new function-like type with the specified arguments and results
      /// inserted.
@@ -2452,7 +2452,7 @@ index a0c8acea91dc..08847dd11c68 100644
                                         TypeRange argTypes,
                                         ArrayRef<unsigned> resultIndices,
                                         TypeRange resultTypes);
- 
+
 -    /// Returns a new function type without the specified arguments and results.
 -    FunctionType getWithoutArgsAndResults(const BitVector &argIndices,
 +    /// Returns a new function-like type without the specified arguments and results.
@@ -2460,7 +2460,7 @@ index a0c8acea91dc..08847dd11c68 100644
                                            const BitVector &resultIndices);
    }];
  }
- 
+
 +def Builtin_Function : Builtin_FunctionLike<"Function", "function">;
 +def Builtin_Graph : Builtin_FunctionLike<"Graph", "graph">;
 +
@@ -2474,7 +2474,7 @@ index 45ec1846580f..aab1b01c5cff 100644
 @@ -387,6 +387,13 @@ class OpaqueType<string dialect, string name, string summary>
  def FunctionType : Type<CPred<"::llvm::isa<::mlir::FunctionType>($_self)">,
                                "function type", "::mlir::FunctionType">;
- 
+
 +// Graph Type
 +
 +// Any graph type.
@@ -2526,7 +2526,7 @@ index 000000000000..ed2280b37b67
 +)
 diff --git a/mlir/lib/Conversion/TosaToSPIRV/ConvertTosaConstants.cpp b/mlir/lib/Conversion/TosaToSPIRV/ConvertTosaConstants.cpp
 new file mode 100644
-index 000000000000..3d8b52821a33
+index 000000000000..90d7fa5c9ca7
 --- /dev/null
 +++ b/mlir/lib/Conversion/TosaToSPIRV/ConvertTosaConstants.cpp
 @@ -0,0 +1,247 @@
@@ -2920,10 +2920,10 @@ index 000000000000..9723ad1e6351
 +}
 diff --git a/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVBasePattern.h b/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVBasePattern.h
 new file mode 100644
-index 000000000000..321cb7999032
+index 000000000000..d2de520157ce
 --- /dev/null
 +++ b/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVBasePattern.h
-@@ -0,0 +1,167 @@
+@@ -0,0 +1,166 @@
 +//===-- TosaToSPIRVBasePattern.h - TOSA to SPIR-V patterns ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -2948,6 +2948,8 @@ index 000000000000..321cb7999032
 +namespace mlir {
 +
 +namespace tosa {
++
++static constexpr unsigned MAX_CONTACT_OP_INPUTS = 64;
 +
 +template <typename SourceOp>
 +struct TosaOpConversionPattern : public OpConversionPattern<SourceOp> {
@@ -3054,34 +3056,31 @@ index 000000000000..321cb7999032
 +    return success();
 +  }
 +
-+  void splitConcat(int64_t axis, Value axisVal, ValueRange input,
-+                   int maxNumInputs, ConversionPatternRewriter &rewriter,
-+                   tosa::ConcatOp op) const {
-+    SmallVector<int64_t, 6> newShape;
-+    SmallVector<Value> values;
++  void splitConcat(tosa::ConcatOp op, int64_t axisDimIndex, Value axisValue,
++                   ValueRange inputs, ShapedType inputType,
++                   ConversionPatternRewriter &rewriter) const {
++
++    ArrayRef<int64_t> shape = inputType.getShape();
++    size_t numInputs = inputs.getTypes().size();
++    int64_t axisDim = shape[axisDimIndex];
++
++    SmallVector<int64_t, 6> newShape(shape.begin(), shape.end());
++    newShape[axisDimIndex] = 0;
++    SmallVector<Value, MAX_CONTACT_OP_INPUTS> values;
 +    spirv::TosaConcatOp newOp;
-+    for (const auto &[index, value] : llvm::enumerate(input)) {
-+      values.push_back(value);
-+      TensorType tensorType = llvm::dyn_cast<TensorType>(value.getType());
-+      ArrayRef<int64_t> tensorShape = tensorType.getShape();
-+      auto elementType = getElementTypeOrSelf(tensorType);
-+      bool isLast = index == input.getTypes().size() - 1;
-+      if (newShape.empty()) {
-+        newShape.append(tensorShape.begin(), tensorShape.end());
-+      } else {
-+        newShape[axis] += tensorShape[axis];
-+      }
-+      if (values.size() % maxNumInputs == 0 || isLast) {
-+        Type newType = convertType(tensorType.cloneWith(newShape, elementType));
-+        if (isLast) {
-+          newOp = rewriter.replaceOpWithNewOp<spirv::TosaConcatOp>(
-+              op, newType, axisVal, values);
-+        } else {
-+          newOp = rewriter.create<spirv::TosaConcatOp>(op->getLoc(), newType,
-+                                                       axisVal, values);
-+          values.clear();
-+          values.emplace_back(newOp.getOutput());
-+        }
++    for (const auto &[index, value] : llvm::enumerate(inputs)) {
++      values.emplace_back(value);
++      newShape[axisDimIndex] += axisDim;
++      if (/* is last? */ index == numInputs - 1) {
++        Type newType = convertType(inputType.clone(newShape));
++        newOp = rewriter.replaceOpWithNewOp<spirv::TosaConcatOp>(
++            op, newType, axisValue, values);
++      } else if (values.size() % MAX_CONTACT_OP_INPUTS == 0) {
++        Type newType = convertType(inputType.clone(newShape));
++        newOp = rewriter.create<spirv::TosaConcatOp>(op->getLoc(), newType,
++                                                     axisValue, values);
++        values.clear();
++        values.emplace_back(newOp.getOutput());
 +      }
 +    }
 +  }
@@ -3093,10 +3092,10 @@ index 000000000000..321cb7999032
 +#endif // MLIR_CONVERSION_TOSATOSPIRV_TOSATOSPIRVBASEPATTERN_H
 diff --git a/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVOps.cpp b/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVOps.cpp
 new file mode 100644
-index 000000000000..e04af19b41f6
+index 000000000000..9357fd3961ad
 --- /dev/null
 +++ b/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVOps.cpp
-@@ -0,0 +1,1424 @@
+@@ -0,0 +1,1427 @@
 +//===- TosaToSPIRVOps.cpp - Tosa to SPIR-V Patterns -----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -3140,8 +3139,6 @@ index 000000000000..e04af19b41f6
 +                                IntegerType::get(rewriter.getContext(), 32)),
 +      values);
 +}
-+
-+constexpr int MAX_NUM_INPUTS = 200;
 +
 +struct TosaArgMaxConvert final
 +    : public TosaOpConversionPattern<tosa::ArgMaxOp> {
@@ -4202,9 +4199,14 @@ index 000000000000..e04af19b41f6
 +    Value axis = rewriter.createOrFold<spirv::ConstantOp>(
 +        op.getLoc(), tI32, adaptor.getAxisAttr());
 +    ValueRange input1 = adaptor.getInput1();
-+    if (input1.getTypes().size() > MAX_NUM_INPUTS) {
-+      splitConcat(adaptor.getAxis(), axis, input1, MAX_NUM_INPUTS, rewriter,
-+                  op);
++    if (input1.getTypes().size() > MAX_CONTACT_OP_INPUTS) {
++      // The type is the same for all concat inputs so extract the first
++      ShapedType inputType = dyn_cast<ShapedType>(input1.getTypes().front());
++      if (!inputType) {
++        return emitError(op->getLoc(),
++                         "input types of Concat must be shaped types");
++      }
++      splitConcat(op, adaptor.getAxis(), axis, input1, inputType, rewriter);
 +    } else {
 +      rewriter.replaceOpWithNewOp<spirv::TosaConcatOp>(
 +          op, convertType(op.getType()), axis, input1);
@@ -4523,10 +4525,10 @@ index 000000000000..e04af19b41f6
 +}
 diff --git a/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVPass.cpp b/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVPass.cpp
 new file mode 100644
-index 000000000000..6ece228571a7
+index 000000000000..b878619bbed9
 --- /dev/null
 +++ b/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVPass.cpp
-@@ -0,0 +1,173 @@
+@@ -0,0 +1,177 @@
 +//===- TosaToSPIRVPass.cpp - Lowering Tosa to SPIR-V Dialect --------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -4580,6 +4582,7 @@ index 000000000000..6ece228571a7
 +          spirv::Extension::SPV_ARM_graph,
 +          spirv::Extension::SPV_KHR_vulkan_memory_model,
 +          spirv::Extension::SPV_EXT_replicated_composites,
++          spirv::Extension::SPV_KHR_non_semantic_info,
 +      },
 +      context);
 +}
@@ -4677,15 +4680,18 @@ index 000000000000..6ece228571a7
 +      return SmallVector<int64_t>(shape.size(), ShapedType::kDynamic);
 +    return SmallVector<int64_t>(shape);
 +  }
++
 +  spirv::TensorArmType convertTensorType(TensorType tensorType) {
 +    Type elementType = getElementTypeOrSelf(tensorType);
 +    if (elementType.isIndex())
 +      elementType = IntegerType::get(&getContext(), 32);
 +    if (auto integerType = dyn_cast<IntegerType>(elementType))
 +      elementType = convertIntegerType(integerType);
++
 +    SmallVector<int64_t> shape = tensorType.hasRank()
 +                                     ? convertShape(tensorType.getShape())
 +                                     : SmallVector<int64_t>();
++
 +    return spirv::TensorArmType::get(shape, elementType);
 +  }
 +
@@ -4700,6 +4706,18 @@ index 000000000000..6ece228571a7
 +std::unique_ptr<Pass> mlir::tosa::createTosaToSPIRV(bool analysis) {
 +  return std::make_unique<TosaToSPIRV>(analysis);
 +}
+diff --git a/mlir/lib/Dialect/SPIRV/IR/CMakeLists.txt b/mlir/lib/Dialect/SPIRV/IR/CMakeLists.txt
+index b9aa7b7491ab..cb51f4f246cd 100644
+--- a/mlir/lib/Dialect/SPIRV/IR/CMakeLists.txt
++++ b/mlir/lib/Dialect/SPIRV/IR/CMakeLists.txt
+@@ -23,6 +23,7 @@ add_mlir_dialect_library(MLIRSPIRVDialect
+   SPIRVParsingUtils.cpp
+   SPIRVTypes.cpp
+   TargetAndABI.cpp
++  TosaOps.cpp
+
+   ADDITIONAL_HEADER_DIRS
+   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/SPIRV
 diff --git a/mlir/lib/Dialect/SPIRV/IR/SPIRVDialect.cpp b/mlir/lib/Dialect/SPIRV/IR/SPIRVDialect.cpp
 index f32c53b8f0b9..8418ad71f3f0 100644
 --- a/mlir/lib/Dialect/SPIRV/IR/SPIRVDialect.cpp
@@ -4707,7 +4725,7 @@ index f32c53b8f0b9..8418ad71f3f0 100644
 @@ -1015,8 +1015,14 @@ LogicalResult SPIRVDialect::verifyRegionArgAttribute(Operation *op,
    return verifyRegionAttribute(op->getLoc(), argType, attribute);
  }
- 
+
 -LogicalResult SPIRVDialect::verifyRegionResultAttribute(
 -    Operation *op, unsigned /*regionIndex*/, unsigned /*resultIndex*/,
 -    NamedAttribute attribute) {
@@ -4730,7 +4748,7 @@ index d8dfe164458e..2f3a28ff1617 100644
 @@ -31,6 +31,18 @@ static bool isNestedInFunctionOpInterface(Operation *op) {
    return isNestedInFunctionOpInterface(op->getParentOp());
  }
- 
+
 +/// Returns true if the given op is a GraphARM op or nested in a
 +/// GraphARM op without a module-like op in the middle.
 +static bool isNestedInGraphARMOpInterface(Operation *op) {
@@ -4747,13 +4765,13 @@ index d8dfe164458e..2f3a28ff1617 100644
  /// table.
  static bool isDirectInModuleLikeOp(Operation *op) {
 diff --git a/mlir/lib/Dialect/SPIRV/IR/SPIRVOps.cpp b/mlir/lib/Dialect/SPIRV/IR/SPIRVOps.cpp
-index 656236246b1a..73d5e1793c05 100644
+index 656236246b1a..8f9642ef3e1f 100644
 --- a/mlir/lib/Dialect/SPIRV/IR/SPIRVOps.cpp
 +++ b/mlir/lib/Dialect/SPIRV/IR/SPIRVOps.cpp
 @@ -767,19 +767,22 @@ void mlir::spirv::AddressOfOp::getAsmResultNames(
  // spirv.EXTConstantCompositeReplicate
  //===----------------------------------------------------------------------===//
- 
+
 +static Type getValueType(Attribute attr) {
 +  if (auto typedAttr = dyn_cast<TypedAttr>(attr)) {
 +    return typedAttr.getType();
@@ -4781,13 +4799,13 @@ index 656236246b1a..73d5e1793c05 100644
 +  if (!valueType)
      return emitError("unknown value attribute type");
 -  }
- 
+
    auto compositeType = dyn_cast<spirv::CompositeType>(getType());
    if (!compositeType)
 @@ -1120,6 +1123,236 @@ void spirv::FuncOp::build(OpBuilder &builder, OperationState &state,
    state.addRegion();
  }
- 
+
 +//===----------------------------------------------------------------------===//
 +// spirv.GraphEntryPointARM
 +//===----------------------------------------------------------------------===//
@@ -5021,10 +5039,30 @@ index 656236246b1a..73d5e1793c05 100644
  //===----------------------------------------------------------------------===//
  // spirv.GLFClampOp
  //===----------------------------------------------------------------------===//
-@@ -2128,3 +2361,1153 @@ LogicalResult spirv::VectorTimesScalarOp::verify() {
-     return emitOpError("scalar operand and result element type match");
-   return success();
- }
+diff --git a/mlir/lib/Dialect/SPIRV/IR/TosaOps.cpp b/mlir/lib/Dialect/SPIRV/IR/TosaOps.cpp
+new file mode 100644
+index 000000000000..f53fbd393873
+--- /dev/null
++++ b/mlir/lib/Dialect/SPIRV/IR/TosaOps.cpp
+@@ -0,0 +1,1133 @@
++//===- TosaOps.cpp - MLIR SPIR-V operations -------------------------------===//
++//
++// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
++// See https://llvm.org/LICENSE.txt for license information.
++// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
++//
++//===----------------------------------------------------------------------===//
++//
++// This file defines the Tosa operations in the SPIR-V dialect.
++//
++//===----------------------------------------------------------------------===//
++
++#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
++
++#include "mlir/IR/BuiltinTypes.h"
++#include "mlir/IR/TypeUtilities.h"
++
++using namespace mlir;
 +
 +//===----------------------------------------------------------------------===//
 +// TOSA Operator Verifiers.
@@ -5036,11 +5074,9 @@ index 656236246b1a..73d5e1793c05 100644
 +static LogicalResult getConstAttr(Value value, TAttr &valAttr) {
 +  if (auto constOp = value.template getDefiningOp<spirv::ConstantOp>()) {
 +    valAttr = dyn_cast<TAttr>(constOp.getValue());
-+  }
-+
-+  if (auto constCompositeReplicateOp =
-+          value.template getDefiningOp<
-+              spirv::EXTConstantCompositeReplicateOp>()) {
++  } else if (auto constCompositeReplicateOp =
++                 value.template getDefiningOp<
++                     spirv::EXTConstantCompositeReplicateOp>()) {
 +    auto splatAttr = constCompositeReplicateOp.getValue();
 +    auto denseValAttr = SplatElementsAttr::get(
 +        cast<ShapedType>(constCompositeReplicateOp.getType()), splatAttr);
@@ -5052,37 +5088,21 @@ index 656236246b1a..73d5e1793c05 100644
 +
 +template <typename T, typename TAdaptor>
 +static LogicalResult verifyConvOp(T op, TAdaptor adaptor) {
-+  auto inputTy = llvm::dyn_cast<spirv::TensorArmType>(op.getInput().getType());
-+  auto weightTy =
-+      llvm::dyn_cast<spirv::TensorArmType>(op.getWeight().getType());
-+  auto biasTy = llvm::dyn_cast<spirv::TensorArmType>(op.getBias().getType());
-+  auto resultTy = llvm::dyn_cast<spirv::TensorArmType>(op.getType());
-+
-+  if (!inputTy) {
-+    return op.emitOpError("expect a ranked tensorARM for input, got ")
-+           << op.getInput();
-+  }
-+
-+  if (!weightTy) {
-+    return op.emitOpError("expect a ranked tensorARM for weight, got ")
-+           << op.getWeight();
-+  }
-+
-+  if (!biasTy) {
-+    return op.emitOpError("expect a ranked tensorARM for bias, got ")
-+           << op.getWeight();
-+  }
++  auto inputTy = cast<ShapedType>(op.getInput().getType());
++  auto weightTy = cast<ShapedType>(op.getWeight().getType());
++  auto biasTy = cast<ShapedType>(op.getBias().getType());
++  auto resultTy = cast<ShapedType>(op.getType());
 +
 +  if constexpr (std::is_same_v<T, spirv::TosaConv3DOp>) {
-+    if (inputTy.getRank() != 5) {
++    if (inputTy.hasRank() && inputTy.getRank() != 5) {
 +      return op.emitOpError("input rank must be 5");
 +    }
 +
-+    if (weightTy.getRank() != 5) {
++    if (weightTy.hasRank() && weightTy.getRank() != 5) {
 +      return op.emitOpError("weight rank must be 5");
 +    }
 +
-+    if (resultTy.getRank() != 5) {
++    if (resultTy.hasRank() && resultTy.getRank() != 5) {
 +      return op.emitOpError("result rank must be 5");
 +    }
 +  } else {
@@ -5090,16 +5110,16 @@ index 656236246b1a..73d5e1793c05 100644
 +      return op.emitOpError("input rank must be 4");
 +    }
 +
-+    if (weightTy.getRank() != 4) {
++    if (weightTy.hasRank() && weightTy.getRank() != 4) {
 +      return op.emitOpError("weight rank must be 4");
 +    }
 +
-+    if (resultTy.getRank() != 4) {
++    if (resultTy.hasRank() && resultTy.getRank() != 4) {
 +      return op.emitOpError("result rank must be 4");
 +    }
 +  }
 +
-+  if (biasTy.getRank() != 1) {
++  if (biasTy.hasRank() && biasTy.getRank() != 1) {
 +    return op.emitOpError("bias rank must be 1");
 +  }
 +
@@ -5160,7 +5180,7 @@ index 656236246b1a..73d5e1793c05 100644
 +        "element types of weight_zp and weight must be the same");
 +  }
 +
-+  if (llvm::isa<IntegerType>(inputZpETy)) {
++  if (isa<IntegerType>(inputZpETy)) {
 +    if ((inputZpETy.getIntOrFloatBitWidth() != 8) &&
 +        !inputZpAttr.getValues<APInt>()[0].isZero()) {
 +      return op.emitOpError(
@@ -5173,7 +5193,7 @@ index 656236246b1a..73d5e1793c05 100644
 +    }
 +  }
 +
-+  if (llvm::isa<IntegerType>(weightZpETy)) {
++  if (isa<IntegerType>(weightZpETy)) {
 +    if ((weightZpETy.getIntOrFloatBitWidth() != 8) &&
 +        !weightZpAttr.getValues<APInt>()[0].isZero()) {
 +      return op.emitOpError(
@@ -5196,7 +5216,6 @@ index 656236246b1a..73d5e1793c05 100644
 +
 +template <typename T>
 +static LogicalResult verifyConvOpModes(T op) {
-+
 +  IntegerAttr accTypeAttr;
 +  if (getConstAttr(op.getAccType(), accTypeAttr).failed()) {
 +    return op.emitOpError("accumulator type must be a constant integer");
@@ -5208,7 +5227,7 @@ index 656236246b1a..73d5e1793c05 100644
 +                          "corresponding to i32/f16/f32/i48");
 +  }
 +
-+  auto inputTy = llvm::dyn_cast<spirv::TensorArmType>(op.getInput().getType());
++  auto inputTy = cast<ShapedType>(op.getInput().getType());
 +  auto inputETy = inputTy.getElementType();
 +
 +  if (inputETy.isInteger(8) && accType != 1) {
@@ -5238,9 +5257,8 @@ index 656236246b1a..73d5e1793c05 100644
 +// Verify that inType and outType have same element types
 +template <typename TOp>
 +static LogicalResult verifySameElementTypes(TOp op, Type inType, Type outType) {
-+
-+  auto inputType = llvm::dyn_cast<ShapedType>(inType);
-+  auto outputType = llvm::dyn_cast<ShapedType>(outType);
++  auto inputType = dyn_cast<ShapedType>(inType);
++  auto outputType = dyn_cast<ShapedType>(outType);
 +
 +  if (!inputType) {
 +    op.emitOpError("expect shaped tensorARM for input, got ") << inType;
@@ -5266,11 +5284,12 @@ index 656236246b1a..73d5e1793c05 100644
 +//===----------------------------------------------------------------------===//
 +
 +LogicalResult spirv::TosaArgMaxOp::verify() {
-+  auto inputTy = llvm::cast<ShapedType>(getInput().getType());
-+  auto resultTy = llvm::cast<ShapedType>(getType());
++  auto inputTy = cast<ShapedType>(getInput().getType());
++  auto resultTy = cast<ShapedType>(getType());
 +
-+  if (resultTy.getRank() !=
-+      (inputTy.getRank() > 1 ? inputTy.getRank() - 1 : 1)) {
++  if (inputTy.hasRank() && resultTy.hasRank() &&
++      resultTy.getRank() !=
++          (inputTy.getRank() > 1 ? inputTy.getRank() - 1 : 1)) {
 +    return emitOpError("result rank must be max of 1 and (input rank - 1)");
 +  }
 +
@@ -5308,13 +5327,13 @@ index 656236246b1a..73d5e1793c05 100644
 +//===----------------------------------------------------------------------===//
 +
 +LogicalResult spirv::TosaAvgPool2DOp::verify() {
-+  auto inputTy = llvm::cast<ShapedType>(getInput().getType());
-+  if (inputTy.getRank() != 4) {
++  auto inputTy = cast<ShapedType>(getInput().getType());
++  if (inputTy.hasRank() && inputTy.getRank() != 4) {
 +    return emitOpError("input rank must be 4");
 +  }
 +
-+  auto resultTy = llvm::cast<ShapedType>(getType());
-+  if (resultTy.getRank() != 4) {
++  auto resultTy = cast<ShapedType>(getType());
++  if (resultTy.hasRank() && resultTy.getRank() != 4) {
 +    return emitOpError("result rank must be 4");
 +  }
 +
@@ -5332,7 +5351,7 @@ index 656236246b1a..73d5e1793c05 100644
 +  auto inputETy = inputTy.getElementType();
 +  auto resultETy = resultTy.getElementType();
 +
-+  if (llvm::isa<IntegerType>(inputETy) && accType != 1) {
++  if (isa<IntegerType>(inputETy) && accType != 1) {
 +    return emitOpError("accumulator type for integer tensorARM is not i32");
 +  }
 +
@@ -5389,25 +5408,25 @@ index 656236246b1a..73d5e1793c05 100644
 +//===----------------------------------------------------------------------===//
 +
 +LogicalResult spirv::TosaFFT2DOp::verify() {
-+  auto inputRealTy = llvm::dyn_cast<ShapedType>(getInputReal().getType());
-+  auto inputImagTy = llvm::dyn_cast<ShapedType>(getInputImag().getType());
-+  auto resultTy = llvm::cast<StructType>(getType());
-+  auto resultRealTy = llvm::dyn_cast<ShapedType>(resultTy.getElementType(0));
-+  auto resultImagTy = llvm::dyn_cast<ShapedType>(resultTy.getElementType(1));
++  auto inputRealTy = cast<ShapedType>(getInputReal().getType());
++  auto inputImagTy = cast<ShapedType>(getInputImag().getType());
++  auto resultTy = cast<StructType>(getType());
++  auto resultRealTy = cast<ShapedType>(resultTy.getElementType(0));
++  auto resultImagTy = cast<ShapedType>(resultTy.getElementType(1));
 +
-+  if (inputRealTy.getRank() != 3) {
++  if (inputRealTy.hasRank() && inputRealTy.getRank() != 3) {
 +    return emitOpError("real input rank must be 3");
 +  }
 +
-+  if (inputImagTy.getRank() != 3) {
++  if (inputImagTy.hasRank() && inputImagTy.getRank() != 3) {
 +    return emitOpError("imaginary input rank must be 3");
 +  }
 +
-+  if (resultImagTy.getRank() != 3) {
++  if (resultRealTy.hasRank() && resultRealTy.getRank() != 3) {
 +    return emitOpError("real result rank must be 3");
 +  }
 +
-+  if (resultImagTy.getRank() != 3) {
++  if (resultImagTy.hasRank() && resultImagTy.getRank() != 3) {
 +    return emitOpError("imaginary result rank must be 3");
 +  }
 +
@@ -5435,24 +5454,24 @@ index 656236246b1a..73d5e1793c05 100644
 +//===----------------------------------------------------------------------===//
 +
 +LogicalResult spirv::TosaMatMulOp::verify() {
-+  auto aTy = llvm::dyn_cast<ShapedType>(getA().getType());
-+  auto bTy = llvm::dyn_cast<ShapedType>(getB().getType());
-+  auto resultTy = llvm::cast<ShapedType>(getType());
++  auto aTy = cast<ShapedType>(getA().getType());
++  auto bTy = cast<ShapedType>(getB().getType());
++  auto resultTy = cast<ShapedType>(getType());
 +
 +  if (!aTy || !bTy) {
 +    return emitOpError("expected shaped tensors for inputs, got ")
 +           << getA().getType() << " and " << getB().getType();
 +  }
 +
-+  if (aTy.getRank() != 3) {
-+    return emitOpError("tensorARM A rank must be 3");
++  if (aTy.hasRank() && aTy.getRank() != 3) {
++    return emitOpError("A rank must be 3");
 +  }
 +
-+  if (bTy.getRank() != 3) {
-+    return emitOpError("tensorARM B rank must be 3");
++  if (bTy.hasRank() && bTy.getRank() != 3) {
++    return emitOpError("B rank must be 3");
 +  }
 +
-+  if (resultTy.getRank() != 3) {
++  if (resultTy.hasRank() && resultTy.getRank() != 3) {
 +    return emitOpError("result rank must be 3");
 +  }
 +
@@ -5503,7 +5522,7 @@ index 656236246b1a..73d5e1793c05 100644
 +    return emitOpError("b_zp must have a single element");
 +  }
 +
-+  if (llvm::isa<IntegerType>(aETy)) {
++  if (isa<IntegerType>(aETy)) {
 +    if ((aETy.getIntOrFloatBitWidth() != 8) &&
 +        (!aZpAttr.getValues<APInt>()[0].isZero() ||
 +         !bZpAttr.getValues<APInt>()[0].isZero())) {
@@ -5524,13 +5543,14 @@ index 656236246b1a..73d5e1793c05 100644
 +//===----------------------------------------------------------------------===//
 +
 +LogicalResult spirv::TosaMaxPool2DOp::verify() {
-+  auto inputTy = llvm::dyn_cast<ShapedType>(getInput().getType());
-+  if (inputTy.getRank() != 4) {
++  auto inputTy = cast<ShapedType>(getInput().getType());
++  auto resultTy = cast<ShapedType>(getType());
++
++  if (inputTy.hasRank() && inputTy.getRank() != 4) {
 +    return emitOpError("input rank must be 4");
 +  }
 +
-+  auto resultTy = llvm::cast<ShapedType>(getType());
-+  if (resultTy.getRank() != 4) {
++  if (resultTy.hasRank() && resultTy.getRank() != 4) {
 +    return emitOpError("result rank must be 4");
 +  }
 +
@@ -5554,20 +5574,20 @@ index 656236246b1a..73d5e1793c05 100644
 +//===----------------------------------------------------------------------===//
 +
 +LogicalResult spirv::TosaRFFT2DOp::verify() {
-+  auto inputTy = llvm::dyn_cast<ShapedType>(getInputReal().getType());
-+  auto resultTy = llvm::cast<StructType>(getType());
-+  auto resultRealTy = llvm::dyn_cast<ShapedType>(resultTy.getElementType(0));
-+  auto resultImagTy = llvm::dyn_cast<ShapedType>(resultTy.getElementType(1));
++  auto inputTy = cast<ShapedType>(getInputReal().getType());
++  auto resultTy = cast<StructType>(getType());
++  auto resultRealTy = cast<ShapedType>(resultTy.getElementType(0));
++  auto resultImagTy = cast<ShapedType>(resultTy.getElementType(1));
 +
-+  if (inputTy.getRank() != 3) {
++  if (inputTy.hasRank() && inputTy.getRank() != 3) {
 +    return emitOpError("input rank must be 3");
 +  }
 +
-+  if (resultImagTy.getRank() != 3) {
++  if (resultRealTy.hasRank() && resultRealTy.getRank() != 3) {
 +    return emitOpError("real result rank must be 3");
 +  }
 +
-+  if (resultImagTy.getRank() != 3) {
++  if (resultImagTy.hasRank() && resultImagTy.getRank() != 3) {
 +    return emitOpError("imaginary result rank must be 3");
 +  }
 +
@@ -5605,11 +5625,11 @@ index 656236246b1a..73d5e1793c05 100644
 +
 +  // Verify if the element type amoung operands and result match tosa
 +  // specification.
-+  if (auto resIntType = llvm::dyn_cast<IntegerType>(resElemType)) {
++  if (auto resIntType = dyn_cast<IntegerType>(resElemType)) {
 +    IntegerType lhsIntType =
-+        llvm::cast<IntegerType>(getElementTypeOrSelf(getInput1()));
++        cast<IntegerType>(getElementTypeOrSelf(getInput1()));
 +    IntegerType rhsIntType =
-+        llvm::cast<IntegerType>(getElementTypeOrSelf(getInput2()));
++        cast<IntegerType>(getElementTypeOrSelf(getInput2()));
 +    if (lhsIntType != rhsIntType)
 +      return emitOpError(
 +          "requires the same element type for all input operands");
@@ -5629,15 +5649,14 @@ index 656236246b1a..73d5e1793c05 100644
 +    }
 +  }
 +
-+  auto getRank = [](const Type type) {
-+    return llvm::cast<ShapedType>(type).getRank();
++  auto compareRank = [](const ShapedType type, const ShapedType against) {
++    return type.hasRank() && against.hasRank() &&
++           type.getRank() == against.getRank();
 +  };
++  ShapedType opType = cast<ShapedType>(getType());
 +  for (int i = 0; i < 2; ++i) {
-+    if (getRank(getOperand(i).getType()) != getRank(getType()))
++    if (!compareRank(cast<ShapedType>(getOperand(i).getType()), opType))
 +      return emitOpError("result type has different rank than operands");
-+  }
-+  if (getRank(getOperand(0).getType()) != getRank(getOperand(1).getType())) {
-+    return emitOpError("operands don't have matching ranks");
 +  }
 +  return success();
 +}
@@ -5646,9 +5665,8 @@ index 656236246b1a..73d5e1793c05 100644
 +// spirv.TosaCastOp
 +//===----------------------------------------------------------------------===//
 +LogicalResult spirv::TosaCastOp::verify() {
-+  auto inputType = llvm::cast<ShapedType>(getInput().getType());
-+  auto inputETy = inputType.getElementType();
-+  auto outputETy = llvm::cast<ShapedType>(getType()).getElementType();
++  auto inputETy = cast<ShapedType>(getInput().getType()).getElementType();
++  auto outputETy = cast<ShapedType>(getType()).getElementType();
 +
 +  // input element type: bool
 +  if (inputETy.isInteger(1)) {
@@ -5704,9 +5722,8 @@ index 656236246b1a..73d5e1793c05 100644
 +// spirv.TosaClampOp
 +//===----------------------------------------------------------------------===//
 +LogicalResult spirv::TosaClampOp::verify() {
-+  auto inputETy = llvm::cast<ShapedType>(getInput().getType()).getElementType();
-+  auto outputETy =
-+      llvm::cast<ShapedType>(getOutput().getType()).getElementType();
++  auto inputETy = cast<ShapedType>(getInput().getType()).getElementType();
++  auto outputETy = cast<ShapedType>(getOutput().getType()).getElementType();
 +
 +  if (inputETy != outputETy)
 +    return emitOpError("input/output element types are incompatible");
@@ -5762,8 +5779,7 @@ index 656236246b1a..73d5e1793c05 100644
 +    return failure();
 +  }
 +
-+  auto inputETy =
-+      llvm::cast<ShapedType>(getInput1().getType()).getElementType();
++  auto inputETy = cast<ShapedType>(getInput1().getType()).getElementType();
 +
 +  DenseIntOrFPElementsAttr padConstAttr;
 +  if ((getConstAttr(getPadConst(), padConstAttr).failed()) ||
@@ -5778,24 +5794,24 @@ index 656236246b1a..73d5e1793c05 100644
 +// spirv.TosaSliceOp
 +//===----------------------------------------------------------------------===//
 +LogicalResult spirv::TosaSliceOp::verify() {
-+  if (verifySameElementTypes(*this, getInput1().getType(),
-+                             getOutput().getType())
-+          .failed()) {
++  auto inputTy = cast<ShapedType>(getInput1().getType());
++  auto outputTy = cast<ShapedType>(getOutput().getType());
++  auto startTy = cast<ShapedType>(getStart().getType());
++  auto sizeTy = cast<ShapedType>(getSize().getType());
++
++  if (verifySameElementTypes(*this, inputTy, outputTy).failed()) {
 +    return failure();
 +  }
 +
-+  auto input_rank = llvm::cast<ShapedType>(getInput1().getType()).getRank();
-+  auto start_shape_rank =
-+      llvm::cast<ShapedType>(getStart().getType()).getShape()[0];
-+
-+  if (input_rank != start_shape_rank) {
++  if (inputTy.hasRank() && startTy.hasRank() &&
++      startTy.getShape()[0] != ShapedType::kDynamic &&
++      inputTy.getRank() != startTy.getShape()[0]) {
 +    return emitOpError("length of start is not equal to rank of input shape");
 +  }
 +
-+  auto size_shape_rank =
-+      llvm::cast<ShapedType>(getSize().getType()).getShape()[0];
-+
-+  if (input_rank != size_shape_rank) {
++  if (inputTy.hasRank() && sizeTy.hasRank() &&
++      sizeTy.getShape()[0] != ShapedType::kDynamic &&
++      inputTy.getRank() != sizeTy.getShape()[0]) {
 +    return emitOpError("length of size is not equal to rank of input shape");
 +  }
 +  return success();
@@ -5805,23 +5821,24 @@ index 656236246b1a..73d5e1793c05 100644
 +// spirv.TosaTileOp
 +//===----------------------------------------------------------------------===//
 +LogicalResult spirv::TosaTileOp::verify() {
++  auto inputTy = cast<ShapedType>(getInput1().getType());
++  auto outputTy = cast<ShapedType>(getOutput().getType());
++  auto multiplesTy = cast<ShapedType>(getMultiples().getType());
 +
-+  auto input_rank = llvm::cast<ShapedType>(getInput1().getType()).getRank();
-+  auto output_rank = llvm::cast<ShapedType>(getOutput().getType()).getRank();
-+  auto multiples_shape_rank =
-+      llvm::cast<ShapedType>(getMultiples().getType()).getShape()[0];
-+
-+  if (verifySameElementTypes(*this, getInput1().getType(),
-+                             getOutput().getType())
-+          .failed()) {
++  if (verifySameElementTypes(*this, inputTy, outputTy).failed()) {
 +    return failure();
 +  }
-+  if (input_rank != output_rank) {
++
++  if (inputTy.hasRank() && outputTy.hasRank() &&
++      inputTy.getRank() != outputTy.getRank()) {
 +    return emitOpError("expect same input and output tensorARM rank");
 +  }
-+  if (input_rank != multiples_shape_rank) {
++
++  if (inputTy.hasRank() && multiplesTy.hasRank() &&
++      multiplesTy.getShape()[0] != ShapedType::kDynamic &&
++      inputTy.getRank() != multiplesTy.getShape()[0]) {
 +    return emitOpError("expect 'multiples' array to have length ")
-+           << input_rank << " but got " << multiples_shape_rank;
++           << inputTy.getRank() << " but got " << multiplesTy.getShape()[0];
 +  }
 +  return success();
 +}
@@ -5830,30 +5847,29 @@ index 656236246b1a..73d5e1793c05 100644
 +// spirv.TosaTransposeOp
 +//===----------------------------------------------------------------------===//
 +LogicalResult spirv::TosaTransposeOp::verify() {
-+  if (verifySameElementTypes(*this, getInput1().getType(),
-+                             getOutput().getType())
-+          .failed()) {
++  auto inputTy = cast<ShapedType>(getInput1().getType());
++  auto outputTy = cast<ShapedType>(getOutput().getType());
++  auto permsTy = cast<ShapedType>(getPerms().getType());
++
++  if (verifySameElementTypes(*this, inputTy, outputTy).failed()) {
 +    return failure();
 +  }
 +
-+  auto input_rank = llvm::cast<ShapedType>(getInput1().getType()).getRank();
-+  auto output_rank = llvm::cast<ShapedType>(getOutput().getType()).getRank();
-+  auto perms_rank = llvm::cast<ShapedType>(getPerms().getType()).getRank();
-+
-+  if (input_rank != output_rank) {
++  if (inputTy.hasRank() && outputTy.hasRank() &&
++      inputTy.getRank() != outputTy.getRank()) {
 +    return emitOpError("expect same input and output tensorARM rank");
 +  }
-+  if (perms_rank != 1) {
++
++  if (permsTy.hasRank() && permsTy.getRank() != 1) {
 +    return emitOpError(
 +               "expected permutation tensorARM to be rank 1 but got rank ")
-+           << perms_rank;
++           << permsTy.getRank();
 +  }
-+  auto perms_length =
-+      llvm::cast<ShapedType>(getPerms().getType()).getShape()[0];
 +
-+  if (input_rank != perms_length) {
++  if (inputTy.hasRank() && permsTy.getShape()[0] != ShapedType::kDynamic &&
++      inputTy.getRank() != permsTy.getShape()[0]) {
 +    return emitOpError("expect permutation tensorARM to have length ")
-+           << input_rank << " but got " << perms_length;
++           << inputTy.getRank() << " but got " << permsTy.getShape()[0];
 +  }
 +  return success();
 +}
@@ -5888,30 +5904,22 @@ index 656236246b1a..73d5e1793c05 100644
 +//===----------------------------------------------------------------------===//
 +
 +LogicalResult spirv::TosaRescaleOp::verify() {
-+  auto inputTy = llvm::dyn_cast<ShapedType>(getInput().getType());
-+  if (!inputTy) {
-+    return emitOpError("expect shaped tensorARM for input, got ")
-+           << getInput().getType();
-+  }
++  auto inputTy = cast<ShapedType>(getInput().getType());
++  auto outputTy = cast<ShapedType>(getOutput().getType());
 +
 +  auto inputETy = inputTy.getElementType();
-+  if (!llvm::isa<IntegerType>(inputETy)) {
++  if (!isa<IntegerType>(inputETy)) {
 +    return emitOpError("expect input to have integer element type, got ")
 +           << inputETy;
 +  }
 +
-+  auto outputTy = llvm::dyn_cast<ShapedType>(getOutput().getType());
-+  if (!outputTy) {
-+    return emitOpError("expect shaped tensorARM for output, got ")
-+           << getOutput().getType();
-+  }
-+
-+  if (inputTy.getShape() != outputTy.getShape()) {
++  if (inputTy.hasRank() != outputTy.hasRank() ||
++      (inputTy.hasRank() && inputTy.getShape() != outputTy.getShape())) {
 +    return emitOpError("Shape of input and output must be same");
 +  }
 +
 +  auto outputETy = outputTy.getElementType();
-+  if (!llvm::isa<IntegerType>(outputETy)) {
++  if (!isa<IntegerType>(outputETy)) {
 +    return emitOpError("expect output to have integer element type, got ")
 +           << outputETy;
 +  }
@@ -5980,11 +5988,8 @@ index 656236246b1a..73d5e1793c05 100644
 +    }
 +  }
 +
-+  auto shiftTy = llvm::dyn_cast<ShapedType>(getShift().getType());
-+  if (!shiftTy) {
-+    return emitOpError("expect shaped tensorARM for shift, got ")
-+           << getShift().getType();
-+  }
++  auto shiftTy = cast<ShapedType>(getShift().getType());
++  auto multiplierTy = cast<ShapedType>(getMultiplier().getType());
 +
 +  auto shiftETy = shiftTy.getElementType();
 +  if (!shiftETy.isInteger(8)) {
@@ -5994,12 +5999,6 @@ index 656236246b1a..73d5e1793c05 100644
 +  BoolAttr scale32Attr;
 +  if ((getConstAttr(getScale32(), scale32Attr).failed())) {
 +    return emitOpError("scale32 must be a constant boolean");
-+  }
-+
-+  auto multiplierTy = llvm::dyn_cast<ShapedType>(getMultiplier().getType());
-+  if (!multiplierTy) {
-+    return emitOpError("expect shaped tensorARM for multiplier, got ")
-+           << getMultiplier().getType();
 +  }
 +
 +  auto multiplierETy = multiplierTy.getElementType();
@@ -6039,21 +6038,25 @@ index 656236246b1a..73d5e1793c05 100644
 +  int64_t numChannels = 1;
 +  if (perChannelAttr.getValue()) {
 +    ArrayRef<int64_t> inputShape = inputTy.getShape();
-+    numChannels = inputShape[inputShape.size() - 1];
++    numChannels = inputTy.hasRank() ? inputShape[inputShape.size() - 1]
++                                    : ShapedType::kDynamic;
 +  }
 +
-+  ArrayRef<int64_t> multiplierShape = multiplierTy.getShape();
-+  if (multiplierShape[0] != numChannels) {
++  if (multiplierTy.hasRank() &&
++      multiplierTy.getShape()[0] != ShapedType::kDynamic &&
++      numChannels != ShapedType::kDynamic &&
++      multiplierTy.getShape()[0] != numChannels) {
 +    return emitOpError("expect shape of { ")
 +           << numChannels << " } for multiplier input, got { "
-+           << multiplierShape[0] << " }";
++           << multiplierTy.getShape()[0] << " }";
 +  }
 +
-+  ArrayRef<int64_t> shiftShape = shiftTy.getShape();
-+  if (shiftShape[0] != numChannels) {
++  if (shiftTy.hasRank() && shiftTy.getShape()[0] != ShapedType::kDynamic &&
++      numChannels != ShapedType::kDynamic &&
++      shiftTy.getShape()[0] != numChannels) {
 +    return emitOpError("expect shape of { ")
-+           << numChannels << " } for shift input, got { " << shiftShape[0]
-+           << " }";
++           << numChannels << " } for shift input, got { "
++           << shiftTy.getShape()[0] << " }";
 +  }
 +
 +  BoolAttr inputUnsignedAttr;
@@ -6083,16 +6086,14 @@ index 656236246b1a..73d5e1793c05 100644
 +//===----------------------------------------------------------------------===//
 +
 +LogicalResult spirv::TosaReverseOp::verify() {
-+  if (verifySameElementTypes(*this, getInput1().getType(),
-+                             getOutput().getType())
-+          .failed()) {
++  auto inputTy = cast<ShapedType>(getInput1().getType());
++  auto outputTy = cast<ShapedType>(getOutput().getType());
++
++  if (verifySameElementTypes(*this, inputTy, outputTy).failed()) {
 +    return failure();
 +  }
 +
-+  auto inputRank = llvm::cast<ShapedType>(getInput1().getType()).getRank();
-+  auto outputRank = llvm::cast<ShapedType>(getOutput().getType()).getRank();
-+
-+  if (inputRank != outputRank) {
++  if (inputTy.getRank() != outputTy.getRank()) {
 +    return emitOpError(
 +        "expect output tensorARM rank to be equal to input rank");
 +  }
@@ -6107,16 +6108,18 @@ index 656236246b1a..73d5e1793c05 100644
 +    return emitOpError("expected non-negative reverse axis");
 +  }
 +
-+  if (reverseAxis >= inputRank && !(reverseAxis == 0 && inputRank == 0)) {
++  if (inputTy.hasRank() && reverseAxis >= inputTy.getRank() &&
++      !(reverseAxis == 0 && inputTy.getRank() == 0)) {
 +    return emitOpError("expect input rank (")
-+           << inputRank << ") to be larger than reverse axis (" << reverseAxis
-+           << ")";
++           << inputTy.getRank() << ") to be larger than reverse axis ("
++           << reverseAxis << ")";
 +  }
 +
-+  if (reverseAxis >= outputRank && !(reverseAxis == 0 && outputRank == 0)) {
++  if (outputTy.hasRank() && reverseAxis >= outputTy.getRank() &&
++      !(reverseAxis == 0 && outputTy.getRank() == 0)) {
 +    return emitOpError("expect output tensorARM rank (")
-+           << outputRank << ") to be larger than reverse axis (" << reverseAxis
-+           << ")";
++           << outputTy.getRank() << ") to be larger than reverse axis ("
++           << reverseAxis << ")";
 +  }
 +  return success();
 +}
@@ -6136,7 +6139,7 @@ index 656236246b1a..73d5e1793c05 100644
 +    return failure();
 +  }
 +
-+  auto predicateType = llvm::dyn_cast<ShapedType>(getInput1().getType());
++  auto predicateType = cast<ShapedType>(getInput1().getType());
 +  if (!predicateType) {
 +    emitOpError("expect shaped tensorARM for input1, got ")
 +        << getInput1().getType();
@@ -6162,8 +6165,8 @@ index 656236246b1a..73d5e1793c05 100644
 +          .failed()) {
 +    return failure();
 +  }
-+  ShapedType inputType = llvm::cast<ShapedType>(getInput1().getType());
-+  ShapedType outputType = llvm::cast<ShapedType>(getType());
++  ShapedType inputType = cast<ShapedType>(getInput1().getType());
++  ShapedType outputType = cast<ShapedType>(getType());
 +
 +  if (inputType.hasStaticShape() && outputType.hasStaticShape()) {
 +    int64_t inputElementsNum = inputType.getNumElements();
@@ -6182,7 +6185,7 @@ index 85525a5a02fa..57e27188e788 100644
 @@ -75,10 +75,36 @@ createGlobalVarForEntryPointArgument(OpBuilder &builder, spirv::FuncOp funcOp,
        abiInfo.getBinding());
  }
- 
+
 +/// Creates a global variable for an argument or result based on the ABI info.
 +static spirv::GlobalVariableOp
 +createGlobalVarForGraphEntryPoint(OpBuilder &builder, spirv::GraphARMOp graphOp,
@@ -6220,7 +6223,7 @@ index 85525a5a02fa..57e27188e788 100644
 @@ -214,6 +240,21 @@ public:
                    ConversionPatternRewriter &rewriter) const override;
  };
- 
+
 +/// A pattern to convert graph signature according to interface variable ABI
 +/// attributes.
 +///
@@ -6242,7 +6245,7 @@ index 85525a5a02fa..57e27188e788 100644
 @@ -287,6 +328,89 @@ LogicalResult ProcessInterfaceVarABI::matchAndRewrite(
    return success();
  }
- 
+
 +namespace {
 +
 +/// Lowers the graph entry point
@@ -6330,11 +6333,11 @@ index 85525a5a02fa..57e27188e788 100644
    // Uses the signature conversion methodology of the dialect conversion
    // framework to implement the conversion.
 @@ -313,6 +437,7 @@ void LowerABIAttributesPass::runOnOperation() {
- 
+
    RewritePatternSet patterns(context);
    patterns.add<ProcessInterfaceVarABI>(typeConverter, context);
 +  patterns.add<ProcessGraphInterfaceVarABI>(typeConverter, context);
- 
+
    ConversionTarget target(*context);
    // "Legal" function ops should have no interface variable ABI attributes.
 @@ -323,6 +448,17 @@ void LowerABIAttributesPass::runOnOperation() {
@@ -6362,7 +6365,7 @@ index 6a9b951ca61d..b4bb5eb3ed42 100644
 @@ -95,6 +95,16 @@ static LogicalResult checkAndUpdateCapabilityRequirements(
    return success();
  }
- 
+
 +static SetVector<spirv::Capability>
 +withImpliedCapabilities(SetVector<spirv::Capability> &caps) {
 +  SetVector<spirv::Capability> allCaps(caps.begin(), caps.end());
@@ -6375,11 +6378,11 @@ index 6a9b951ca61d..b4bb5eb3ed42 100644
 +
  void UpdateVCEPass::runOnOperation() {
    spirv::ModuleOp module = getOperation();
- 
+
 @@ -151,6 +161,14 @@ void UpdateVCEPass::runOnOperation() {
      if (auto globalVar = dyn_cast<spirv::GlobalVariableOp>(op))
        valueTypes.push_back(globalVar.getType());
- 
+
 +    // If the op is FunctionLike make sure to process input and result types
 +    if (auto funcOpInterface = dyn_cast<FunctionOpInterface>(op)) {
 +      auto inputTypes = funcOpInterface.getArgumentTypes();
@@ -6394,15 +6397,15 @@ index 6a9b951ca61d..b4bb5eb3ed42 100644
 @@ -168,12 +186,30 @@ void UpdateVCEPass::runOnOperation() {
          return WalkResult::interrupt();
      }
- 
+
 +    deducedCapabilities = withImpliedCapabilities(deducedCapabilities);
 +
      return WalkResult::advance();
    });
- 
+
    if (walkResult.wasInterrupted())
      return signalPassFailure();
- 
+
 +  // Update min version requirement for capabilities after deducing them
 +  for (auto &cap : deducedCapabilities) {
 +    std::optional<spirv::Version> minVersion = spirv::getMinVersion(cap);
@@ -6421,7 +6424,7 @@ index 6a9b951ca61d..b4bb5eb3ed42 100644
 +
    // TODO: verify that the deduced version is consistent with
    // SPIR-V ops' maximal version requirements.
- 
+
 diff --git a/mlir/lib/IR/AsmPrinter.cpp b/mlir/lib/IR/AsmPrinter.cpp
 index f95ad290a198..58fa14c0f525 100644
 --- a/mlir/lib/IR/AsmPrinter.cpp
@@ -6434,7 +6437,7 @@ index f95ad290a198..58fa14c0f525 100644
 +      (llvm::isa<FunctionType>(op->getResult(0).getType()) ||
 +       llvm::isa<GraphType>(op->getResult(0).getType())))
      wrapped = true;
- 
+
    if (wrapped)
 @@ -2837,6 +2838,20 @@ void AsmPrinter::Impl::printTypeImpl(Type type) {
          os << '>';
@@ -6456,7 +6459,7 @@ index f95ad290a198..58fa14c0f525 100644
 +      })
        .Default([&](Type type) { return printDialectType(type); });
  }
- 
+
 diff --git a/mlir/lib/IR/Builders.cpp b/mlir/lib/IR/Builders.cpp
 index f657db142eeb..3d366276b437 100644
 --- a/mlir/lib/IR/Builders.cpp
@@ -6464,7 +6467,7 @@ index f657db142eeb..3d366276b437 100644
 @@ -76,6 +76,10 @@ FunctionType Builder::getFunctionType(TypeRange inputs, TypeRange results) {
    return FunctionType::get(context, inputs, results);
  }
- 
+
 +GraphType Builder::getGraphType(TypeRange inputs, TypeRange results) {
 +  return GraphType::get(context, inputs, results);
 +}
@@ -6479,7 +6482,7 @@ index 1604ebba190a..0ed2549bcc9b 100644
 @@ -179,6 +179,49 @@ FunctionType::getWithoutArgsAndResults(const BitVector &argIndices,
    return clone(newArgTypes, newResultTypes);
  }
- 
+
 +//===----------------------------------------------------------------------===//
 +// GraphType
 +//===----------------------------------------------------------------------===//
@@ -6542,7 +6545,7 @@ index 9fa03725d05e..289c3c755049 100644
 +  }
    return valueMap.lookup(id);
  }
- 
+
 @@ -179,6 +185,7 @@ LogicalResult spirv::Deserializer::processInstruction(
    case spirv::Opcode::OpTypeStruct:
    case spirv::Opcode::OpTypePointer:
@@ -6579,13 +6582,13 @@ index 9fa03725d05e..289c3c755049 100644
      return processLabel(operands);
    case spirv::Opcode::OpBranch:
 diff --git a/mlir/lib/Target/SPIRV/Deserialization/Deserializer.cpp b/mlir/lib/Target/SPIRV/Deserialization/Deserializer.cpp
-index d133d0332e27..8ed10e570713 100644
+index d133d0332e27..1689c3dbdb3e 100644
 --- a/mlir/lib/Target/SPIRV/Deserialization/Deserializer.cpp
 +++ b/mlir/lib/Target/SPIRV/Deserialization/Deserializer.cpp
 @@ -670,6 +670,213 @@ spirv::Deserializer::processFunctionEnd(ArrayRef<uint32_t> operands) {
    return success();
  }
- 
+
 +LogicalResult
 +spirv::Deserializer::processGraphEntryPointARM(ArrayRef<uint32_t> operands) {
 +  unsigned wordIndex = 0;
@@ -6799,7 +6802,7 @@ index d133d0332e27..8ed10e570713 100644
 @@ -702,6 +909,14 @@ std::string spirv::Deserializer::getFunctionSymbol(uint32_t id) {
    return funcName;
  }
- 
+
 +std::string spirv::Deserializer::getGraphSymbol(uint32_t id) {
 +  auto graphName = nameMap.lookup(id).str();
 +  if (graphName.empty()) {
@@ -6814,7 +6817,7 @@ index d133d0332e27..8ed10e570713 100644
 @@ -724,6 +939,14 @@ spirv::Deserializer::createSpecConstant(Location loc, uint32_t resultID,
    return op;
  }
- 
+
 +std::optional<spirv::GraphConstantARMOpMaterializationInfo>
 +spirv::Deserializer::getGraphConstantARM(uint32_t id) {
 +  auto graphConstIt = graphConstantMap.find(id);
@@ -6838,7 +6841,7 @@ index d133d0332e27..8ed10e570713 100644
 @@ -1297,6 +1522,35 @@ spirv::Deserializer::processTensorARMType(ArrayRef<uint32_t> operands) {
    return success();
  }
- 
+
 +LogicalResult
 +spirv::Deserializer::processGraphTypeARM(ArrayRef<uint32_t> operands) {
 +  unsigned size = operands.size();
@@ -6871,18 +6874,39 @@ index d133d0332e27..8ed10e570713 100644
  LogicalResult
  spirv::Deserializer::processTypeForwardPointer(ArrayRef<uint32_t> operands) {
    if (operands.size() != 2)
-@@ -1768,7 +2022,7 @@ LogicalResult
+@@ -1546,7 +1800,19 @@ spirv::Deserializer::processConstantComposite(ArrayRef<uint32_t> operands) {
+   }
+
+   auto resultID = operands[1];
+-  if (auto shapedType = dyn_cast<ShapedType>(resultType)) {
++  if (auto tensorType = dyn_cast<TensorArmType>(resultType)) {
++    SmallVector<Attribute> flattenedElems;
++    for (Attribute element : elements) {
++      if (auto denseElemAttr = dyn_cast<DenseElementsAttr>(element)) {
++        for (auto value : denseElemAttr.getValues<Attribute>())
++          flattenedElems.push_back(value);
++      } else {
++        flattenedElems.push_back(element);
++      }
++    }
++    auto attr = DenseElementsAttr::get(tensorType, flattenedElems);
++    constantMap.try_emplace(resultID, attr, tensorType);
++  } else if (auto shapedType = dyn_cast<ShapedType>(resultType)) {
+     auto attr = DenseElementsAttr::get(shapedType, elements);
+     // For normal constants, we just record the attribute (and its type) for
+     // later materialization at use sites.
+@@ -1768,7 +2034,7 @@ LogicalResult
  spirv::Deserializer::processConstantNull(ArrayRef<uint32_t> operands) {
    if (operands.size() != 2) {
      return emitError(unknownLoc,
 -                     "OpConstantNull must have type <id> and result <id>");
 +                     "OpConstantNull must only have type <id> and result <id>");
    }
- 
+
    Type resultType = getType(operands[0]);
-@@ -1778,8 +2032,17 @@ spirv::Deserializer::processConstantNull(ArrayRef<uint32_t> operands) {
+@@ -1778,8 +2044,17 @@ spirv::Deserializer::processConstantNull(ArrayRef<uint32_t> operands) {
    }
- 
+
    auto resultID = operands[1];
 +  Attribute attr;
    if (resultType.isIntOrFloat() || isa<VectorType>(resultType)) {
@@ -6899,10 +6923,10 @@ index d133d0332e27..8ed10e570713 100644
      // For normal constants, we just record the attribute (and its type) for
      // later materialization at use sites.
      constantMap.try_emplace(resultID, attr, resultType);
-@@ -1790,6 +2053,38 @@ spirv::Deserializer::processConstantNull(ArrayRef<uint32_t> operands) {
+@@ -1790,6 +2065,38 @@ spirv::Deserializer::processConstantNull(ArrayRef<uint32_t> operands) {
           << resultType;
  }
- 
+
 +LogicalResult
 +spirv::Deserializer::processGraphConstantARM(ArrayRef<uint32_t> operands) {
 +  if (operands.size() < 2) {
@@ -6938,10 +6962,10 @@ index d133d0332e27..8ed10e570713 100644
  //===----------------------------------------------------------------------===//
  // Control flow
  //===----------------------------------------------------------------------===//
-@@ -1887,6 +2182,24 @@ LogicalResult spirv::Deserializer::processLabel(ArrayRef<uint32_t> operands) {
+@@ -1887,6 +2194,24 @@ LogicalResult spirv::Deserializer::processLabel(ArrayRef<uint32_t> operands) {
    return success();
  }
- 
+
 +LogicalResult spirv::Deserializer::createGraphBlock(uint32_t graphID) {
 +  if (!curGraph) {
 +    return emitError(unknownLoc, "a graph block must appear inside a graph");
@@ -6970,7 +6994,7 @@ index 20482bd2bf50..dff6c69ed34a 100644
 @@ -105,6 +105,13 @@ struct SpecConstOperationMaterializationInfo {
    SmallVector<uint32_t> enclosedOpOperands;
  };
- 
+
 +/// A struct that collects the info needed to materialize/emit a
 +/// GraphConstantARMOp.
 +struct GraphConstantARMOpMaterializationInfo {
@@ -6984,7 +7008,7 @@ index 20482bd2bf50..dff6c69ed34a 100644
 @@ -210,9 +217,14 @@ private:
    /// exists; otherwise creates one based on the <id>.
    std::string getFunctionSymbol(uint32_t id);
- 
+
 -  /// Returns a symbol to be used for the specialization constant with the given
 -  /// result <id>. This tries to use the specialization constant's OpName if
 +  /// Returns a symbol to be used for the graph name with the given
@@ -6996,12 +7020,12 @@ index 20482bd2bf50..dff6c69ed34a 100644
 +  /// given result <id>. This tries to use the specialization constant's
 +  /// OpName if exists; otherwise creates one based on the <id>.
    std::string getSpecConstantSymbol(uint32_t id);
- 
+
    /// Gets the specialization constant with the given result <id>.
 @@ -236,6 +248,11 @@ private:
    spirv::SpecConstantOp createSpecConstant(Location loc, uint32_t resultID,
                                             TypedAttr defaultValue);
- 
+
 +  /// Gets the GraphConstantARM ID attribute and result type with the given
 +  /// result <id>.
 +  std::optional<spirv::GraphConstantARMOpMaterializationInfo>
@@ -7011,9 +7035,9 @@ index 20482bd2bf50..dff6c69ed34a 100644
    /// It is expected that this method is used for variables that are to be
    /// defined at module scope and will be deserialized into a
 @@ -305,6 +322,16 @@ private:
- 
+
    LogicalResult processTensorARMType(ArrayRef<uint32_t> operands);
- 
+
 +  LogicalResult processGraphTypeARM(ArrayRef<uint32_t> operands);
 +
 +  LogicalResult processGraphEntryPointARM(ArrayRef<uint32_t> operands);
@@ -7025,12 +7049,12 @@ index 20482bd2bf50..dff6c69ed34a 100644
 +  LogicalResult processGraphARMEnd(ArrayRef<uint32_t> operands);
 +
    LogicalResult processTypeForwardPointer(ArrayRef<uint32_t> operands);
- 
+
    //===--------------------------------------------------------------------===//
 @@ -352,6 +379,10 @@ private:
    /// Processes a SPIR-V OpConstantNull instruction with the given `operands`.
    LogicalResult processConstantNull(ArrayRef<uint32_t> operands);
- 
+
 +  /// Processes a SPIR-V OpGraphConstantARM instruction with the given
 +  /// `operands`.
 +  LogicalResult processGraphConstantARM(ArrayRef<uint32_t> operands);
@@ -7041,7 +7065,7 @@ index 20482bd2bf50..dff6c69ed34a 100644
 @@ -449,6 +480,9 @@ private:
    /// blocks declared as selection/loop headers are handled.
    LogicalResult structurizeControlFlow();
- 
+
 +  /// Creates a block for graph with the given graphID
 +  LogicalResult createGraphBlock(uint32_t graphID);
 +
@@ -7051,37 +7075,37 @@ index 20482bd2bf50..dff6c69ed34a 100644
 @@ -545,6 +579,9 @@ private:
    /// The current function under construction.
    std::optional<spirv::FuncOp> curFunction;
- 
+
 +  /// The current graph under construction.
 +  std::optional<spirv::GraphARMOp> curGraph;
 +
    /// The current block under construction.
    Block *curBlock = nullptr;
- 
+
 @@ -598,12 +635,19 @@ private:
    DenseMap<uint32_t, SpecConstOperationMaterializationInfo>
        specConstOperationMap;
- 
+
 +  // Result <id> to GraphConstantARM ID attribute and result type.
 +  DenseMap<uint32_t, spirv::GraphConstantARMOpMaterializationInfo>
 +      graphConstantMap;
 +
    // Result <id> to variable mapping.
    DenseMap<uint32_t, spirv::GlobalVariableOp> globalVariableMap;
- 
+
    // Result <id> to function mapping.
    DenseMap<uint32_t, spirv::FuncOp> funcMap;
- 
+
 +  // Result <id> to function mapping.
 +  DenseMap<uint32_t, spirv::GraphARMOp> graphMap;
 +
    // Result <id> to block mapping.
    DenseMap<uint32_t, Block *> blockMap;
- 
+
 @@ -667,6 +711,9 @@ private:
    /// Deserialization options.
    DeserializationOptions options;
- 
+
 +  /// List of IDs assigned to graph outputs.
 +  SmallVector<Value> graphOutputs;
 +
@@ -7095,7 +7119,7 @@ index d62529b85b3a..032b7156236d 100644
 @@ -203,6 +203,16 @@ Serializer::processSpecConstantOperationOp(spirv::SpecConstantOperationOp op) {
    return success();
  }
- 
+
 +LogicalResult
 +Serializer::processGraphConstantARMOp(spirv::GraphConstantARMOp op) {
 +  if (auto resultID = prepareGraphConstantId(op.getLoc(), op.getType(),
@@ -7112,7 +7136,7 @@ index d62529b85b3a..032b7156236d 100644
 @@ -368,6 +378,122 @@ LogicalResult Serializer::processFuncOp(spirv::FuncOp op) {
    return success();
  }
- 
+
 +LogicalResult Serializer::processGraphARMOp(spirv::GraphARMOp op) {
 +
 +  if (op.getNumResults() < 1) {
@@ -7233,13 +7257,21 @@ index d62529b85b3a..032b7156236d 100644
    SmallVector<uint32_t, 4> operands;
    SmallVector<StringRef, 2> elidedAttrs;
 diff --git a/mlir/lib/Target/SPIRV/Serialization/Serializer.cpp b/mlir/lib/Target/SPIRV/Serialization/Serializer.cpp
-index 3400fcf6374e..3a493e1c751c 100644
+index 3400fcf6374e..59810eeb5940 100644
 --- a/mlir/lib/Target/SPIRV/Serialization/Serializer.cpp
 +++ b/mlir/lib/Target/SPIRV/Serialization/Serializer.cpp
-@@ -70,6 +70,22 @@ static Block *getPhiIncomingBlock(Block *block) {
+@@ -16,6 +16,7 @@
+ #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
+ #include "mlir/Dialect/SPIRV/IR/SPIRVEnums.h"
+ #include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
++#include "mlir/Dialect/SPIRV/IR/TargetAndABI.h"
+ #include "mlir/Target/SPIRV/SPIRVBinaryUtils.h"
+ #include "llvm/ADT/STLExtras.h"
+ #include "llvm/ADT/Sequence.h"
+@@ -70,6 +71,22 @@ static Block *getPhiIncomingBlock(Block *block) {
    return block;
  }
- 
+
 +static bool isNull(Attribute attr) {
 +  if (auto floatAttr = dyn_cast<FloatAttr>(attr)) {
 +    return floatAttr.getValue().isZero();
@@ -7258,25 +7290,69 @@ index 3400fcf6374e..3a493e1c751c 100644
 +
  namespace mlir {
  namespace spirv {
- 
-@@ -115,7 +131,7 @@ void Serializer::collect(SmallVectorImpl<uint32_t> &binary) {
+
+@@ -94,7 +111,9 @@ LogicalResult Serializer::serialize() {
+
+   // TODO: handle the other sections
+   processCapability();
+-  processExtension();
++  if (failed(processExtension())) {
++    return failure();
++  }
+   processMemoryModel();
+   processDebugInfo();
+
+@@ -115,7 +134,7 @@ void Serializer::collect(SmallVectorImpl<uint32_t> &binary) {
                      extensions.size() + extendedSets.size() +
                      memoryModel.size() + entryPoints.size() +
                      executionModes.size() + decorations.size() +
 -                    typesGlobalValues.size() + functions.size();
 +                    typesGlobalValues.size() + functions.size() + graphs.size();
- 
+
    binary.clear();
    binary.reserve(moduleSize);
-@@ -133,6 +149,7 @@ void Serializer::collect(SmallVectorImpl<uint32_t> &binary) {
+@@ -133,6 +152,7 @@ void Serializer::collect(SmallVectorImpl<uint32_t> &binary) {
    binary.append(decorations.begin(), decorations.end());
    binary.append(typesGlobalValues.begin(), typesGlobalValues.end());
    binary.append(functions.begin(), functions.end());
 +  binary.append(graphs.begin(), graphs.end());
  }
- 
+
  #ifndef NDEBUG
-@@ -446,6 +463,19 @@ LogicalResult Serializer::processType(Location loc, Type type,
+@@ -186,13 +206,31 @@ void Serializer::processDebugInfo() {
+   // TODO: Encode more debug instructions.
+ }
+
+-void Serializer::processExtension() {
++LogicalResult Serializer::processExtension() {
++
+   llvm::SmallVector<uint32_t, 16> extName;
+   for (spirv::Extension ext : module.getVceTriple()->getExtensions()) {
+     extName.clear();
+     spirv::encodeStringLiteralInto(extName, spirv::stringifyExtension(ext));
+     encodeInstructionInto(extensions, spirv::Opcode::OpExtension, extName);
+   }
++  auto nonSemanticInfoExt = spirv::Extension::SPV_KHR_non_semantic_info;
++  if (options.emitDebugInfo &&
++      !is_contained(module.getVceTriple()->getExtensions(),
++                    nonSemanticInfoExt)) {
++    TargetEnvAttr targetEnvAttr = spirv::lookupTargetEnvOrDefault(module);
++    if (!is_contained(targetEnvAttr.getExtensions(), nonSemanticInfoExt))
++      return module.emitError(
++          "Emitting debug information is enabled while "
++          "SPV_KHR_non_semantic_info extension is not available");
++
++    extName.clear();
++    spirv::encodeStringLiteralInto(
++        extName, spirv::stringifyExtension(nonSemanticInfoExt));
++    encodeInstructionInto(extensions, spirv::Opcode::OpExtension, extName);
++  }
++
++  return success();
+ }
+
+ void Serializer::processMemoryModel() {
+@@ -446,6 +484,19 @@ LogicalResult Serializer::processType(Location loc, Type type,
  LogicalResult
  Serializer::processTypeImpl(Location loc, Type type, uint32_t &typeID,
                              SetVector<StringRef> &serializationCtx) {
@@ -7296,10 +7372,10 @@ index 3400fcf6374e..3a493e1c751c 100644
    typeID = getTypeID(type);
    if (typeID)
      return success();
-@@ -457,9 +487,12 @@ Serializer::processTypeImpl(Location loc, Type type, uint32_t &typeID,
+@@ -457,9 +508,12 @@ Serializer::processTypeImpl(Location loc, Type type, uint32_t &typeID,
    auto typeEnum = spirv::Opcode::OpTypeVoid;
    bool deferSerialization = false;
- 
+
 -  if ((isa<FunctionType>(type) &&
 -       succeeded(prepareFunctionType(loc, cast<FunctionType>(type), typeEnum,
 -                                     operands))) ||
@@ -7312,18 +7388,18 @@ index 3400fcf6374e..3a493e1c751c 100644
        succeeded(prepareBasicType(loc, type, typeID, typeEnum, operands,
                                   deferSerialization, serializationCtx))) {
      if (deferSerialization)
-@@ -490,6 +523,7 @@ Serializer::processTypeImpl(Location loc, Type type, uint32_t &typeID,
+@@ -490,6 +544,7 @@ Serializer::processTypeImpl(Location loc, Type type, uint32_t &typeID,
      return success();
    }
- 
+
 +  emitError(loc, "failed to process type: ") << type;
    return failure();
  }
- 
-@@ -805,6 +839,35 @@ Serializer::prepareFunctionType(Location loc, FunctionType type,
+
+@@ -805,6 +860,35 @@ Serializer::prepareFunctionType(Location loc, FunctionType type,
    return success();
  }
- 
+
 +LogicalResult
 +Serializer::prepareGraphType(Location loc, GraphType type,
 +                             spirv::Opcode &typeEnum,
@@ -7356,41 +7432,33 @@ index 3400fcf6374e..3a493e1c751c 100644
  //===----------------------------------------------------------------------===//
  // Constant
  //===----------------------------------------------------------------------===//
-@@ -923,6 +986,30 @@ Serializer::prepareDenseElementsConstant(Location loc, Type constType,
+@@ -900,6 +984,11 @@ Serializer::prepareDenseElementsConstant(Location loc, Type constType,
+   uint32_t resultID = getNextID();
+   SmallVector<uint32_t, 4> operands = {typeID, resultID};
+   auto elementType = cast<spirv::CompositeType>(constType).getElementType(0);
++  if (auto tensorArmType = dyn_cast<spirv::TensorArmType>(constType)) {
++    ArrayRef<int64_t> innerShape = tensorArmType.getShape().drop_front();
++    if (innerShape.size() > 0)
++      elementType = spirv::TensorArmType::get(innerShape, elementType);
++  }
+
+   // "If the Result Type is a cooperative matrix type, then there must be only
+   // one Constituent, with scalar type matching the cooperative matrix Component
+@@ -923,6 +1012,10 @@ Serializer::prepareDenseElementsConstant(Location loc, Type constType,
      } else {
        return 0;
      }
-+  } else if (isa<spirv::TensorArmType>(constType)) {
-+    if (isNull(valueAttr)) {
-+      encodeInstructionInto(typesGlobalValues, spirv::Opcode::OpConstantNull,
-+                            {typeID, resultID});
-+      return resultID;
-+    }
-+    numberOfConstituents = shapedType.getNumElements();
-+    operands.reserve(numberOfConstituents + 2);
-+    for (int i = 0; i < numberOfConstituents; ++i) {
-+      uint32_t elementID = 0;
-+      if (auto attr = dyn_cast<DenseIntElementsAttr>(valueAttr)) {
-+        elementID =
-+            elementType.isInteger(1)
-+                ? prepareConstantBool(loc, attr.getValues<BoolAttr>()[i])
-+                : prepareConstantInt(loc, attr.getValues<IntegerAttr>()[i]);
-+      }
-+      if (auto attr = dyn_cast<DenseFPElementsAttr>(valueAttr)) {
-+        elementID = prepareConstantFp(loc, attr.getValues<FloatAttr>()[i]);
-+      }
-+      if (!elementID) {
-+        return 0;
-+      }
-+      operands.push_back(elementID);
-+    }
++  } else if (isa<spirv::TensorArmType>(constType) && isNull(valueAttr)) {
++    encodeInstructionInto(typesGlobalValues, spirv::Opcode::OpConstantNull,
++                          {typeID, resultID});
++    return resultID;
    } else {
      operands.reserve(numberOfConstituents + 2);
      for (int i = 0; i < numberOfConstituents; ++i) {
-@@ -1056,6 +1143,41 @@ uint32_t Serializer::prepareConstantInt(Location loc, IntegerAttr intAttr,
+@@ -1056,6 +1149,41 @@ uint32_t Serializer::prepareConstantInt(Location loc, IntegerAttr intAttr,
    return resultID;
  }
- 
+
 +uint32_t Serializer::prepareGraphConstantId(Location loc, Type graphConstType,
 +                                            IntegerAttr intAttr) {
 +  // De-duplicate graph constants.
@@ -7429,10 +7497,10 @@ index 3400fcf6374e..3a493e1c751c 100644
  uint32_t Serializer::prepareConstantFp(Location loc, FloatAttr floatAttr,
                                         bool isSpec) {
    if (!isSpec) {
-@@ -1109,6 +1231,18 @@ uint32_t Serializer::prepareConstantFp(Location loc, FloatAttr floatAttr,
+@@ -1109,6 +1237,18 @@ uint32_t Serializer::prepareConstantFp(Location loc, FloatAttr floatAttr,
    return resultID;
  }
- 
+
 +static Type getValueType(Attribute attr) {
 +  if (auto typedAttr = dyn_cast<TypedAttr>(attr)) {
 +    return typedAttr.getType();
@@ -7448,10 +7516,10 @@ index 3400fcf6374e..3a493e1c751c 100644
  uint32_t Serializer::prepareConstantCompositeReplicate(Location loc,
                                                         Type resultType,
                                                         Attribute valueAttr) {
-@@ -1122,18 +1256,9 @@ uint32_t Serializer::prepareConstantCompositeReplicate(Location loc,
+@@ -1122,18 +1262,9 @@ uint32_t Serializer::prepareConstantCompositeReplicate(Location loc,
      return 0;
    }
- 
+
 -  Type valueType;
 -  if (auto typedAttr = dyn_cast<TypedAttr>(valueAttr)) {
 -    valueType = typedAttr.getType();
@@ -7466,12 +7534,12 @@ index 3400fcf6374e..3a493e1c751c 100644
 +  if (!valueAttr)
      return 0;
 -  }
- 
+
    auto compositeType = dyn_cast<CompositeType>(resultType);
    if (!compositeType)
-@@ -1148,11 +1273,14 @@ uint32_t Serializer::prepareConstantCompositeReplicate(Location loc,
+@@ -1148,11 +1279,14 @@ uint32_t Serializer::prepareConstantCompositeReplicate(Location loc,
    }
- 
+
    uint32_t resultID = getNextID();
 -  uint32_t operands[] = {typeID, resultID, constandID};
 -
@@ -7486,10 +7554,10 @@ index 3400fcf6374e..3a493e1c751c 100644
 +                          spirv::Opcode::OpConstantCompositeReplicateEXT,
 +                          {typeID, resultID, constandID});
 +  }
- 
+
    constCompositeReplicateIDMap[valueTypePair] = resultID;
    return resultID;
-@@ -1381,9 +1509,18 @@ LogicalResult Serializer::processOperation(Operation *opInst) {
+@@ -1381,9 +1515,18 @@ LogicalResult Serializer::processOperation(Operation *opInst) {
          return processConstantCompositeReplicateOp(op);
        })
        .Case([&](spirv::FuncOp op) { return processFuncOp(op); })
@@ -7509,13 +7577,22 @@ index 3400fcf6374e..3a493e1c751c 100644
        .Case([&](spirv::ReferenceOfOp op) { return processReferenceOfOp(op); })
        .Case([&](spirv::SelectionOp op) { return processSelectionOp(op); })
 diff --git a/mlir/lib/Target/SPIRV/Serialization/Serializer.h b/mlir/lib/Target/SPIRV/Serialization/Serializer.h
-index 7047869bca4c..324db84f353e 100644
+index 7047869bca4c..3e7877388492 100644
 --- a/mlir/lib/Target/SPIRV/Serialization/Serializer.h
 +++ b/mlir/lib/Target/SPIRV/Serialization/Serializer.h
+@@ -102,7 +102,7 @@ private:
+
+   void processDebugInfo();
+
+-  void processExtension();
++  LogicalResult processExtension();
+
+   void processMemoryModel();
+
 @@ -122,6 +122,8 @@ private:
    LogicalResult
    processSpecConstantOperationOp(spirv::SpecConstantOperationOp op);
- 
+
 +  LogicalResult processGraphConstantARMOp(spirv::GraphConstantARMOp op);
 +
    /// SPIR-V dialect supports OpUndef using spirv.UndefOp that produces a SSA
@@ -7524,7 +7601,7 @@ index 7047869bca4c..324db84f353e 100644
 @@ -135,6 +137,15 @@ private:
    LogicalResult processFuncOp(spirv::FuncOp op);
    LogicalResult processFuncParameter(spirv::FuncOp op);
- 
+
 +  /// Processes a SPIR-V GraphARM op.
 +  LogicalResult processGraphARMOp(spirv::GraphARMOp op);
 +
@@ -7535,12 +7612,12 @@ index 7047869bca4c..324db84f353e 100644
 +  LogicalResult processGraphOutputsARMOp(spirv::GraphOutputsARMOp op);
 +
    LogicalResult processVariableOp(spirv::VariableOp op);
- 
+
    /// Process a SPIR-V GlobalVariableOp
 @@ -189,6 +200,10 @@ private:
                                      spirv::Opcode &typeEnum,
                                      SmallVectorImpl<uint32_t> &operands);
- 
+
 +  LogicalResult prepareGraphType(Location loc, GraphType type,
 +                                 spirv::Opcode &typeEnum,
 +                                 SmallVectorImpl<uint32_t> &operands);
@@ -7551,7 +7628,7 @@ index 7047869bca4c..324db84f353e 100644
 @@ -238,6 +253,13 @@ private:
    uint32_t prepareConstantInt(Location loc, IntegerAttr intAttr,
                                bool isSpec = false);
- 
+
 +  uint32_t getGraphConstantARMId(Attribute value) const {
 +    return graphConstIDMap.lookup(value);
 +  }
@@ -7561,14 +7638,14 @@ index 7047869bca4c..324db84f353e 100644
 +
    uint32_t prepareConstantFp(Location loc, FloatAttr floatAttr,
                               bool isSpec = false);
- 
+
 @@ -340,7 +362,7 @@ private:
    spirv::ModuleOp module;
- 
+
    /// An MLIR builder for getting MLIR constructs.
 -  mlir::Builder mlirBuilder;
 +  mlir::OpBuilder mlirBuilder;
- 
+
    /// Serialization options.
    SerializationOptions options;
 @@ -372,6 +394,7 @@ private:
@@ -7576,12 +7653,12 @@ index 7047869bca4c..324db84f353e 100644
    SmallVector<uint32_t, 0> typesGlobalValues;
    SmallVector<uint32_t, 0> functions;
 +  SmallVector<uint32_t, 0> graphs;
- 
+
    /// Recursive struct references are serialized as OpTypePointer instructions
    /// to the recursive struct type. However, the OpTypePointer instruction
 @@ -388,15 +411,22 @@ private:
        recursiveStructInfos;
- 
+
    /// `functionHeader` contains all the instructions that must be in the first
 -  /// block in the function, and `functionBody` contains the rest. After
 -  /// processing FuncOp, the encoded instructions of a function are appended to
@@ -7604,17 +7681,17 @@ index 7047869bca4c..324db84f353e 100644
 +  /// OpGraphInputARM ...
    SmallVector<uint32_t, 0> functionHeader;
    SmallVector<uint32_t, 0> functionBody;
- 
+
 @@ -412,6 +442,9 @@ private:
    /// Map from specialization constant names to their <id>s.
    llvm::StringMap<uint32_t> specConstIDMap;
- 
+
 +  /// Map from graph constant ID value to their <id>s.
 +  DenseMap<Attribute, uint32_t> graphConstIDMap;
 +
    /// Map from GlobalVariableOps name to <id>s.
    llvm::StringMap<uint32_t> globalVarIDMap;
- 
+
 diff --git a/mlir/test/CMakeLists.txt b/mlir/test/CMakeLists.txt
 index ac8b44f53aeb..89568e7766ae 100644
 --- a/mlir/test/CMakeLists.txt
@@ -7630,7 +7707,7 @@ index ac8b44f53aeb..89568e7766ae 100644
 @@ -217,6 +218,11 @@ if(MLIR_ENABLE_BINDINGS_PYTHON)
    )
  endif()
- 
+
 +if (LLVM_INCLUDE_SPIRV_TOOLS_TESTS)
 +  list(APPEND MLIR_TEST_DEPENDS spirv-as)
 +  list(APPEND MLIR_TEST_DEPENDS spirv-val)
@@ -7639,113 +7716,27 @@ index ac8b44f53aeb..89568e7766ae 100644
  # This target can be used to just build the dependencies
  # for the check-mlir target without executing the tests.
  # This is useful for bots when splitting the build step
-diff --git a/mlir/test/Dialect/SPIRV/IR/availability.mlir b/mlir/test/Dialect/SPIRV/IR/availability.mlir
-index f56bc3967b4b..bc1505d32d4d 100644
---- a/mlir/test/Dialect/SPIRV/IR/availability.mlir
-+++ b/mlir/test/Dialect/SPIRV/IR/availability.mlir
-@@ -306,3 +306,20 @@ func.func @constant_composite_replicate() -> () {
-   %0 = spirv.EXT.ConstantCompositeReplicate [1 : i32] : vector<2xi32>
-   spirv.Return
- }
-+
-+//===----------------------------------------------------------------------===//
-+// GraphARM ops
-+//===----------------------------------------------------------------------===//
-+
-+// CHECK-LABEL: graph_arm
-+spirv.ARM.Graph @graph_arm(%arg0: !spirv.arm.tensor<1x16x16x16xi8>) -> !spirv.arm.tensor<1x16x16x16xi8> {
-+  // CHECK: spirv.ARM.GraphOutputs min version: v1.0
-+  // CHECK: spirv.ARM.GraphOutputs max version: v1.6
-+  // CHECK: spirv.ARM.GraphOutputs extensions: [ [SPV_ARM_graph, SPV_ARM_tensors, SPV_KHR_vulkan_memory_model] ]
-+  // CHECK: spirv.ARM.GraphOutputs capabilities: [ [GraphARM] ]
-+  spirv.ARM.GraphOutputs %arg0 : !spirv.arm.tensor<1x16x16x16xi8>
-+// CHECK: spirv.ARM.Graph min version: v1.0
-+// CHECK: spirv.ARM.Graph max version: v1.6
-+// CHECK: spirv.ARM.Graph extensions: [ [SPV_ARM_graph, SPV_ARM_tensors, SPV_KHR_vulkan_memory_model] ]
-+// CHECK: spirv.ARM.Graph capabilities: [ [GraphARM] ]
-+}
 diff --git a/mlir/test/Dialect/SPIRV/IR/target-and-abi.mlir b/mlir/test/Dialect/SPIRV/IR/target-and-abi.mlir
-index 10fbcf06eb05..515162bf99ae 100644
+index 10fbcf06eb05..bea9d3e75506 100644
 --- a/mlir/test/Dialect/SPIRV/IR/target-and-abi.mlir
 +++ b/mlir/test/Dialect/SPIRV/IR/target-and-abi.mlir
 @@ -14,7 +14,7 @@ func.func @unknown_attr_on_region(%arg: i32 {spirv.something}) {
- 
+
  // -----
- 
+
 -// expected-error @+1 {{cannot attach SPIR-V attributes to region result}}
 +// expected-error @+1 {{found unsupported 'spirv.something' attribute on region argument}}
  func.func @unknown_attr_on_region() -> (i32 {spirv.something}) {
    %0 = arith.constant 10.0 : f32
    return %0: f32
-@@ -101,6 +101,27 @@ func.func @interface_var(
- 
- // -----
- 
-+// CHECK: {spirv.interface_var_abi = #spirv.interface_var_abi<(0, 1)>}
-+func.func @interface_var(%arg: f32) -> (
-+    f32 {spirv.interface_var_abi = #spirv.interface_var_abi<(0, 1)>}
-+) { return %arg : f32 }
-+
-+// -----
-+
-+// CHECK: {spirv.interface_var_abi = #spirv.interface_var_abi<(0, 1), Uniform>}
-+func.func @interface_var(%arg: f32) -> (
-+    f32 {spirv.interface_var_abi = #spirv.interface_var_abi<(0, 1), Uniform>}
-+) { return %arg : f32 }
-+
-+// -----
-+
-+// expected-error @+1 {{'spirv.interface_var_abi' attribute cannot specify storage class when attaching to a non-scalar value}}
-+func.func @interface_var(%arg0 : memref<4xf32>) -> (
-+  memref<4xf32> {spirv.interface_var_abi = #spirv.interface_var_abi<(0, 1), Uniform>}
-+) { return %arg0 : memref<4xf32> }
-+
-+// -----
-+
- //===----------------------------------------------------------------------===//
- // spirv.resource_limits
- //===----------------------------------------------------------------------===//
-diff --git a/mlir/test/Dialect/SPIRV/Transforms/abi-interface.mlir b/mlir/test/Dialect/SPIRV/Transforms/abi-interface.mlir
-index bd51a0784365..9f5694135d62 100644
---- a/mlir/test/Dialect/SPIRV/Transforms/abi-interface.mlir
-+++ b/mlir/test/Dialect/SPIRV/Transforms/abi-interface.mlir
-@@ -35,6 +35,28 @@ spirv.module Logical GLSL450 {
- 
- // -----
- 
-+module attributes {
-+  spirv.target_env = #spirv.target_env<
-+     #spirv.vce<v1.0, [VulkanMemoryModel, Shader, Int8, TensorsARM, GraphARM], [SPV_ARM_tensors, SPV_ARM_graph]>, #spirv.resource_limits<>>
-+} {
-+
-+// CHECK-LABEL: spirv.module
-+spirv.module Logical Vulkan {
-+  //  CHECK-DAG:    spirv.GlobalVariable [[VARARG0:@.*]] bind(0, 0) : !spirv.ptr<!spirv.arm.tensor<1x16x16x16xi8>, UniformConstant>
-+  //  CHECK-DAG:    spirv.GlobalVariable [[VARRES0:@.*]] bind(0, 1) : !spirv.ptr<!spirv.arm.tensor<1x16x16x16xi8>, UniformConstant>
-+
-+  //      CHECK:    spirv.ARM.GraphEntryPoint [[GN:@.*]], [[VARARG0]], [[VARRES0]]
-+  //      CHECK:    spirv.ARM.Graph [[GN]]([[ARG0:%.*]]: !spirv.arm.tensor<1x16x16x16xi8>) -> !spirv.arm.tensor<1x16x16x16xi8> attributes {entry_point = true}
-+  spirv.ARM.Graph @main(%arg0: !spirv.arm.tensor<1x16x16x16xi8> {spirv.interface_var_abi = #spirv.interface_var_abi<(0, 0)>})
-+                  -> (!spirv.arm.tensor<1x16x16x16xi8> {spirv.interface_var_abi = #spirv.interface_var_abi<(0, 1)>}) attributes {entry_point = true} {
-+    spirv.ARM.GraphOutputs %arg0 : !spirv.arm.tensor<1x16x16x16xi8>
-+  }
-+} // end spirv.module
-+
-+} // end module
-+
-+// -----
-+
- module {
- // expected-error@+1 {{'spirv.module' op missing SPIR-V target env attribute}}
- spirv.module Logical GLSL450 {}
 diff --git a/mlir/test/Dialect/SPIRV/Transforms/vce-deduction.mlir b/mlir/test/Dialect/SPIRV/Transforms/vce-deduction.mlir
-index 2b237665ffc4..51c884fa7d16 100644
+index 2b237665ffc4..75553bbb8c8d 100644
 --- a/mlir/test/Dialect/SPIRV/Transforms/vce-deduction.mlir
 +++ b/mlir/test/Dialect/SPIRV/Transforms/vce-deduction.mlir
 @@ -7,7 +7,7 @@
  // Test deducing minimal version.
  // spirv.IAdd is available from v1.0.
- 
+
 -// CHECK: requires #spirv.vce<v1.0, [Shader], []>
 +// CHECK: requires #spirv.vce<v1.0, [Shader, Matrix], []>
  spirv.module Logical GLSL450 attributes {
@@ -7754,7 +7745,7 @@ index 2b237665ffc4..51c884fa7d16 100644
 @@ -21,7 +21,7 @@ spirv.module Logical GLSL450 attributes {
  // Test deducing minimal version.
  // spirv.GroupNonUniformBallot is available since v1.3.
- 
+
 -// CHECK: requires #spirv.vce<v1.3, [GroupNonUniformBallot, Shader], []>
 +// CHECK: requires #spirv.vce<v1.3, [GroupNonUniformBallot, GroupNonUniform, Shader, Matrix], []>
  spirv.module Logical GLSL450 attributes {
@@ -7763,25 +7754,25 @@ index 2b237665ffc4..51c884fa7d16 100644
 @@ -32,7 +32,7 @@ spirv.module Logical GLSL450 attributes {
    }
  }
- 
+
 -// CHECK: requires #spirv.vce<v1.4, [Shader], []>
 +// CHECK: requires #spirv.vce<v1.4, [Shader, Matrix], []>
  spirv.module Logical GLSL450 attributes {
    spirv.target_env = #spirv.target_env<#spirv.vce<v1.6, [Shader], []>, #spirv.resource_limits<>>
  } {
 @@ -48,7 +48,7 @@ spirv.module Logical GLSL450 attributes {
- 
+
  // Test minimal capabilities.
- 
+
 -// CHECK: requires #spirv.vce<v1.0, [Shader], []>
 +// CHECK: requires #spirv.vce<v1.0, [Shader, Matrix], []>
  spirv.module Logical GLSL450 attributes {
    spirv.target_env = #spirv.target_env<
      #spirv.vce<v1.0, [Shader, Float16, Float64, Int16, Int64, VariablePointers], []>, #spirv.resource_limits<>>
 @@ -61,7 +61,7 @@ spirv.module Logical GLSL450 attributes {
- 
+
  // Test Physical Storage Buffers are deduced correctly.
- 
+
 -// CHECK: spirv.module PhysicalStorageBuffer64 GLSL450 requires #spirv.vce<v1.0, [PhysicalStorageBufferAddresses, Shader], [SPV_EXT_physical_storage_buffer]>
 +// CHECK: spirv.module PhysicalStorageBuffer64 GLSL450 requires #spirv.vce<v1.0, [PhysicalStorageBufferAddresses, Shader, Matrix], [SPV_EXT_physical_storage_buffer]>
  spirv.module PhysicalStorageBuffer64 GLSL450 attributes {
@@ -7790,7 +7781,7 @@ index 2b237665ffc4..51c884fa7d16 100644
 @@ -74,7 +74,7 @@ spirv.module PhysicalStorageBuffer64 GLSL450 attributes {
  // Test deducing implied capability.
  // AtomicStorage implies Shader.
- 
+
 -// CHECK: requires #spirv.vce<v1.0, [Shader], []>
 +// CHECK: requires #spirv.vce<v1.0, [Shader, Matrix], []>
  spirv.module Logical GLSL450 attributes {
@@ -7799,7 +7790,7 @@ index 2b237665ffc4..51c884fa7d16 100644
 @@ -95,7 +95,7 @@ spirv.module Logical GLSL450 attributes {
  // * GroupNonUniformArithmetic
  // * GroupNonUniformBallot
- 
+
 -// CHECK: requires #spirv.vce<v1.3, [GroupNonUniformArithmetic, Shader], []>
 +// CHECK: requires #spirv.vce<v1.3, [GroupNonUniformArithmetic, GroupNonUniform, Shader, Matrix], []>
  spirv.module Logical GLSL450 attributes {
@@ -7808,7 +7799,7 @@ index 2b237665ffc4..51c884fa7d16 100644
 @@ -106,7 +106,7 @@ spirv.module Logical GLSL450 attributes {
    }
  }
- 
+
 -// CHECK: requires #spirv.vce<v1.3, [GroupNonUniformClustered, GroupNonUniformBallot, Shader], []>
 +// CHECK: requires #spirv.vce<v1.3, [GroupNonUniformClustered, GroupNonUniformBallot, GroupNonUniform, Shader, Matrix], []>
  spirv.module Logical GLSL450 attributes {
@@ -7816,7 +7807,7 @@ index 2b237665ffc4..51c884fa7d16 100644
      #spirv.vce<v1.3, [Shader, GroupNonUniformClustered, GroupNonUniformBallot], []>, #spirv.resource_limits<>>
 @@ -120,7 +120,7 @@ spirv.module Logical GLSL450 attributes {
  // Test type required capabilities
- 
+
  // Using 8-bit integers in non-interface storage class requires Int8.
 -// CHECK: requires #spirv.vce<v1.0, [Int8, Shader], []>
 +// CHECK: requires #spirv.vce<v1.0, [Int8, Shader, Matrix], []>
@@ -7825,7 +7816,7 @@ index 2b237665ffc4..51c884fa7d16 100644
      #spirv.vce<v1.3, [Shader, Int8], []>, #spirv.resource_limits<>>
 @@ -132,7 +132,7 @@ spirv.module Logical GLSL450 attributes {
  }
- 
+
  // Using 16-bit floats in non-interface storage class requires Float16.
 -// CHECK: requires #spirv.vce<v1.0, [Float16, Shader], []>
 +// CHECK: requires #spirv.vce<v1.0, [Float16, Shader, Matrix], []>
@@ -7834,7 +7825,7 @@ index 2b237665ffc4..51c884fa7d16 100644
      #spirv.vce<v1.3, [Shader, Float16], []>, #spirv.resource_limits<>>
 @@ -144,7 +144,7 @@ spirv.module Logical GLSL450 attributes {
  }
- 
+
  // Using 16-element vectors requires Vector16.
 -// CHECK: requires #spirv.vce<v1.0, [Vector16, Shader], []>
 +// CHECK: requires #spirv.vce<v1.0, [Vector16, Kernel, Shader, Matrix], []>
@@ -7844,7 +7835,7 @@ index 2b237665ffc4..51c884fa7d16 100644
 @@ -162,7 +162,7 @@ spirv.module Logical GLSL450 attributes {
  // Test deducing minimal extensions.
  // spirv.KHR.SubgroupBallot requires the SPV_KHR_shader_ballot extension.
- 
+
 -// CHECK: requires #spirv.vce<v1.0, [SubgroupBallotKHR, Shader], [SPV_KHR_shader_ballot]>
 +// CHECK: requires #spirv.vce<v1.0, [SubgroupBallotKHR, Shader, Matrix], [SPV_KHR_shader_ballot]>
  spirv.module Logical GLSL450 attributes {
@@ -7853,14 +7844,14 @@ index 2b237665ffc4..51c884fa7d16 100644
 @@ -178,7 +178,7 @@ spirv.module Logical GLSL450 attributes {
  // Vulkan memory model requires SPV_KHR_vulkan_memory_model, which is enabled
  // implicitly by v1.5.
- 
+
 -// CHECK: requires #spirv.vce<v1.0, [VulkanMemoryModel], [SPV_KHR_vulkan_memory_model]>
 +// CHECK: requires #spirv.vce<v1.5, [VulkanMemoryModel], [SPV_KHR_vulkan_memory_model]>
  spirv.module Logical Vulkan attributes {
    spirv.target_env = #spirv.target_env<
      #spirv.vce<v1.5, [Shader, VulkanMemoryModel], []>, #spirv.resource_limits<>>
 @@ -193,7 +193,7 @@ spirv.module Logical Vulkan attributes {
- 
+
  // Using 8-bit integers in interface storage class requires additional
  // extensions and capabilities.
 -// CHECK: requires #spirv.vce<v1.0, [StorageBuffer16BitAccess, Shader, Int16], [SPV_KHR_16bit_storage, SPV_KHR_storage_buffer_storage_class]>
@@ -7879,132 +7870,25 @@ index 2b237665ffc4..51c884fa7d16 100644
      #spirv.vce<v1.5, [Shader, UniformAndStorageBuffer8BitAccess, StorageBuffer16BitAccess, StorageUniform16, Int16, Int64, ImageBuffer, StorageImageExtendedFormats], []>,
 @@ -219,7 +219,7 @@ spirv.module Logical GLSL450 attributes {
  }
- 
+
  // Using bfloat16 requires BFloat16TypeKHR capability and SPV_KHR_bfloat16 extension.
 -// CHECK: requires #spirv.vce<v1.0, [StorageBuffer16BitAccess, Shader, BFloat16TypeKHR], [SPV_KHR_bfloat16, SPV_KHR_16bit_storage, SPV_KHR_storage_buffer_storage_class]>
 +// CHECK: requires #spirv.vce<v1.0, [StorageBuffer16BitAccess, Shader, BFloat16TypeKHR, Matrix], [SPV_KHR_bfloat16, SPV_KHR_16bit_storage, SPV_KHR_storage_buffer_storage_class]>
  spirv.module Logical GLSL450 attributes {
    spirv.target_env = #spirv.target_env<
      #spirv.vce<v1.0, [Shader, StorageBuffer16BitAccess, BFloat16TypeKHR], [SPV_KHR_bfloat16, SPV_KHR_16bit_storage, SPV_KHR_storage_buffer_storage_class]>,
-@@ -231,3 +231,14 @@ spirv.module Logical GLSL450 attributes {
-     spirv.ReturnValue %val : bf16
-   }
- }
-+
-+// CHECK: spirv.module Logical Vulkan requires #spirv.vce<v1.5, [GraphARM, TensorsARM, Int8, Shader, VulkanMemoryModel, Float16, Matrix], [SPV_ARM_graph, SPV_ARM_tensors, SPV_KHR_vulkan_memory_model]>
-+spirv.module Logical Vulkan attributes {
-+  spirv.target_env = #spirv.target_env<
-+    #spirv.vce<v1.5, [GraphARM, TensorsARM, Float16], [SPV_ARM_tensors, SPV_ARM_graph, SPV_KHR_vulkan_memory_model]>,
-+    #spirv.resource_limits<>>
-+} {
-+  spirv.ARM.Graph @argmax(%arg0 : !spirv.arm.tensor<14x19xi8>, %arg1 : !spirv.arm.tensor<1xf16>) -> !spirv.arm.tensor<14x19xi8> {
-+      spirv.ARM.GraphOutputs %arg0 : !spirv.arm.tensor<14x19xi8>
-+  }
-+}
-diff --git a/mlir/test/Target/SPIRV/constant.mlir b/mlir/test/Target/SPIRV/constant.mlir
-index 76d34c2a96e6..6790cbd47db1 100644
---- a/mlir/test/Target/SPIRV/constant.mlir
-+++ b/mlir/test/Target/SPIRV/constant.mlir
-@@ -1,6 +1,7 @@
- // RUN: mlir-translate --no-implicit-module --split-input-file --test-spirv-roundtrip %s | FileCheck %s
-+// RUN: %if spirv-tools %{ mlir-translate -no-implicit-module -serialize-spirv %s | spirv-val %}
- 
+diff --git a/mlir/test/Target/SPIRV/debug.mlir b/mlir/test/Target/SPIRV/debug.mlir
+index 58bf364593fc..eba64e24c60d 100644
+--- a/mlir/test/Target/SPIRV/debug.mlir
++++ b/mlir/test/Target/SPIRV/debug.mlir
+@@ -1,6 +1,6 @@
+ // RUN: mlir-translate -no-implicit-module -test-spirv-roundtrip-debug -mlir-print-debuginfo -mlir-print-local-scope %s | FileCheck %s
+
 -spirv.module Logical GLSL450 requires #spirv.vce<v1.0, [Shader], []> {
-+spirv.module Logical Vulkan requires #spirv.vce<v1.3, [VulkanMemoryModel, Shader, Int64, Int16, Int8, Float64, Float16, CooperativeMatrixKHR], [SPV_KHR_vulkan_memory_model, SPV_KHR_cooperative_matrix]> {
-   // CHECK-LABEL: @bool_const
-   spirv.func @bool_const() -> () "None" {
-     // CHECK: spirv.Constant true
-@@ -305,6 +306,50 @@ spirv.module Logical GLSL450 requires #spirv.vce<v1.0, [Shader], []> {
-     %coop = spirv.Constant dense<4> : !spirv.coopmatrix<16x16xi8, Subgroup, MatrixAcc>
-     spirv.ReturnValue %coop : !spirv.coopmatrix<16x16xi8, Subgroup, MatrixAcc>
-   }
-+
-+  // CHECK-LABEL: @arm_tensor_of_i32
-+  spirv.func @arm_tensor_of_i32() -> (!spirv.arm.tensor<2x3xi32>) "None" {
-+    // CHECK: {{%.*}} = spirv.Constant dense<{{\[}}[1, 2, 3], [4, 5, 6]]> : !spirv.arm.tensor<2x3xi32>
-+    %0 = spirv.Constant dense<[[1, 2, 3], [4, 5, 6]]> : !spirv.arm.tensor<2x3xi32>
-+    spirv.ReturnValue %0 : !spirv.arm.tensor<2x3xi32>
-+  }
-+
-+  // CHECK-LABEL: @splat_arm_tensor_of_i32
-+  spirv.func @splat_arm_tensor_of_i32() -> (!spirv.arm.tensor<2x3xi32>) "None" {
-+    // CHECK: {{%.*}} = spirv.Constant dense<2> : !spirv.arm.tensor<2x3xi32>
-+    %0 = spirv.Constant dense<2> : !spirv.arm.tensor<2x3xi32>
-+    spirv.ReturnValue %0 : !spirv.arm.tensor<2x3xi32>
-+  }
-+
-+  // CHECK-LABEL: @arm_tensor_of_f32
-+  spirv.func @arm_tensor_of_f32() -> (!spirv.arm.tensor<2x3xf32>) "None" {
-+    // CHECK: {{%.*}} = spirv.Constant dense<{{\[}}[1.000000e+00, 2.000000e+00, 3.000000e+00], [4.000000e+00, 5.000000e+00, 6.000000e+00]]> : !spirv.arm.tensor<2x3xf32>
-+    %0 = spirv.Constant dense<[[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]>: !spirv.arm.tensor<2x3xf32>
-+    spirv.ReturnValue %0 : !spirv.arm.tensor<2x3xf32>
-+  }
-+
-+  // CHECK-LABEL: @splat_arm_tensor_of_f32
-+  spirv.func @splat_arm_tensor_of_f32() -> (!spirv.arm.tensor<2x3xf32>) "None" {
-+    // CHECK: {{%.*}} = spirv.Constant dense<2.000000e+00> : !spirv.arm.tensor<2x3xf32>
-+    %0 = spirv.Constant dense<2.0> : !spirv.arm.tensor<2x3xf32>
-+    spirv.ReturnValue %0 : !spirv.arm.tensor<2x3xf32>
-+  }
-+
-+  // CHECK-LABEL: @null_arm_tensor_of_i32
-+  spirv.func @null_arm_tensor_of_i32() -> (!spirv.arm.tensor<2x3xi32>) "None" {
-+    // CHECK: spirv.Constant dense<0> : !spirv.arm.tensor<2x3xi32>
-+    %0 = spirv.Constant dense<0> : !spirv.arm.tensor<2x3xi32>
-+    spirv.ReturnValue %0 : !spirv.arm.tensor<2x3xi32>
-+  }
-+
-+  // CHECK-LABEL: @null_arm_tensor_of_f32
-+  spirv.func @null_arm_tensor_of_f32() -> (!spirv.arm.tensor<2x3xf32>) "None" {
-+    // CHECK: spirv.Constant dense<0.000000e+00> : !spirv.arm.tensor<2x3xf32>
-+    %0 = spirv.Constant dense<0.0> : !spirv.arm.tensor<2x3xf32>
-+    spirv.ReturnValue %0 : !spirv.arm.tensor<2x3xf32>
-+  }
-+
-+  spirv.EntryPoint "GLCompute" @bool_const
- }
- 
- // -----
-@@ -360,6 +405,20 @@ spirv.module Logical GLSL450 requires #spirv.vce<v1.0, [Shader, ReplicatedCompos
-     spirv.ReturnValue %0 : !spirv.arm.tensor<2x3xi32>
-   }
- 
-+  // CHECK-LABEL: @array_of_splat_array_of_non_splat_arrays_of_i32
-+  spirv.func @array_of_splat_array_of_non_splat_arrays_of_i32() -> !spirv.array<2 x !spirv.array<2 x !spirv.array<3 x i32>>> "None" {
-+    // CHECK: spirv.EXT.ConstantCompositeReplicate {{\[}}{{\[}}[1 : i32, 2 : i32, 3 : i32], [4 : i32, 5 : i32, 6 : i32]]] : !spirv.array<2 x !spirv.array<2 x !spirv.array<3 x i32>>>
-+    %0 = spirv.EXT.ConstantCompositeReplicate [[[1 : i32, 2 : i32, 3 : i32], [4 : i32, 5 : i32, 6 : i32]]] : !spirv.array<2 x !spirv.array<2 x !spirv.array<3 x i32>>>
-+    spirv.ReturnValue %0 : !spirv.array<2 x !spirv.array<2 x !spirv.array<3 x i32>>>
-+  }
-+
-+  // CHECK-LABEL: @null_cc_arm_tensor_of_i32
-+  spirv.func @null_cc_arm_tensor_of_i32() -> (!spirv.arm.tensor<2x3xi32>) "None" {
-+    // CHECK: spirv.Constant dense<0> : !spirv.arm.tensor<2x3xi32>
-+    %0 = spirv.EXT.ConstantCompositeReplicate [0 : i32] : !spirv.arm.tensor<2x3xi32>
-+    spirv.ReturnValue %0 : !spirv.arm.tensor<2x3xi32>
-+  }
-+
-   // CHECK-LABEL: @splat_vector_f32
-   spirv.func @splat_vector_f32() -> (vector<3xf32>) "None" {
-     // CHECK: spirv.EXT.ConstantCompositeReplicate [1.000000e+00 : f32] : vector<3xf32>
-@@ -408,4 +467,18 @@ spirv.module Logical GLSL450 requires #spirv.vce<v1.0, [Shader, ReplicatedCompos
-     %0 = spirv.EXT.ConstantCompositeReplicate [2.0 : f32] : !spirv.arm.tensor<2x3xf32>
-     spirv.ReturnValue %0 : !spirv.arm.tensor<2x3xf32>
-   }
-+
-+  // CHECK-LABEL: @array_of_splat_array_of_non_splat_arrays_of_f32
-+  spirv.func @array_of_splat_array_of_non_splat_arrays_of_f32() -> !spirv.array<2 x !spirv.array<2 x !spirv.array<3 x f32>>> "None" {
-+    // CHECK: spirv.EXT.ConstantCompositeReplicate {{\[}}{{\[}}[1.000000e+00 : f32, 2.000000e+00 : f32, 3.000000e+00 : f32], [4.000000e+00 : f32, 5.000000e+00 : f32, 6.000000e+00 : f32]]] : !spirv.array<2 x !spirv.array<2 x !spirv.array<3 x f32>>>
-+    %0 = spirv.EXT.ConstantCompositeReplicate [[[1.0 : f32, 2.0 : f32, 3.0 : f32], [4.0 : f32, 5.0 : f32, 6.0 : f32]]] : !spirv.array<2 x !spirv.array<2 x !spirv.array<3 x f32>>>
-+    spirv.ReturnValue %0 : !spirv.array<2 x !spirv.array<2 x !spirv.array<3 x f32>>>
-+  }
-+
-+  // CHECK-LABEL: @null_cc_arm_tensor_of_f32
-+  spirv.func @null_cc_arm_tensor_of_f32() -> (!spirv.arm.tensor<2x3xf32>) "None" {
-+    // CHECK: spirv.Constant dense<0.000000e+00> : !spirv.arm.tensor<2x3xf32>
-+    %0 = spirv.EXT.ConstantCompositeReplicate [0.0 : f32] : !spirv.arm.tensor<2x3xf32>
-+    spirv.ReturnValue %0 : !spirv.arm.tensor<2x3xf32>
-+  }
- }
++spirv.module Logical GLSL450 requires #spirv.vce<v1.0, [Shader], [SPV_KHR_non_semantic_info]> attributes {spirv.target_env = #spirv.target_env<#spirv.vce<v1.0, [Shader], [SPV_KHR_non_semantic_info]>, #spirv.resource_limits<>>} {
+   // CHECK: loc({{".*debug.mlir"}}:5:3)
+   spirv.GlobalVariable @var0 bind(0, 1) : !spirv.ptr<f32, Input>
+   spirv.func @arithmetic(%arg0 : vector<4xf32>, %arg1 : vector<4xf32>) "None" {
 diff --git a/mlir/test/Target/SPIRV/lit.local.cfg b/mlir/test/Target/SPIRV/lit.local.cfg
 new file mode 100644
 index 000000000000..6d44394c8cd4
@@ -8015,51 +7899,6 @@ index 000000000000..6d44394c8cd4
 +    config.available_features.add("spirv-tools")
 +    config.substitutions.append(("spirv-as", os.path.join(config.llvm_tools_dir, "spirv-as")))
 +    config.substitutions.append(("spirv-val", os.path.join(config.llvm_tools_dir, "spirv-val")))
-diff --git a/mlir/test/lib/Dialect/SPIRV/TestAvailability.cpp b/mlir/test/lib/Dialect/SPIRV/TestAvailability.cpp
-index 2e5e591fe5f9..9efca825a663 100644
---- a/mlir/test/lib/Dialect/SPIRV/TestAvailability.cpp
-+++ b/mlir/test/lib/Dialect/SPIRV/TestAvailability.cpp
-@@ -21,7 +21,7 @@ using namespace mlir;
- namespace {
- /// A pass for testing SPIR-V op availability.
- struct PrintOpAvailability
--    : public PassWrapper<PrintOpAvailability, OperationPass<func::FuncOp>> {
-+    : public PassWrapper<PrintOpAvailability, OperationPass<mlir::ModuleOp>> {
-   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(PrintOpAvailability)
- 
-   void runOnOperation() override;
-@@ -33,12 +33,10 @@ struct PrintOpAvailability
- } // namespace
- 
- void PrintOpAvailability::runOnOperation() {
--  auto f = getOperation();
--  llvm::outs() << f.getName() << "\n";
--
-+  auto moduleOp = getOperation();
-   Dialect *spirvDialect = getContext().getLoadedDialect("spirv");
- 
--  f->walk([&](Operation *op) {
-+  auto opCallback = [&](Operation *op) {
-     if (op->getDialect() != spirvDialect)
-       return WalkResult::advance();
- 
-@@ -89,6 +87,16 @@ void PrintOpAvailability::runOnOperation() {
-     os.flush();
- 
-     return WalkResult::advance();
-+  };
-+
-+  moduleOp.walk([&](func::FuncOp f) {
-+    llvm::outs() << f.getName() << "\n";
-+    f->walk(opCallback);
-+  });
-+
-+  moduleOp.walk([&](spirv::GraphARMOp g) {
-+    llvm::outs() << g.getName() << "\n";
-+    g->walk(opCallback);
-   });
- }
- 
 diff --git a/mlir/test/lit.cfg.py b/mlir/test/lit.cfg.py
 index 233fef8ec429..feaf5fb852a1 100644
 --- a/mlir/test/lit.cfg.py
@@ -8067,11 +7906,11 @@ index 233fef8ec429..feaf5fb852a1 100644
 @@ -343,7 +343,6 @@ if config.enable_assertions:
  else:
      config.available_features.add("noasserts")
- 
+
 -
  def have_host_jit_feature_support(feature_name):
      mlir_runner_exe = lit.util.which("mlir-runner", config.mlir_tools_dir)
- 
+
 diff --git a/mlir/test/lit.site.cfg.py.in b/mlir/test/lit.site.cfg.py.in
 index 132aabe13594..b1185e19d86e 100644
 --- a/mlir/test/lit.site.cfg.py.in
