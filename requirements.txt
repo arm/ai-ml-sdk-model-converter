@@ -3,5 +3,5 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 
-pytest
-pytest-xdist
+pytest==8.4.2
+pytest-xdist==3.8.0
