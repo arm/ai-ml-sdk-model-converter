@@ -1,7 +1,7 @@
 From: svc_sdk <svc_sdk@arm.com>
-Date: Mon Sep 08 00:00:00 2025
+Date: Mon Sep 25 00:00:00 2025
 Subject: llvm-changes-for-model-converter-25-09-2025
-
+ 
 diff --git a/llvm/tools/spirv-tools/CMakeLists.txt b/llvm/tools/spirv-tools/CMakeLists.txt
 index c2c0f3e3c2e4..5db7aec99759 100644
 --- a/llvm/tools/spirv-tools/CMakeLists.txt
@@ -9,7 +9,7 @@ index c2c0f3e3c2e4..5db7aec99759 100644
 @@ -5,10 +5,6 @@ if (NOT LLVM_INCLUDE_SPIRV_TOOLS_TESTS)
    return()
  endif ()
-
+ 
 -if (NOT "SPIRV" IN_LIST LLVM_TARGETS_TO_BUILD)
 -  message(FATAL_ERROR "Building SPIRV-Tools tests is unsupported without the SPIR-V target")
 -endif ()
@@ -37,7 +37,7 @@ index 76e751243a12..2239d065fcd6 100644
 @@ -1262,6 +1262,38 @@ def TosaToSCFPass : Pass<"tosa-to-scf"> {
    }];
  }
-
+ 
 +//===----------------------------------------------------------------------===//
 +// TosaToSPIRV
 +//===----------------------------------------------------------------------===//
@@ -161,10 +161,10 @@ index 90383265002a..40a90eee55d7 100644
 +++ b/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVBase.td
 @@ -424,6 +424,7 @@ def SPV_NV_ray_tracing_motion_blur       : I32EnumAttrCase<"SPV_NV_ray_tracing_m
  def SPV_NVX_multiview_per_view_attributes : I32EnumAttrCase<"SPV_NVX_multiview_per_view_attributes", 5015>;
-
+ 
  def SPV_ARM_tensors                      : I32EnumAttrCase<"SPV_ARM_tensors", 6000>;
 +def SPV_ARM_graph                        : I32EnumAttrCase<"SPV_ARM_graph", 6001>;
-
+ 
  def SPIRV_ExtensionAttr :
      SPIRV_I32EnumAttr<"Extension", "supported SPIR-V extensions", "ext", [
 @@ -448,7 +449,7 @@ def SPIRV_ExtensionAttr :
@@ -207,7 +207,7 @@ index 90383265002a..40a90eee55d7 100644
  def SPIRV_Int32 : TypeAlias<I32, "Int32">;
  def SPIRV_Float32 : TypeAlias<F32, "Float32">;
 @@ -4252,6 +4260,7 @@ def SPIRV_AnyTensorArm : DialectType<SPIRV_Dialect, SPIRV_IsTensorArmType,
-
+ 
  def SPIRV_Numerical : AnyTypeOf<[SPIRV_Integer, SPIRV_AnyFloat]>;
  def SPIRV_Scalar : AnyTypeOf<[SPIRV_Numerical, SPIRV_Bool]>;
 +
@@ -241,7 +241,7 @@ index 90383265002a..40a90eee55d7 100644
 @@ -4849,6 +4868,11 @@ class SPIRV_NvVendorOp<string mnemonic, list<Trait> traits = []> :
    SPIRV_VendorOp<mnemonic, "NV", traits> {
  }
-
+ 
 +class SPIRV_ArmVendorOp<string mnemonic, list<Trait> traits = []> :
 +  SPIRV_VendorOp<mnemonic, "ARM", traits> {
 +}
@@ -476,7 +476,7 @@ index 0fa1bb9d5bd0..3ef9699154cd 100644
  include "mlir/Dialect/SPIRV/IR/SPIRVStructureOps.td"
 +include "mlir/Dialect/SPIRV/IR/SPIRVTosaOps.td"
  include "mlir/Interfaces/SideEffectInterfaces.td"
-
+ 
  #endif // MLIR_DIALECT_SPIRV_IR_OPS
 diff --git a/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTosaOps.td b/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTosaOps.td
 new file mode 100644
@@ -2412,7 +2412,7 @@ index 5a2520b48a7b..4f3390454d79 100644
 +  GraphType getGraphType(TypeRange inputs, TypeRange results);
    TupleType getTupleType(TypeRange elementTypes);
    NoneType getNoneType();
-
+ 
 diff --git a/mlir/include/mlir/IR/BuiltinTypes.td b/mlir/include/mlir/IR/BuiltinTypes.td
 index a0c8acea91dc..08847dd11c68 100644
 --- a/mlir/include/mlir/IR/BuiltinTypes.td
@@ -2420,7 +2420,7 @@ index a0c8acea91dc..08847dd11c68 100644
 @@ -403,7 +403,7 @@ def Builtin_Float128 : Builtin_CachedFloatType<"Float128", "f128"> {
  // FunctionType
  //===----------------------------------------------------------------------===//
-
+ 
 -def Builtin_Function : Builtin_Type<"Function", "function"> {
 +class Builtin_FunctionLike<string Name, string typeMnemonic> : Builtin_Type<Name, typeMnemonic> {
    let summary = "Map from a list of inputs to a list of results";
@@ -2437,13 +2437,13 @@ index a0c8acea91dc..08847dd11c68 100644
 @@ -444,23 +445,26 @@ def Builtin_Function : Builtin_Type<"Function", "function"> {
      unsigned getNumResults() const;
      Type getResult(unsigned i) const { return getResults()[i]; }
-
+ 
 -    /// Returns a clone of this function type with the given argument
 +    /// Returns a clone of this function-like type with the given argument
      /// and result types.
 -    FunctionType clone(TypeRange inputs, TypeRange results) const;
 +    }] # Name # "Type" # [{ clone(TypeRange inputs, TypeRange results) const;
-
+ 
 -    /// Returns a new function type with the specified arguments and results
 +    /// Returns a new function-like type with the specified arguments and results
      /// inserted.
@@ -2452,7 +2452,7 @@ index a0c8acea91dc..08847dd11c68 100644
                                         TypeRange argTypes,
                                         ArrayRef<unsigned> resultIndices,
                                         TypeRange resultTypes);
-
+ 
 -    /// Returns a new function type without the specified arguments and results.
 -    FunctionType getWithoutArgsAndResults(const BitVector &argIndices,
 +    /// Returns a new function-like type without the specified arguments and results.
@@ -2460,7 +2460,7 @@ index a0c8acea91dc..08847dd11c68 100644
                                            const BitVector &resultIndices);
    }];
  }
-
+ 
 +def Builtin_Function : Builtin_FunctionLike<"Function", "function">;
 +def Builtin_Graph : Builtin_FunctionLike<"Graph", "graph">;
 +
@@ -2474,7 +2474,7 @@ index 45ec1846580f..aab1b01c5cff 100644
 @@ -387,6 +387,13 @@ class OpaqueType<string dialect, string name, string summary>
  def FunctionType : Type<CPred<"::llvm::isa<::mlir::FunctionType>($_self)">,
                                "function type", "::mlir::FunctionType">;
-
+ 
 +// Graph Type
 +
 +// Any graph type.
@@ -4715,7 +4715,7 @@ index b9aa7b7491ab..cb51f4f246cd 100644
    SPIRVTypes.cpp
    TargetAndABI.cpp
 +  TosaOps.cpp
-
+ 
    ADDITIONAL_HEADER_DIRS
    ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/SPIRV
 diff --git a/mlir/lib/Dialect/SPIRV/IR/SPIRVDialect.cpp b/mlir/lib/Dialect/SPIRV/IR/SPIRVDialect.cpp
@@ -4725,7 +4725,7 @@ index f32c53b8f0b9..8418ad71f3f0 100644
 @@ -1015,8 +1015,14 @@ LogicalResult SPIRVDialect::verifyRegionArgAttribute(Operation *op,
    return verifyRegionAttribute(op->getLoc(), argType, attribute);
  }
-
+ 
 -LogicalResult SPIRVDialect::verifyRegionResultAttribute(
 -    Operation *op, unsigned /*regionIndex*/, unsigned /*resultIndex*/,
 -    NamedAttribute attribute) {
@@ -4748,7 +4748,7 @@ index d8dfe164458e..2f3a28ff1617 100644
 @@ -31,6 +31,18 @@ static bool isNestedInFunctionOpInterface(Operation *op) {
    return isNestedInFunctionOpInterface(op->getParentOp());
  }
-
+ 
 +/// Returns true if the given op is a GraphARM op or nested in a
 +/// GraphARM op without a module-like op in the middle.
 +static bool isNestedInGraphARMOpInterface(Operation *op) {
@@ -4771,7 +4771,7 @@ index 656236246b1a..8f9642ef3e1f 100644
 @@ -767,19 +767,22 @@ void mlir::spirv::AddressOfOp::getAsmResultNames(
  // spirv.EXTConstantCompositeReplicate
  //===----------------------------------------------------------------------===//
-
+ 
 +static Type getValueType(Attribute attr) {
 +  if (auto typedAttr = dyn_cast<TypedAttr>(attr)) {
 +    return typedAttr.getType();
@@ -4799,13 +4799,13 @@ index 656236246b1a..8f9642ef3e1f 100644
 +  if (!valueType)
      return emitError("unknown value attribute type");
 -  }
-
+ 
    auto compositeType = dyn_cast<spirv::CompositeType>(getType());
    if (!compositeType)
 @@ -1120,6 +1123,236 @@ void spirv::FuncOp::build(OpBuilder &builder, OperationState &state,
    state.addRegion();
  }
-
+ 
 +//===----------------------------------------------------------------------===//
 +// spirv.GraphEntryPointARM
 +//===----------------------------------------------------------------------===//
@@ -6185,7 +6185,7 @@ index 85525a5a02fa..57e27188e788 100644
 @@ -75,10 +75,36 @@ createGlobalVarForEntryPointArgument(OpBuilder &builder, spirv::FuncOp funcOp,
        abiInfo.getBinding());
  }
-
+ 
 +/// Creates a global variable for an argument or result based on the ABI info.
 +static spirv::GlobalVariableOp
 +createGlobalVarForGraphEntryPoint(OpBuilder &builder, spirv::GraphARMOp graphOp,
@@ -6223,7 +6223,7 @@ index 85525a5a02fa..57e27188e788 100644
 @@ -214,6 +240,21 @@ public:
                    ConversionPatternRewriter &rewriter) const override;
  };
-
+ 
 +/// A pattern to convert graph signature according to interface variable ABI
 +/// attributes.
 +///
@@ -6245,7 +6245,7 @@ index 85525a5a02fa..57e27188e788 100644
 @@ -287,6 +328,89 @@ LogicalResult ProcessInterfaceVarABI::matchAndRewrite(
    return success();
  }
-
+ 
 +namespace {
 +
 +/// Lowers the graph entry point
@@ -6333,11 +6333,11 @@ index 85525a5a02fa..57e27188e788 100644
    // Uses the signature conversion methodology of the dialect conversion
    // framework to implement the conversion.
 @@ -313,6 +437,7 @@ void LowerABIAttributesPass::runOnOperation() {
-
+ 
    RewritePatternSet patterns(context);
    patterns.add<ProcessInterfaceVarABI>(typeConverter, context);
 +  patterns.add<ProcessGraphInterfaceVarABI>(typeConverter, context);
-
+ 
    ConversionTarget target(*context);
    // "Legal" function ops should have no interface variable ABI attributes.
 @@ -323,6 +448,17 @@ void LowerABIAttributesPass::runOnOperation() {
@@ -6365,7 +6365,7 @@ index 6a9b951ca61d..b4bb5eb3ed42 100644
 @@ -95,6 +95,16 @@ static LogicalResult checkAndUpdateCapabilityRequirements(
    return success();
  }
-
+ 
 +static SetVector<spirv::Capability>
 +withImpliedCapabilities(SetVector<spirv::Capability> &caps) {
 +  SetVector<spirv::Capability> allCaps(caps.begin(), caps.end());
@@ -6378,11 +6378,11 @@ index 6a9b951ca61d..b4bb5eb3ed42 100644
 +
  void UpdateVCEPass::runOnOperation() {
    spirv::ModuleOp module = getOperation();
-
+ 
 @@ -151,6 +161,14 @@ void UpdateVCEPass::runOnOperation() {
      if (auto globalVar = dyn_cast<spirv::GlobalVariableOp>(op))
        valueTypes.push_back(globalVar.getType());
-
+ 
 +    // If the op is FunctionLike make sure to process input and result types
 +    if (auto funcOpInterface = dyn_cast<FunctionOpInterface>(op)) {
 +      auto inputTypes = funcOpInterface.getArgumentTypes();
@@ -6397,15 +6397,15 @@ index 6a9b951ca61d..b4bb5eb3ed42 100644
 @@ -168,12 +186,30 @@ void UpdateVCEPass::runOnOperation() {
          return WalkResult::interrupt();
      }
-
+ 
 +    deducedCapabilities = withImpliedCapabilities(deducedCapabilities);
 +
      return WalkResult::advance();
    });
-
+ 
    if (walkResult.wasInterrupted())
      return signalPassFailure();
-
+ 
 +  // Update min version requirement for capabilities after deducing them
 +  for (auto &cap : deducedCapabilities) {
 +    std::optional<spirv::Version> minVersion = spirv::getMinVersion(cap);
@@ -6424,7 +6424,7 @@ index 6a9b951ca61d..b4bb5eb3ed42 100644
 +
    // TODO: verify that the deduced version is consistent with
    // SPIR-V ops' maximal version requirements.
-
+ 
 diff --git a/mlir/lib/IR/AsmPrinter.cpp b/mlir/lib/IR/AsmPrinter.cpp
 index f95ad290a198..58fa14c0f525 100644
 --- a/mlir/lib/IR/AsmPrinter.cpp
@@ -6437,7 +6437,7 @@ index f95ad290a198..58fa14c0f525 100644
 +      (llvm::isa<FunctionType>(op->getResult(0).getType()) ||
 +       llvm::isa<GraphType>(op->getResult(0).getType())))
      wrapped = true;
-
+ 
    if (wrapped)
 @@ -2837,6 +2838,20 @@ void AsmPrinter::Impl::printTypeImpl(Type type) {
          os << '>';
@@ -6459,7 +6459,7 @@ index f95ad290a198..58fa14c0f525 100644
 +      })
        .Default([&](Type type) { return printDialectType(type); });
  }
-
+ 
 diff --git a/mlir/lib/IR/Builders.cpp b/mlir/lib/IR/Builders.cpp
 index f657db142eeb..3d366276b437 100644
 --- a/mlir/lib/IR/Builders.cpp
@@ -6467,7 +6467,7 @@ index f657db142eeb..3d366276b437 100644
 @@ -76,6 +76,10 @@ FunctionType Builder::getFunctionType(TypeRange inputs, TypeRange results) {
    return FunctionType::get(context, inputs, results);
  }
-
+ 
 +GraphType Builder::getGraphType(TypeRange inputs, TypeRange results) {
 +  return GraphType::get(context, inputs, results);
 +}
@@ -6482,7 +6482,7 @@ index 1604ebba190a..0ed2549bcc9b 100644
 @@ -179,6 +179,49 @@ FunctionType::getWithoutArgsAndResults(const BitVector &argIndices,
    return clone(newArgTypes, newResultTypes);
  }
-
+ 
 +//===----------------------------------------------------------------------===//
 +// GraphType
 +//===----------------------------------------------------------------------===//
@@ -6545,7 +6545,7 @@ index 9fa03725d05e..289c3c755049 100644
 +  }
    return valueMap.lookup(id);
  }
-
+ 
 @@ -179,6 +185,7 @@ LogicalResult spirv::Deserializer::processInstruction(
    case spirv::Opcode::OpTypeStruct:
    case spirv::Opcode::OpTypePointer:
@@ -6588,7 +6588,7 @@ index d133d0332e27..1689c3dbdb3e 100644
 @@ -670,6 +670,213 @@ spirv::Deserializer::processFunctionEnd(ArrayRef<uint32_t> operands) {
    return success();
  }
-
+ 
 +LogicalResult
 +spirv::Deserializer::processGraphEntryPointARM(ArrayRef<uint32_t> operands) {
 +  unsigned wordIndex = 0;
@@ -6802,7 +6802,7 @@ index d133d0332e27..1689c3dbdb3e 100644
 @@ -702,6 +909,14 @@ std::string spirv::Deserializer::getFunctionSymbol(uint32_t id) {
    return funcName;
  }
-
+ 
 +std::string spirv::Deserializer::getGraphSymbol(uint32_t id) {
 +  auto graphName = nameMap.lookup(id).str();
 +  if (graphName.empty()) {
@@ -6817,7 +6817,7 @@ index d133d0332e27..1689c3dbdb3e 100644
 @@ -724,6 +939,14 @@ spirv::Deserializer::createSpecConstant(Location loc, uint32_t resultID,
    return op;
  }
-
+ 
 +std::optional<spirv::GraphConstantARMOpMaterializationInfo>
 +spirv::Deserializer::getGraphConstantARM(uint32_t id) {
 +  auto graphConstIt = graphConstantMap.find(id);
@@ -6841,7 +6841,7 @@ index d133d0332e27..1689c3dbdb3e 100644
 @@ -1297,6 +1522,35 @@ spirv::Deserializer::processTensorARMType(ArrayRef<uint32_t> operands) {
    return success();
  }
-
+ 
 +LogicalResult
 +spirv::Deserializer::processGraphTypeARM(ArrayRef<uint32_t> operands) {
 +  unsigned size = operands.size();
@@ -6876,7 +6876,7 @@ index d133d0332e27..1689c3dbdb3e 100644
    if (operands.size() != 2)
 @@ -1546,7 +1800,19 @@ spirv::Deserializer::processConstantComposite(ArrayRef<uint32_t> operands) {
    }
-
+ 
    auto resultID = operands[1];
 -  if (auto shapedType = dyn_cast<ShapedType>(resultType)) {
 +  if (auto tensorType = dyn_cast<TensorArmType>(resultType)) {
@@ -6902,11 +6902,11 @@ index d133d0332e27..1689c3dbdb3e 100644
 -                     "OpConstantNull must have type <id> and result <id>");
 +                     "OpConstantNull must only have type <id> and result <id>");
    }
-
+ 
    Type resultType = getType(operands[0]);
 @@ -1778,8 +2044,17 @@ spirv::Deserializer::processConstantNull(ArrayRef<uint32_t> operands) {
    }
-
+ 
    auto resultID = operands[1];
 +  Attribute attr;
    if (resultType.isIntOrFloat() || isa<VectorType>(resultType)) {
@@ -6926,7 +6926,7 @@ index d133d0332e27..1689c3dbdb3e 100644
 @@ -1790,6 +2065,38 @@ spirv::Deserializer::processConstantNull(ArrayRef<uint32_t> operands) {
           << resultType;
  }
-
+ 
 +LogicalResult
 +spirv::Deserializer::processGraphConstantARM(ArrayRef<uint32_t> operands) {
 +  if (operands.size() < 2) {
@@ -6965,7 +6965,7 @@ index d133d0332e27..1689c3dbdb3e 100644
 @@ -1887,6 +2194,24 @@ LogicalResult spirv::Deserializer::processLabel(ArrayRef<uint32_t> operands) {
    return success();
  }
-
+ 
 +LogicalResult spirv::Deserializer::createGraphBlock(uint32_t graphID) {
 +  if (!curGraph) {
 +    return emitError(unknownLoc, "a graph block must appear inside a graph");
@@ -6994,7 +6994,7 @@ index 20482bd2bf50..dff6c69ed34a 100644
 @@ -105,6 +105,13 @@ struct SpecConstOperationMaterializationInfo {
    SmallVector<uint32_t> enclosedOpOperands;
  };
-
+ 
 +/// A struct that collects the info needed to materialize/emit a
 +/// GraphConstantARMOp.
 +struct GraphConstantARMOpMaterializationInfo {
@@ -7008,7 +7008,7 @@ index 20482bd2bf50..dff6c69ed34a 100644
 @@ -210,9 +217,14 @@ private:
    /// exists; otherwise creates one based on the <id>.
    std::string getFunctionSymbol(uint32_t id);
-
+ 
 -  /// Returns a symbol to be used for the specialization constant with the given
 -  /// result <id>. This tries to use the specialization constant's OpName if
 +  /// Returns a symbol to be used for the graph name with the given
@@ -7020,12 +7020,12 @@ index 20482bd2bf50..dff6c69ed34a 100644
 +  /// given result <id>. This tries to use the specialization constant's
 +  /// OpName if exists; otherwise creates one based on the <id>.
    std::string getSpecConstantSymbol(uint32_t id);
-
+ 
    /// Gets the specialization constant with the given result <id>.
 @@ -236,6 +248,11 @@ private:
    spirv::SpecConstantOp createSpecConstant(Location loc, uint32_t resultID,
                                             TypedAttr defaultValue);
-
+ 
 +  /// Gets the GraphConstantARM ID attribute and result type with the given
 +  /// result <id>.
 +  std::optional<spirv::GraphConstantARMOpMaterializationInfo>
@@ -7035,9 +7035,9 @@ index 20482bd2bf50..dff6c69ed34a 100644
    /// It is expected that this method is used for variables that are to be
    /// defined at module scope and will be deserialized into a
 @@ -305,6 +322,16 @@ private:
-
+ 
    LogicalResult processTensorARMType(ArrayRef<uint32_t> operands);
-
+ 
 +  LogicalResult processGraphTypeARM(ArrayRef<uint32_t> operands);
 +
 +  LogicalResult processGraphEntryPointARM(ArrayRef<uint32_t> operands);
@@ -7049,12 +7049,12 @@ index 20482bd2bf50..dff6c69ed34a 100644
 +  LogicalResult processGraphARMEnd(ArrayRef<uint32_t> operands);
 +
    LogicalResult processTypeForwardPointer(ArrayRef<uint32_t> operands);
-
+ 
    //===--------------------------------------------------------------------===//
 @@ -352,6 +379,10 @@ private:
    /// Processes a SPIR-V OpConstantNull instruction with the given `operands`.
    LogicalResult processConstantNull(ArrayRef<uint32_t> operands);
-
+ 
 +  /// Processes a SPIR-V OpGraphConstantARM instruction with the given
 +  /// `operands`.
 +  LogicalResult processGraphConstantARM(ArrayRef<uint32_t> operands);
@@ -7065,7 +7065,7 @@ index 20482bd2bf50..dff6c69ed34a 100644
 @@ -449,6 +480,9 @@ private:
    /// blocks declared as selection/loop headers are handled.
    LogicalResult structurizeControlFlow();
-
+ 
 +  /// Creates a block for graph with the given graphID
 +  LogicalResult createGraphBlock(uint32_t graphID);
 +
@@ -7075,37 +7075,37 @@ index 20482bd2bf50..dff6c69ed34a 100644
 @@ -545,6 +579,9 @@ private:
    /// The current function under construction.
    std::optional<spirv::FuncOp> curFunction;
-
+ 
 +  /// The current graph under construction.
 +  std::optional<spirv::GraphARMOp> curGraph;
 +
    /// The current block under construction.
    Block *curBlock = nullptr;
-
+ 
 @@ -598,12 +635,19 @@ private:
    DenseMap<uint32_t, SpecConstOperationMaterializationInfo>
        specConstOperationMap;
-
+ 
 +  // Result <id> to GraphConstantARM ID attribute and result type.
 +  DenseMap<uint32_t, spirv::GraphConstantARMOpMaterializationInfo>
 +      graphConstantMap;
 +
    // Result <id> to variable mapping.
    DenseMap<uint32_t, spirv::GlobalVariableOp> globalVariableMap;
-
+ 
    // Result <id> to function mapping.
    DenseMap<uint32_t, spirv::FuncOp> funcMap;
-
+ 
 +  // Result <id> to function mapping.
 +  DenseMap<uint32_t, spirv::GraphARMOp> graphMap;
 +
    // Result <id> to block mapping.
    DenseMap<uint32_t, Block *> blockMap;
-
+ 
 @@ -667,6 +711,9 @@ private:
    /// Deserialization options.
    DeserializationOptions options;
-
+ 
 +  /// List of IDs assigned to graph outputs.
 +  SmallVector<Value> graphOutputs;
 +
@@ -7119,7 +7119,7 @@ index d62529b85b3a..032b7156236d 100644
 @@ -203,6 +203,16 @@ Serializer::processSpecConstantOperationOp(spirv::SpecConstantOperationOp op) {
    return success();
  }
-
+ 
 +LogicalResult
 +Serializer::processGraphConstantARMOp(spirv::GraphConstantARMOp op) {
 +  if (auto resultID = prepareGraphConstantId(op.getLoc(), op.getType(),
@@ -7136,7 +7136,7 @@ index d62529b85b3a..032b7156236d 100644
 @@ -368,6 +378,122 @@ LogicalResult Serializer::processFuncOp(spirv::FuncOp op) {
    return success();
  }
-
+ 
 +LogicalResult Serializer::processGraphARMOp(spirv::GraphARMOp op) {
 +
 +  if (op.getNumResults() < 1) {
@@ -7271,7 +7271,7 @@ index 3400fcf6374e..59810eeb5940 100644
 @@ -70,6 +71,22 @@ static Block *getPhiIncomingBlock(Block *block) {
    return block;
  }
-
+ 
 +static bool isNull(Attribute attr) {
 +  if (auto floatAttr = dyn_cast<FloatAttr>(attr)) {
 +    return floatAttr.getValue().isZero();
@@ -7290,9 +7290,9 @@ index 3400fcf6374e..59810eeb5940 100644
 +
  namespace mlir {
  namespace spirv {
-
+ 
 @@ -94,7 +111,9 @@ LogicalResult Serializer::serialize() {
-
+ 
    // TODO: handle the other sections
    processCapability();
 -  processExtension();
@@ -7301,14 +7301,14 @@ index 3400fcf6374e..59810eeb5940 100644
 +  }
    processMemoryModel();
    processDebugInfo();
-
+ 
 @@ -115,7 +134,7 @@ void Serializer::collect(SmallVectorImpl<uint32_t> &binary) {
                      extensions.size() + extendedSets.size() +
                      memoryModel.size() + entryPoints.size() +
                      executionModes.size() + decorations.size() +
 -                    typesGlobalValues.size() + functions.size();
 +                    typesGlobalValues.size() + functions.size() + graphs.size();
-
+ 
    binary.clear();
    binary.reserve(moduleSize);
 @@ -133,6 +152,7 @@ void Serializer::collect(SmallVectorImpl<uint32_t> &binary) {
@@ -7317,12 +7317,12 @@ index 3400fcf6374e..59810eeb5940 100644
    binary.append(functions.begin(), functions.end());
 +  binary.append(graphs.begin(), graphs.end());
  }
-
+ 
  #ifndef NDEBUG
 @@ -186,13 +206,31 @@ void Serializer::processDebugInfo() {
    // TODO: Encode more debug instructions.
  }
-
+ 
 -void Serializer::processExtension() {
 +LogicalResult Serializer::processExtension() {
 +
@@ -7350,7 +7350,7 @@ index 3400fcf6374e..59810eeb5940 100644
 +
 +  return success();
  }
-
+ 
  void Serializer::processMemoryModel() {
 @@ -446,6 +484,19 @@ LogicalResult Serializer::processType(Location loc, Type type,
  LogicalResult
@@ -7375,7 +7375,7 @@ index 3400fcf6374e..59810eeb5940 100644
 @@ -457,9 +508,12 @@ Serializer::processTypeImpl(Location loc, Type type, uint32_t &typeID,
    auto typeEnum = spirv::Opcode::OpTypeVoid;
    bool deferSerialization = false;
-
+ 
 -  if ((isa<FunctionType>(type) &&
 -       succeeded(prepareFunctionType(loc, cast<FunctionType>(type), typeEnum,
 -                                     operands))) ||
@@ -7391,15 +7391,15 @@ index 3400fcf6374e..59810eeb5940 100644
 @@ -490,6 +544,7 @@ Serializer::processTypeImpl(Location loc, Type type, uint32_t &typeID,
      return success();
    }
-
+ 
 +  emitError(loc, "failed to process type: ") << type;
    return failure();
  }
-
+ 
 @@ -805,6 +860,35 @@ Serializer::prepareFunctionType(Location loc, FunctionType type,
    return success();
  }
-
+ 
 +LogicalResult
 +Serializer::prepareGraphType(Location loc, GraphType type,
 +                             spirv::Opcode &typeEnum,
@@ -7441,7 +7441,7 @@ index 3400fcf6374e..59810eeb5940 100644
 +    if (innerShape.size() > 0)
 +      elementType = spirv::TensorArmType::get(innerShape, elementType);
 +  }
-
+ 
    // "If the Result Type is a cooperative matrix type, then there must be only
    // one Constituent, with scalar type matching the cooperative matrix Component
 @@ -923,6 +1012,10 @@ Serializer::prepareDenseElementsConstant(Location loc, Type constType,
@@ -7458,7 +7458,7 @@ index 3400fcf6374e..59810eeb5940 100644
 @@ -1056,6 +1149,41 @@ uint32_t Serializer::prepareConstantInt(Location loc, IntegerAttr intAttr,
    return resultID;
  }
-
+ 
 +uint32_t Serializer::prepareGraphConstantId(Location loc, Type graphConstType,
 +                                            IntegerAttr intAttr) {
 +  // De-duplicate graph constants.
@@ -7500,7 +7500,7 @@ index 3400fcf6374e..59810eeb5940 100644
 @@ -1109,6 +1237,18 @@ uint32_t Serializer::prepareConstantFp(Location loc, FloatAttr floatAttr,
    return resultID;
  }
-
+ 
 +static Type getValueType(Attribute attr) {
 +  if (auto typedAttr = dyn_cast<TypedAttr>(attr)) {
 +    return typedAttr.getType();
@@ -7519,7 +7519,7 @@ index 3400fcf6374e..59810eeb5940 100644
 @@ -1122,18 +1262,9 @@ uint32_t Serializer::prepareConstantCompositeReplicate(Location loc,
      return 0;
    }
-
+ 
 -  Type valueType;
 -  if (auto typedAttr = dyn_cast<TypedAttr>(valueAttr)) {
 -    valueType = typedAttr.getType();
@@ -7534,12 +7534,12 @@ index 3400fcf6374e..59810eeb5940 100644
 +  if (!valueAttr)
      return 0;
 -  }
-
+ 
    auto compositeType = dyn_cast<CompositeType>(resultType);
    if (!compositeType)
 @@ -1148,11 +1279,14 @@ uint32_t Serializer::prepareConstantCompositeReplicate(Location loc,
    }
-
+ 
    uint32_t resultID = getNextID();
 -  uint32_t operands[] = {typeID, resultID, constandID};
 -
@@ -7554,7 +7554,7 @@ index 3400fcf6374e..59810eeb5940 100644
 +                          spirv::Opcode::OpConstantCompositeReplicateEXT,
 +                          {typeID, resultID, constandID});
 +  }
-
+ 
    constCompositeReplicateIDMap[valueTypePair] = resultID;
    return resultID;
 @@ -1381,9 +1515,18 @@ LogicalResult Serializer::processOperation(Operation *opInst) {
@@ -7581,18 +7581,18 @@ index 7047869bca4c..3e7877388492 100644
 --- a/mlir/lib/Target/SPIRV/Serialization/Serializer.h
 +++ b/mlir/lib/Target/SPIRV/Serialization/Serializer.h
 @@ -102,7 +102,7 @@ private:
-
+ 
    void processDebugInfo();
-
+ 
 -  void processExtension();
 +  LogicalResult processExtension();
-
+ 
    void processMemoryModel();
-
+ 
 @@ -122,6 +122,8 @@ private:
    LogicalResult
    processSpecConstantOperationOp(spirv::SpecConstantOperationOp op);
-
+ 
 +  LogicalResult processGraphConstantARMOp(spirv::GraphConstantARMOp op);
 +
    /// SPIR-V dialect supports OpUndef using spirv.UndefOp that produces a SSA
@@ -7601,7 +7601,7 @@ index 7047869bca4c..3e7877388492 100644
 @@ -135,6 +137,15 @@ private:
    LogicalResult processFuncOp(spirv::FuncOp op);
    LogicalResult processFuncParameter(spirv::FuncOp op);
-
+ 
 +  /// Processes a SPIR-V GraphARM op.
 +  LogicalResult processGraphARMOp(spirv::GraphARMOp op);
 +
@@ -7612,12 +7612,12 @@ index 7047869bca4c..3e7877388492 100644
 +  LogicalResult processGraphOutputsARMOp(spirv::GraphOutputsARMOp op);
 +
    LogicalResult processVariableOp(spirv::VariableOp op);
-
+ 
    /// Process a SPIR-V GlobalVariableOp
 @@ -189,6 +200,10 @@ private:
                                      spirv::Opcode &typeEnum,
                                      SmallVectorImpl<uint32_t> &operands);
-
+ 
 +  LogicalResult prepareGraphType(Location loc, GraphType type,
 +                                 spirv::Opcode &typeEnum,
 +                                 SmallVectorImpl<uint32_t> &operands);
@@ -7628,7 +7628,7 @@ index 7047869bca4c..3e7877388492 100644
 @@ -238,6 +253,13 @@ private:
    uint32_t prepareConstantInt(Location loc, IntegerAttr intAttr,
                                bool isSpec = false);
-
+ 
 +  uint32_t getGraphConstantARMId(Attribute value) const {
 +    return graphConstIDMap.lookup(value);
 +  }
@@ -7638,14 +7638,14 @@ index 7047869bca4c..3e7877388492 100644
 +
    uint32_t prepareConstantFp(Location loc, FloatAttr floatAttr,
                               bool isSpec = false);
-
+ 
 @@ -340,7 +362,7 @@ private:
    spirv::ModuleOp module;
-
+ 
    /// An MLIR builder for getting MLIR constructs.
 -  mlir::Builder mlirBuilder;
 +  mlir::OpBuilder mlirBuilder;
-
+ 
    /// Serialization options.
    SerializationOptions options;
 @@ -372,6 +394,7 @@ private:
@@ -7653,12 +7653,12 @@ index 7047869bca4c..3e7877388492 100644
    SmallVector<uint32_t, 0> typesGlobalValues;
    SmallVector<uint32_t, 0> functions;
 +  SmallVector<uint32_t, 0> graphs;
-
+ 
    /// Recursive struct references are serialized as OpTypePointer instructions
    /// to the recursive struct type. However, the OpTypePointer instruction
 @@ -388,15 +411,22 @@ private:
        recursiveStructInfos;
-
+ 
    /// `functionHeader` contains all the instructions that must be in the first
 -  /// block in the function, and `functionBody` contains the rest. After
 -  /// processing FuncOp, the encoded instructions of a function are appended to
@@ -7681,17 +7681,17 @@ index 7047869bca4c..3e7877388492 100644
 +  /// OpGraphInputARM ...
    SmallVector<uint32_t, 0> functionHeader;
    SmallVector<uint32_t, 0> functionBody;
-
+ 
 @@ -412,6 +442,9 @@ private:
    /// Map from specialization constant names to their <id>s.
    llvm::StringMap<uint32_t> specConstIDMap;
-
+ 
 +  /// Map from graph constant ID value to their <id>s.
 +  DenseMap<Attribute, uint32_t> graphConstIDMap;
 +
    /// Map from GlobalVariableOps name to <id>s.
    llvm::StringMap<uint32_t> globalVarIDMap;
-
+ 
 diff --git a/mlir/test/CMakeLists.txt b/mlir/test/CMakeLists.txt
 index ac8b44f53aeb..89568e7766ae 100644
 --- a/mlir/test/CMakeLists.txt
@@ -7707,7 +7707,7 @@ index ac8b44f53aeb..89568e7766ae 100644
 @@ -217,6 +218,11 @@ if(MLIR_ENABLE_BINDINGS_PYTHON)
    )
  endif()
-
+ 
 +if (LLVM_INCLUDE_SPIRV_TOOLS_TESTS)
 +  list(APPEND MLIR_TEST_DEPENDS spirv-as)
 +  list(APPEND MLIR_TEST_DEPENDS spirv-val)
@@ -7721,9 +7721,9 @@ index 10fbcf06eb05..bea9d3e75506 100644
 --- a/mlir/test/Dialect/SPIRV/IR/target-and-abi.mlir
 +++ b/mlir/test/Dialect/SPIRV/IR/target-and-abi.mlir
 @@ -14,7 +14,7 @@ func.func @unknown_attr_on_region(%arg: i32 {spirv.something}) {
-
+ 
  // -----
-
+ 
 -// expected-error @+1 {{cannot attach SPIR-V attributes to region result}}
 +// expected-error @+1 {{found unsupported 'spirv.something' attribute on region argument}}
  func.func @unknown_attr_on_region() -> (i32 {spirv.something}) {
@@ -7736,7 +7736,7 @@ index 2b237665ffc4..75553bbb8c8d 100644
 @@ -7,7 +7,7 @@
  // Test deducing minimal version.
  // spirv.IAdd is available from v1.0.
-
+ 
 -// CHECK: requires #spirv.vce<v1.0, [Shader], []>
 +// CHECK: requires #spirv.vce<v1.0, [Shader, Matrix], []>
  spirv.module Logical GLSL450 attributes {
@@ -7745,7 +7745,7 @@ index 2b237665ffc4..75553bbb8c8d 100644
 @@ -21,7 +21,7 @@ spirv.module Logical GLSL450 attributes {
  // Test deducing minimal version.
  // spirv.GroupNonUniformBallot is available since v1.3.
-
+ 
 -// CHECK: requires #spirv.vce<v1.3, [GroupNonUniformBallot, Shader], []>
 +// CHECK: requires #spirv.vce<v1.3, [GroupNonUniformBallot, GroupNonUniform, Shader, Matrix], []>
  spirv.module Logical GLSL450 attributes {
@@ -7754,25 +7754,25 @@ index 2b237665ffc4..75553bbb8c8d 100644
 @@ -32,7 +32,7 @@ spirv.module Logical GLSL450 attributes {
    }
  }
-
+ 
 -// CHECK: requires #spirv.vce<v1.4, [Shader], []>
 +// CHECK: requires #spirv.vce<v1.4, [Shader, Matrix], []>
  spirv.module Logical GLSL450 attributes {
    spirv.target_env = #spirv.target_env<#spirv.vce<v1.6, [Shader], []>, #spirv.resource_limits<>>
  } {
 @@ -48,7 +48,7 @@ spirv.module Logical GLSL450 attributes {
-
+ 
  // Test minimal capabilities.
-
+ 
 -// CHECK: requires #spirv.vce<v1.0, [Shader], []>
 +// CHECK: requires #spirv.vce<v1.0, [Shader, Matrix], []>
  spirv.module Logical GLSL450 attributes {
    spirv.target_env = #spirv.target_env<
      #spirv.vce<v1.0, [Shader, Float16, Float64, Int16, Int64, VariablePointers], []>, #spirv.resource_limits<>>
 @@ -61,7 +61,7 @@ spirv.module Logical GLSL450 attributes {
-
+ 
  // Test Physical Storage Buffers are deduced correctly.
-
+ 
 -// CHECK: spirv.module PhysicalStorageBuffer64 GLSL450 requires #spirv.vce<v1.0, [PhysicalStorageBufferAddresses, Shader], [SPV_EXT_physical_storage_buffer]>
 +// CHECK: spirv.module PhysicalStorageBuffer64 GLSL450 requires #spirv.vce<v1.0, [PhysicalStorageBufferAddresses, Shader, Matrix], [SPV_EXT_physical_storage_buffer]>
  spirv.module PhysicalStorageBuffer64 GLSL450 attributes {
@@ -7781,7 +7781,7 @@ index 2b237665ffc4..75553bbb8c8d 100644
 @@ -74,7 +74,7 @@ spirv.module PhysicalStorageBuffer64 GLSL450 attributes {
  // Test deducing implied capability.
  // AtomicStorage implies Shader.
-
+ 
 -// CHECK: requires #spirv.vce<v1.0, [Shader], []>
 +// CHECK: requires #spirv.vce<v1.0, [Shader, Matrix], []>
  spirv.module Logical GLSL450 attributes {
@@ -7790,7 +7790,7 @@ index 2b237665ffc4..75553bbb8c8d 100644
 @@ -95,7 +95,7 @@ spirv.module Logical GLSL450 attributes {
  // * GroupNonUniformArithmetic
  // * GroupNonUniformBallot
-
+ 
 -// CHECK: requires #spirv.vce<v1.3, [GroupNonUniformArithmetic, Shader], []>
 +// CHECK: requires #spirv.vce<v1.3, [GroupNonUniformArithmetic, GroupNonUniform, Shader, Matrix], []>
  spirv.module Logical GLSL450 attributes {
@@ -7799,7 +7799,7 @@ index 2b237665ffc4..75553bbb8c8d 100644
 @@ -106,7 +106,7 @@ spirv.module Logical GLSL450 attributes {
    }
  }
-
+ 
 -// CHECK: requires #spirv.vce<v1.3, [GroupNonUniformClustered, GroupNonUniformBallot, Shader], []>
 +// CHECK: requires #spirv.vce<v1.3, [GroupNonUniformClustered, GroupNonUniformBallot, GroupNonUniform, Shader, Matrix], []>
  spirv.module Logical GLSL450 attributes {
@@ -7807,7 +7807,7 @@ index 2b237665ffc4..75553bbb8c8d 100644
      #spirv.vce<v1.3, [Shader, GroupNonUniformClustered, GroupNonUniformBallot], []>, #spirv.resource_limits<>>
 @@ -120,7 +120,7 @@ spirv.module Logical GLSL450 attributes {
  // Test type required capabilities
-
+ 
  // Using 8-bit integers in non-interface storage class requires Int8.
 -// CHECK: requires #spirv.vce<v1.0, [Int8, Shader], []>
 +// CHECK: requires #spirv.vce<v1.0, [Int8, Shader, Matrix], []>
@@ -7816,7 +7816,7 @@ index 2b237665ffc4..75553bbb8c8d 100644
      #spirv.vce<v1.3, [Shader, Int8], []>, #spirv.resource_limits<>>
 @@ -132,7 +132,7 @@ spirv.module Logical GLSL450 attributes {
  }
-
+ 
  // Using 16-bit floats in non-interface storage class requires Float16.
 -// CHECK: requires #spirv.vce<v1.0, [Float16, Shader], []>
 +// CHECK: requires #spirv.vce<v1.0, [Float16, Shader, Matrix], []>
@@ -7825,7 +7825,7 @@ index 2b237665ffc4..75553bbb8c8d 100644
      #spirv.vce<v1.3, [Shader, Float16], []>, #spirv.resource_limits<>>
 @@ -144,7 +144,7 @@ spirv.module Logical GLSL450 attributes {
  }
-
+ 
  // Using 16-element vectors requires Vector16.
 -// CHECK: requires #spirv.vce<v1.0, [Vector16, Shader], []>
 +// CHECK: requires #spirv.vce<v1.0, [Vector16, Kernel, Shader, Matrix], []>
@@ -7835,7 +7835,7 @@ index 2b237665ffc4..75553bbb8c8d 100644
 @@ -162,7 +162,7 @@ spirv.module Logical GLSL450 attributes {
  // Test deducing minimal extensions.
  // spirv.KHR.SubgroupBallot requires the SPV_KHR_shader_ballot extension.
-
+ 
 -// CHECK: requires #spirv.vce<v1.0, [SubgroupBallotKHR, Shader], [SPV_KHR_shader_ballot]>
 +// CHECK: requires #spirv.vce<v1.0, [SubgroupBallotKHR, Shader, Matrix], [SPV_KHR_shader_ballot]>
  spirv.module Logical GLSL450 attributes {
@@ -7844,14 +7844,14 @@ index 2b237665ffc4..75553bbb8c8d 100644
 @@ -178,7 +178,7 @@ spirv.module Logical GLSL450 attributes {
  // Vulkan memory model requires SPV_KHR_vulkan_memory_model, which is enabled
  // implicitly by v1.5.
-
+ 
 -// CHECK: requires #spirv.vce<v1.0, [VulkanMemoryModel], [SPV_KHR_vulkan_memory_model]>
 +// CHECK: requires #spirv.vce<v1.5, [VulkanMemoryModel], [SPV_KHR_vulkan_memory_model]>
  spirv.module Logical Vulkan attributes {
    spirv.target_env = #spirv.target_env<
      #spirv.vce<v1.5, [Shader, VulkanMemoryModel], []>, #spirv.resource_limits<>>
 @@ -193,7 +193,7 @@ spirv.module Logical Vulkan attributes {
-
+ 
  // Using 8-bit integers in interface storage class requires additional
  // extensions and capabilities.
 -// CHECK: requires #spirv.vce<v1.0, [StorageBuffer16BitAccess, Shader, Int16], [SPV_KHR_16bit_storage, SPV_KHR_storage_buffer_storage_class]>
@@ -7870,7 +7870,7 @@ index 2b237665ffc4..75553bbb8c8d 100644
      #spirv.vce<v1.5, [Shader, UniformAndStorageBuffer8BitAccess, StorageBuffer16BitAccess, StorageUniform16, Int16, Int64, ImageBuffer, StorageImageExtendedFormats], []>,
 @@ -219,7 +219,7 @@ spirv.module Logical GLSL450 attributes {
  }
-
+ 
  // Using bfloat16 requires BFloat16TypeKHR capability and SPV_KHR_bfloat16 extension.
 -// CHECK: requires #spirv.vce<v1.0, [StorageBuffer16BitAccess, Shader, BFloat16TypeKHR], [SPV_KHR_bfloat16, SPV_KHR_16bit_storage, SPV_KHR_storage_buffer_storage_class]>
 +// CHECK: requires #spirv.vce<v1.0, [StorageBuffer16BitAccess, Shader, BFloat16TypeKHR, Matrix], [SPV_KHR_bfloat16, SPV_KHR_16bit_storage, SPV_KHR_storage_buffer_storage_class]>
@@ -7883,7 +7883,7 @@ index 58bf364593fc..eba64e24c60d 100644
 +++ b/mlir/test/Target/SPIRV/debug.mlir
 @@ -1,6 +1,6 @@
  // RUN: mlir-translate -no-implicit-module -test-spirv-roundtrip-debug -mlir-print-debuginfo -mlir-print-local-scope %s | FileCheck %s
-
+ 
 -spirv.module Logical GLSL450 requires #spirv.vce<v1.0, [Shader], []> {
 +spirv.module Logical GLSL450 requires #spirv.vce<v1.0, [Shader], [SPV_KHR_non_semantic_info]> attributes {spirv.target_env = #spirv.target_env<#spirv.vce<v1.0, [Shader], [SPV_KHR_non_semantic_info]>, #spirv.resource_limits<>>} {
    // CHECK: loc({{".*debug.mlir"}}:5:3)
@@ -7906,11 +7906,11 @@ index 233fef8ec429..feaf5fb852a1 100644
 @@ -343,7 +343,6 @@ if config.enable_assertions:
  else:
      config.available_features.add("noasserts")
-
+ 
 -
  def have_host_jit_feature_support(feature_name):
      mlir_runner_exe = lit.util.which("mlir-runner", config.mlir_tools_dir)
-
+ 
 diff --git a/mlir/test/lit.site.cfg.py.in b/mlir/test/lit.site.cfg.py.in
 index 132aabe13594..b1185e19d86e 100644
 --- a/mlir/test/lit.site.cfg.py.in
