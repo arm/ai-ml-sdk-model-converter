@@ -54,6 +54,9 @@ class Builder:
         self.package_type = args.package_type
         self.target_platform = args.target_platform
 
+        if not self.install and self.package_type == "pip":
+            self.install = "pip_install"
+
     def setup_platform_build(self, cmake_cmd):
         system = platform.system()
         if self.target_platform == "host":
@@ -250,20 +253,17 @@ class Builder:
             if self.package_type == "pip":
                 if sys.platform.startswith("win"):
                     platformName = "win_amd64"
-                    executablePath = (
-                        f"{self.build_dir}/{self.build_type}/model-converter.exe"
-                    )
                 elif sys.platform.startswith("linux"):
                     platformName = "manyLinux2014_x86_64"
-                    executablePath = f"{self.build_dir}/model-converter"
                 else:
                     print(f"ERROR: Unknown platform: {sys.platform}")
                     return 1
 
                 os.makedirs("pip_package/model_converter/binaries/", exist_ok=True)
-                shutil.copy(
-                    executablePath,
+                shutil.copytree(
+                    self.install,
                     "pip_package/model_converter/binaries/",
+                    dirs_exist_ok=True,
                 )
                 result = subprocess.Popen(
                     [
