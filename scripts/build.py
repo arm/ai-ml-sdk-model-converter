@@ -329,7 +329,7 @@ def parse_arguments():
     )
     parser.add_argument(
         "--vgf-lib-path",
-        help="Path to the ml-sdk-vgf-lib repo",
+        help="Path to the ai-ml-sdk-vgf-library repo",
         default=f"{MODEL_CONVERTER_DIR / '..' / 'vgf-lib'}",
     )
     parser.add_argument(

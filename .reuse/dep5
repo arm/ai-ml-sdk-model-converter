@@ -1,5 +1,5 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: ml-sdk-model-converter
+Upstream-Name: ai-ml-sdk-model-converter
 
 Files: *.md
 Copyright:Copyright 2023-2024 Arm Limited and/or its affiliates <open-source-office@arm.com>
