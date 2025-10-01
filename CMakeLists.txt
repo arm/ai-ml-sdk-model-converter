@@ -45,9 +45,9 @@ set(MODEL_CONVERTER_LOG_TRACE_MASK "" CACHE STRING "Log trace enable mask")
 set(MODEL_CONVERTER_PACKAGE_NAME ${PROJECT_NAME})
 set(MODEL_CONVERTER_NAMESPACE ${PROJECT_NAME})
 if(ML_SDK_GENERATE_CPACK)
-    set(MODEL_CONVERTER_PACKAGE_NAME "ml-sdk")
+    set(MODEL_CONVERTER_PACKAGE_NAME "ai_ml_sdk_for_vulkan")
 else()
-    set(CPACK_PACKAGE_NAME "ml-sdk-model-converter")
+    set(CPACK_PACKAGE_NAME "ai_ml_sdk_model_converter")
 endif()
 
 #########################################################################################
