@@ -13,7 +13,12 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     package_data={
-        "model_converter": ["binaries/*"],
+        "model_converter": [
+            "binaries/*",
+            "binaries/*/*",
+            "binaries/*/*/*",
+            "binaries/*/*/*/*",
+        ],
     },
     entry_points={
         "console_scripts": [
