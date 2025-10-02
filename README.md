@@ -112,8 +112,8 @@ The following dependencies are also needed:
 
 - [Argument Parser for Modern C++](https://github.com/p-ranav/argparse).
 - [LLVM](https://github.com/llvm/llvm-project).
-- [TOSA Serialization Library](https://review.mlplatform.org/plugins/gitiles/tosa/serialization_lib).
-- [TOSA MLIR Translator](https://review.mlplatform.org/plugins/gitiles/tosa/tosa_mlir_translator).
+- [TOSA Serialization Library](https://gitlab.arm.com/tosa/tosa-serialization).
+- [TOSA MLIR Translator](https://gitlab.arm.com/tosa/tosa-mlir-translator).
 
 For the preferred dependency versions see the manifest file.
 
