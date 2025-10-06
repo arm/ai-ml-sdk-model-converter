@@ -66,7 +66,7 @@ struct FuncSignatureConvert : public OpConversionPattern<func::FuncOp> {
 
         auto newFuncType = FunctionType::get(rewriter.getContext(), signatureConverter.getConvertedTypes(), newResults);
 
-        func::FuncOp newFuncOp =
+        auto newFuncOp =
             func::FuncOp::create(rewriter, funcOp.getLoc(), newName, newFuncType, visibilityAttr, argAttrs, resAttrs);
 
         newFuncOp->setAttrs(adaptor.getAttributes());
@@ -95,8 +95,9 @@ struct TosaOpConvert : public OpInterfaceConversionPattern<tosa::TosaOp> {
         }
 
         SmallVector<Type, 4> newResultTypes;
-        if (failed(getTypeConverter()->convertTypes(tosaOp->getResultTypes(), newResultTypes)))
+        if (failed(getTypeConverter()->convertTypes(tosaOp->getResultTypes(), newResultTypes))) {
             return failure();
+        }
 
         OperationState state(tosaOp.getLoc(), tosaOp->getName());
         state.addOperands(operands);

@@ -27,18 +27,21 @@ class DenseResourceInlinerPass final : public impl::DenseResourceInlinerPassBase
 
             // Check if the value is a DenseResourceElementsAttr
             auto resourceAttr = llvm::dyn_cast<DenseResourceElementsAttr>(value);
-            if (!resourceAttr)
+            if (!resourceAttr) {
                 return;
+            }
 
             // Check if there is a memory blob attached to the resource
             AsmResourceBlob *blob = resourceAttr.getRawHandle().getBlob();
-            if (!blob)
+            if (!blob) {
                 return;
+            }
 
             ArrayRef<char> data = blob->getData();
             const auto attrType = constOp.getType();
-            if (!DenseElementsAttr::isValidRawBuffer(attrType, data))
+            if (!DenseElementsAttr::isValidRawBuffer(attrType, data)) {
                 return;
+            }
 
             auto denseElementsAttr = DenseElementsAttr::getFromRawBuffer(attrType, data);
             constOp->setAttr("values", denseElementsAttr);

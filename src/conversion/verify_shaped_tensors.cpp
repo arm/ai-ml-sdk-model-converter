@@ -101,7 +101,7 @@ class TosaShapedVerificationPass : public impl::TosaShapedVerificationPassBase<T
             return signalPassFailure();
         }
 
-        if (dynamicOps.size()) {
+        if (!dynamicOps.empty()) {
             llvm::errs() << "Dynamic shapes found in the graph, "
                          << "but none of the inputs were dynamic:\n";
             constexpr size_t showNum = 25;

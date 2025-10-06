@@ -281,10 +281,12 @@ bool comparePartitionResultIndex(const Value &a, const Value &b) {
     int64_t a_idx = 0;
     int64_t b_idx = 0;
 
-    if (auto attr = a.getDefiningOp()->getAttrOfType<IntegerAttr>("graph_partition_sequence_output_index"))
+    if (auto attr = a.getDefiningOp()->getAttrOfType<IntegerAttr>("graph_partition_sequence_output_index")) {
         a_idx = attr.getInt();
-    if (auto attr = b.getDefiningOp()->getAttrOfType<IntegerAttr>("graph_partition_sequence_output_index"))
+    }
+    if (auto attr = b.getDefiningOp()->getAttrOfType<IntegerAttr>("graph_partition_sequence_output_index")) {
         b_idx = attr.getInt();
+    }
 
     return a_idx < b_idx;
 }
@@ -293,7 +295,7 @@ void insertPartitionResultInMap(const int64_t id, Value value, DenseMap<int64_t,
     if (!map.contains(id)) {
         map[id] = SmallVector<Value>();
     }
-    auto position = std::lower_bound(map[id].begin(), map[id].end(), value, comparePartitionResultIndex);
+    auto *position = std::lower_bound(map[id].begin(), map[id].end(), value, comparePartitionResultIndex);
     map[id].insert(position, value);
 }
 
@@ -316,7 +318,7 @@ SmallVector<Value> collectInputs(const SmallVector<Operation *> &ops) {
 void deleteOldOps(ModuleOp moduleOp) {
     std::vector<Operation *> opsToDelete;
     moduleOp.walk([&](Operation *op) {
-        if (BoolAttr attr = op->getAttrOfType<BoolAttr>("delete")) {
+        if (auto attr = op->getAttrOfType<BoolAttr>("delete")) {
             if (attr.getValue()) {
                 opsToDelete.push_back(op);
             }

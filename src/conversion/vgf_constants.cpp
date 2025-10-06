@@ -75,8 +75,9 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
 
                         int64_t sparsityDimension = -1;
                         auto attr = op->getAttrOfType<IntegerAttr>("constant_2_4_sparse_on_dimension");
-                        if (attr != nullptr)
+                        if (attr != nullptr) {
                             sparsityDimension = attr.getInt();
+                        }
 
                         auto attrVal = llvm::dyn_cast<DenseIntOrFPElementsAttr>(constOp.getValuesAttr());
                         serializeConstantData(attrVal, resourceRef, sparsityDimension);
