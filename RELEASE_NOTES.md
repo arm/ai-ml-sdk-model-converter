@@ -49,4 +49,11 @@ Converts **TOSA models** into **VGF files** with embedded SPIR-V™ modules, con
 - **Format detection**: Automatic detection of input format type
 - **Help and documentation**: Built-in help system with usage examples
 
+## Platform Support
+
+The following platform combinations are supported:
+
+- Linux - X86-64
+- Windows® - X86-64
+
 ---
