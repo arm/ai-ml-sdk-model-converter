@@ -47,7 +47,7 @@ class Builder:
         self.tosa_mlir_translator_path = args.tosa_mlir_translator_path
         self.argparse_path = args.argparse_path
         self.doc = args.doc
-        self.run_linting = args.lint
+        self.lint = args.lint
         self.enable_sanitizers = args.enable_sanitizers
         self.install = args.install
         self.package = args.package
@@ -155,8 +155,8 @@ class Builder:
         if self.argparse_path:
             cmake_setup_cmd.append(f"-DARGPARSE_PATH={self.argparse_path}")
 
-        if self.run_linting:
-            cmake_setup_cmd.append("-DMODEL_CONVERTER_ENABLE_LINT=ON")
+        if self.lint:
+            cmake_setup_cmd.append("-DCMAKE_EXPORT_COMPILE_COMMANDS=ON")
         if self.doc:
             cmake_setup_cmd.append("-DMODEL_CONVERTER_BUILD_DOCS=ON")
 
@@ -206,6 +206,31 @@ class Builder:
         try:
             subprocess.run(cmake_setup_cmd, check=True)
             subprocess.run(cmake_build_cmd, check=True)
+
+            if self.lint:
+                lint_cmd = [
+                    "cppcheck",
+                    f"-j{str(self.threads)}",
+                    "--std=c++17",
+                    "--error-exitcode=1",
+                    "--inline-suppr",
+                    f"--project={self.build_dir}/compile_commands.json",
+                    f"--cppcheck-build-dir={self.build_dir}/cppcheck",
+                    "--enable=information,performance,portability,style",
+                    f"-i={DEPENDENCY_DIR}",
+                    f"--suppress=noValidConfiguration",
+                    f"--suppress=unassignedVariable",
+                    f"--suppress=unmatchedSuppression",
+                    f"--suppress=variableScope",
+                    f"--suppress=*:MachineIndependent*",
+                    f"--suppress=*:{self.external_llvm}*",
+                    f"--suppress=*:{self.vgf_lib_path}*",
+                    f"--suppress=*:{self.tosa_mlir_translator_path}*",
+                    f"--suppress=*:{self.flatbuffers_path}*",
+                    f"--suppress=*:{self.argparse_path}*",
+                    f"--suppress=*:{self.json_path}*",
+                ]
+                subprocess.run(lint_cmd, check=True)
 
             if self.run_tests:
                 pytest_cmd = [
