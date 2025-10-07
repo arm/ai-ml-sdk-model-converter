@@ -33,7 +33,7 @@ class Builder:
     """
 
     def __init__(self, args):
-        self.build_dir = args.build_dir
+        self.build_dir = str(pathlib.Path(args.build_dir).resolve())
         self.threads = args.threads
         self.prefix_path = args.prefix_path
         self.external_llvm = args.external_llvm
@@ -53,6 +53,7 @@ class Builder:
         self.package = args.package
         self.package_type = args.package_type
         self.target_platform = args.target_platform
+        self.package_version = args.package_version
 
         if not self.install and self.package_type == "pip":
             self.install = "pip_install"
