@@ -38,7 +38,6 @@ endif()
 option(MODEL_CONVERTER_ENABLE_CCACHE "Enable CCACHE support" OFF)
 option(MODEL_CONVERTER_BUILD_DOCS "Build documentation" OFF)
 option(MODEL_CONVERTER_ENABLE_COVERAGE "Enable coverage build" OFF)
-option(MODEL_CONVERTER_ENABLE_LINT "Enable linting using cppcheck" OFF)
 option(MODEL_CONVERTER_ENABLE_LTO "Enable Link Time Optimization when CMAKE_BUILD_TYPE=Release" ON)
 set(MODEL_CONVERTER_LOG_TRACE_MASK "" CACHE STRING "Log trace enable mask")
 
@@ -101,54 +100,6 @@ endif()
 #############################################################################
 # Top level targets, Table Gen Dialect Libraries
 #############################################################################
-
-# Enable cppcheck
-if(MODEL_CONVERTER_ENABLE_LINT)
-    message(STATUS "Cppcheck is enabled.")
-    find_program(CPPCHECK_EXECUTABLE NAMES cppcheck)
-    include(ProcessorCount)
-    ProcessorCount(NCORES)
-    set(CMAKE_CXX_CPPCHECK_OPTIONS
-        -j${NCORES}
-        --std=c++17
-        --enable=style,performance,portability,information
-        --quiet
-        --inline-suppr
-        --error-exitcode=1
-        --suppress=unreadVariable
-        --suppress=unmatchedSuppression
-        --suppress=noValidConfiguration
-        --suppress=variableScope
-        --suppress=*:${CMAKE_BINARY_DIR}*
-        )
-
-    if(EXISTS ${CMAKE_PREFIX_PATH})
-        list(APPEND CMAKE_CXX_CPPCHECK_OPTIONS --suppress=*:*${CMAKE_PREFIX_PATH}*)
-    endif()
-
-    if(EXISTS ${LLVM_PATH})
-        list(APPEND CMAKE_CXX_CPPCHECK_OPTIONS --suppress=*:*${LLVM_PATH}*)
-    endif()
-
-    if(EXISTS ${ML_SDK_VGF_LIB_PATH})
-        list(APPEND CMAKE_CXX_CPPCHECK_OPTIONS --suppress=*:*${ML_SDK_VGF_LIB_PATH}*)
-    endif()
-
-    if(EXISTS ${TOSA_MLIR_TRANSLATOR_PATH})
-        list(APPEND CMAKE_CXX_CPPCHECK_OPTIONS --suppress=*:*${TOSA_MLIR_TRANSLATOR_PATH}*)
-    endif()
-
-    if(EXISTS ${FLATBUFFERS_PATH})
-        list(APPEND CMAKE_CXX_CPPCHECK_OPTIONS --suppress=*:*${FLATBUFFERS_PATH}*)
-    endif()
-
-    if(EXISTS ${ARGPARSE_PATH})
-        list(APPEND CMAKE_CXX_CPPCHECK_OPTIONS --suppress=*:*${ARGPARSE_PATH}*)
-    endif()
-
-    set(CMAKE_CXX_CPPCHECK "${CPPCHECK_EXECUTABLE}" "${CMAKE_CXX_CPPCHECK_OPTIONS}")
-endif()
-unset(MODEL_CONVERTER_ENABLE_LINT CACHE)
 
 set(LLVM_TARGET_DEFINITIONS src/include/passes.td)
 mlir_tablegen(passes.hpp.inc -gen-pass-decls)
