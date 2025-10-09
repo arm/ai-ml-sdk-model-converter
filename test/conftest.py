@@ -3,6 +3,7 @@
 # SPDX-FileCopyrightText: Copyright 2023-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
 # SPDX-License-Identifier: Apache-2.0
 #
+import os
 import pathlib
 import platform
 
@@ -28,6 +29,13 @@ def pytest_addoption(parser):
         "--build-type",
         required=True,
         help="Build type",
+    )
+    parser.addoption(
+        "--sanitizers",
+        action="store_true",
+        default=False,
+        required=False,
+        help="Specifies if sanitizers are enabled",
     )
 
 
@@ -57,3 +65,12 @@ def opt_exe_path(request):
     model_converter_build_path = request.config.getoption("--build-dir")
     build_type = request.config.getoption("--build-type")
     return exe_path(model_converter_build_path, build_type, "model-converter-opt")
+
+
+def pytest_configure(config):
+    if config.getoption("--sanitizers") and platform.system() == "Windows":
+        asan_dll_path = os.getenv("ASAN_DLL_PATH")
+        if asan_dll_path is None or asan_dll_path == "":
+            raise pytest.UsageError("ASAN_DLL_PATH environment variable not set")
+        os.add_dll_directory(asan_dll_path)
+        os.environ["PATH"] += os.pathsep + asan_dll_path

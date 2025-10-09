@@ -183,8 +183,10 @@ class Builder:
                     "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=undefined,address"
                 )
             elif system == "Windows":
-                cmake_setup_cmd.append("-DCMAKE_CXX_FLAGS=/Zi /RTC1 /GS")
-                cmake_setup_cmd.append("-DCMAKE_EXE_LINKER_FLAGS=/GS")
+                cmake_setup_cmd.append("-DCMAKE_CXX_FLAGS=/fsanitize=address /Zi /MDd")
+                cmake_setup_cmd.append(
+                    "-DCMAKE_EXE_LINKER_FLAGS=/INFERASANLIBS /DEBUG /INCREMENTAL:NO"
+                )
             else:
                 print(f"ERROR: sanitizer is not supported on system: {system}")
 
@@ -218,6 +220,8 @@ class Builder:
                     "--build-type",
                     self.build_type,
                 ]
+                if self.enable_sanitizers:
+                    pytest_cmd.append("--sanitizers")
                 subprocess.run(pytest_cmd, cwd=MODEL_CONVERTER_DIR, check=True)
 
             if self.install:
