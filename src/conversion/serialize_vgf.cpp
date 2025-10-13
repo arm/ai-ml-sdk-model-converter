@@ -21,7 +21,7 @@ namespace mlir {
 namespace model_converter_passes {
 namespace {
 
-typedef uint64_t SegmentId;
+using SegmentId = uint64_t;
 
 // As defined in vulkan_core.h
 // FIXME: We may choose to link in vulkan_headers directly once we need to
