@@ -17,8 +17,10 @@ try:
 except:
     argcomplete = None
 
-MODEL_CONVERTER_DIR = pathlib.Path(__file__).resolve().parent / ".."
+MODEL_CONVERTER_DIR = pathlib.Path(__file__).parent / ".."
+MODEL_CONVERTER_DIR = MODEL_CONVERTER_DIR.resolve()
 DEPENDENCY_DIR = MODEL_CONVERTER_DIR / ".." / ".." / "dependencies"
+DEPENDENCY_DIR = DEPENDENCY_DIR.resolve()
 CMAKE_TOOLCHAIN_PATH = MODEL_CONVERTER_DIR / "cmake" / "toolchain"
 
 
@@ -54,6 +56,7 @@ class Builder:
         self.package_type = args.package_type
         self.target_platform = args.target_platform
         self.package_version = args.package_version
+        self.clang_tidy_fix = args.clang_tidy_fix
 
         if not self.install and self.package_type == "pip":
             self.install = "pip_install"
@@ -207,6 +210,11 @@ class Builder:
             subprocess.run(cmake_setup_cmd, check=True)
             subprocess.run(cmake_build_cmd, check=True)
 
+            if self.clang_tidy_fix and not self.lint:
+                print(
+                    "WARNING: --clang-tidy-fix requires --lint to be enabled, argument ignored."
+                )
+
             if self.lint:
                 lint_cmd = [
                     "cppcheck",
@@ -231,6 +239,18 @@ class Builder:
                     f"--suppress=*:{self.json_path}*",
                 ]
                 subprocess.run(lint_cmd, check=True)
+
+                clang_tidy_cmd = [
+                    "run-clang-tidy",
+                    f"-j{self.threads}",
+                    f"-p{self.build_dir}",
+                    f"{MODEL_CONVERTER_DIR / 'src'}",
+                ]
+
+                if self.clang_tidy_fix:
+                    clang_tidy_cmd.append("-fix")
+
+                subprocess.run(clang_tidy_cmd, check=True)
 
             if self.run_tests:
                 pytest_cmd = [
@@ -444,6 +464,12 @@ def parse_arguments():
         help="Specify the target build platform",
         choices=["host", "aarch64", "linux-clang"],
         default="host",
+    )
+    parser.add_argument(
+        "--clang-tidy-fix",
+        help="Enable clang-tidy fix (requires --lint). Default: %(default)s",
+        action="store_true",
+        default=False,
     )
 
     if argcomplete:
