@@ -26,11 +26,6 @@ def pytest_addoption(parser):
         help="Path to ML SDK Model Converter build",
     )
     parser.addoption(
-        "--build-type",
-        required=True,
-        help="Build type",
-    )
-    parser.addoption(
         "--sanitizers",
         action="store_true",
         default=False,
@@ -39,32 +34,29 @@ def pytest_addoption(parser):
     )
 
 
-def exe_path(build_path, build_type, exe_name):
+def exe_path(build_path, exe_name):
     if platform.system() == "Windows":
-        return build_path / build_type / f"{exe_name}.exe"
-    return build_path / exe_name
+        return os.path.join(build_path, f"{exe_name}.exe")
+    return os.path.join(build_path, exe_name)
 
 
 @pytest.fixture
 def vgf_dump_exe_path(request):
     model_converter_build_path = request.config.getoption("--build-dir")
-    vgf_build_path = model_converter_build_path / "vgf-lib" / "vgf_dump"
-    build_type = request.config.getoption("--build-type")
-    return exe_path(vgf_build_path, build_type, "vgf_dump")
+    vgf_build_path = os.path.join(model_converter_build_path, "vgf-lib", "vgf_dump")
+    return exe_path(vgf_build_path, "vgf_dump")
 
 
 @pytest.fixture
 def model_converter_exe_path(request):
     model_converter_build_path = request.config.getoption("--build-dir")
-    build_type = request.config.getoption("--build-type")
-    return exe_path(model_converter_build_path, build_type, "model-converter")
+    return exe_path(model_converter_build_path, "model-converter")
 
 
 @pytest.fixture
 def opt_exe_path(request):
     model_converter_build_path = request.config.getoption("--build-dir")
-    build_type = request.config.getoption("--build-type")
-    return exe_path(model_converter_build_path, build_type, "model-converter-opt")
+    return exe_path(model_converter_build_path, "model-converter-opt")
 
 
 def pytest_configure(config):
