@@ -12,11 +12,11 @@ module attributes {tf_saved_model.semantics, tosa.description = "Tosa FBS Conver
     %4 = "tosa.const"() {values = dense<2026291432> : tensor<1xi32>} : () -> tensor<1xi32>
     %5 = "tosa.const"() {values = dense<40> : tensor<1xi8>} : () -> tensor<1xi8>
     %6 = "tosa.const"() {values = dense<0> : tensor<1xi8>} : () -> tensor<1xi8>
-    %7 = "tosa.conv2d"(%arg0, %0, %1, %6, %6) {dilation = array<i64: 1, 1>, pad = array<i64: 1, 1, 1, 1>, stride = array<i64: 1, 1>, acc_type = i32} : (tensor<1x32x32x23xi8>, tensor<1x3x3x23xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x32x32x1xi32>
+    %7 = tosa.conv2d %arg0, %0, %1, %6, %6 {dilation = array<i64: 1, 1>, pad = array<i64: 1, 1, 1, 1>, stride = array<i64: 1, 1>, acc_type = i32} : (tensor<1x32x32x23xi8>, tensor<1x3x3x23xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x32x32x1xi32>
     %8 = "tosa.const"() {values = dense<0> : tensor<1xi8>} : () -> tensor<1xi8>
     %9 = "tosa.const"() {values = dense<0> : tensor<1xi32>} : () -> tensor<1xi32>
-    %10 = "tosa.rescale"(%7, %4, %5, %9, %8) {rounding_mode = "DOUBLE_ROUND", per_channel = true, scale32 = true, input_unsigned = false, output_unsigned = false} : (tensor<1x32x32x1xi32>, tensor<1xi32>, tensor<1xi8>, tensor<1xi32>, tensor<1xi8>) -> tensor<1x32x32x1xi8>
-    %11 = "tosa.conv2d"(%10, %2, %3, %8, %8) {dilation = array<i64: 1, 1>, pad = array<i64: 1, 1, 1, 1>, stride = array<i64: 1, 1>, acc_type = i32} : (tensor<1x32x32x1xi8>, tensor<1x3x3x5xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x32x32x1xi32>
+    %10 = tosa.rescale %7, %4, %5, %9, %8 {rounding_mode = DOUBLE_ROUND, per_channel = true, scale32 = true, input_unsigned = false, output_unsigned = false} : (tensor<1x32x32x1xi32>, tensor<1xi32>, tensor<1xi8>, tensor<1xi32>, tensor<1xi8>) -> tensor<1x32x32x1xi8>
+    %11 = tosa.conv2d %10, %2, %3, %8, %8 {dilation = array<i64: 1, 1>, pad = array<i64: 1, 1, 1, 1>, stride = array<i64: 1, 1>, acc_type = i32} : (tensor<1x32x32x1xi8>, tensor<1x3x3x5xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x32x32x1xi32>
     return %11 : tensor<1x32x32x1xi32>
     }
 }

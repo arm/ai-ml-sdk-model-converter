@@ -84,14 +84,6 @@ python <path-to-git-repo>/git-repo/repo init -u <manifest-url> -g all
 python <path-to-git-repo>/git-repo/repo sync --no-clone-bundle
 ```
 
-Due to a known issue in `git-repo`, nested submodules do not always update as
-part of `repo sync` and need to be manually updated, for example:
-
-```bash
-cd dependencies/tosa_mlir_translator
-git submodule update --init --recursive
-```
-
 After the sync command completes successfully, you can find the ML SDK Model
 Converter in `<repo_root>/sw/model-converter/`. You can also find all the
 dependencies required by the ML SDK Model Converter in
@@ -112,8 +104,7 @@ The following dependencies are also needed:
 
 - [Argument Parser for Modern C++](https://github.com/p-ranav/argparse).
 - [LLVM](https://github.com/llvm/llvm-project).
-- [TOSA Serialization Library](https://gitlab.arm.com/tosa/tosa-serialization).
-- [TOSA MLIR Translator](https://gitlab.arm.com/tosa/tosa-mlir-translator).
+- [TOSA Tools](https://gitlab.arm.com/tosa/tosa-tools).
 
 For the preferred dependency versions see the manifest file.
 
@@ -158,7 +149,7 @@ python3 ${SDK_PATH}/sw/model-converter/scripts/build.py -j $(nproc) \
     --vgf-lib-path ${SDK_PATH}/sw/vgf-lib \
     --flatbuffers-path ${SDK_PATH}/dependencies/flatbuffers \
     --argparse-path ${SDK_PATH}/dependencies/argparse \
-    --tosa-mlir-translator-path ${SDK_PATH}/dependencies/tosa_mlir_translator \
+    --tosa-tools-path ${SDK_PATH}/dependencies/tosa_tools \
     --external-llvm ${SDK_PATH}/dependencies/llvm-project
 ```
 
@@ -171,13 +162,13 @@ python3 "$env:SDK_PATH\sw\model-converter\scripts\build.py" -j $cores `
     --vgf-lib-path "$env:SDK_PATH\sw\vgf-lib" `
     --flatbuffers-path "$env:SDK_PATH\dependencies\flatbuffers" `
     --argparse-path "$env:SDK_PATH\dependencies\argparse" `
-    --tosa-mlir-translator-path "$env:SDK_PATH\dependencies\tosa_mlir_translator" `
+    --tosa-tools-path "$env:SDK_PATH\dependencies\tosa_tools" `
     --external-llvm "$env:SDK_PATH\dependencies\llvm-project"
 ```
 
 If the components are in their default locations, it is not necessary to specify
 the `--vgf-lib-path`, `--flatbuffers-path`, `--argparse-path`,
-`--tosa-mlir-translator-path`, and `--external-llvm` options.
+`--tosa-tools-path`, and `--external-llvm` options.
 
 Tests can be enabled and run with `--test` and linting by `--lint`. The
 documentation can be built with `--doc`. To build the documentation, sphinx and

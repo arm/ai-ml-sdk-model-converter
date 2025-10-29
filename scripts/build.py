@@ -46,7 +46,7 @@ class Builder:
         self.vgf_lib_path = args.vgf_lib_path
         self.json_path = args.json_path
         self.flatbuffers_path = args.flatbuffers_path
-        self.tosa_mlir_translator_path = args.tosa_mlir_translator_path
+        self.tosa_tools_path = args.tosa_tools_path
         self.argparse_path = args.argparse_path
         self.doc = args.doc
         self.lint = args.lint
@@ -171,10 +171,8 @@ class Builder:
         if self.flatbuffers_path:
             cmake_setup_cmd.append(f"-DFLATBUFFERS_PATH={self.flatbuffers_path}")
 
-        if self.tosa_mlir_translator_path:
-            cmake_setup_cmd.append(
-                f"-DTOSA_MLIR_TRANSLATOR_PATH={self.tosa_mlir_translator_path}"
-            )
+        if self.tosa_tools_path:
+            cmake_setup_cmd.append(f"-DTOSA_TOOLS_PATH={self.tosa_tools_path}")
 
         if self.argparse_path:
             cmake_setup_cmd.append(f"-DARGPARSE_PATH={self.argparse_path}")
@@ -393,9 +391,9 @@ def parse_arguments():
         default=f"{DEPENDENCY_DIR / 'json'}",
     )
     parser.add_argument(
-        "--tosa-mlir-translator-path",
-        help="Path to the TOSA MLIR Translator repo",
-        default=f"{DEPENDENCY_DIR / 'tosa_mlir_translator'}",
+        "--tosa-tools-path",
+        help="Path to the TOSA Tools repo",
+        default=f"{DEPENDENCY_DIR / 'tosa-tools'}",
     )
     parser.add_argument(
         "--doc",

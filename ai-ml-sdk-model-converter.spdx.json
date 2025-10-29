@@ -118,12 +118,12 @@
                 },
                 {
                     "referenceCategory": "SECURITY",
-                    "referenceLocator": "cpe:2.3:a:crates_package:flatbuffers:23.5.26:*:*:*:*:*:*:*",
+                    "referenceLocator": "cpe:2.3:a:crates_package:flatbuffers:25.2.10:*:*:*:*:*:*:*",
                     "referenceType": "cpe23Type"
                 },
                 {
                     "referenceCategory": "SECURITY",
-                    "referenceLocator": "cpe:2.3:a:google:flatbuffers:23.5.26:*:*:*:*:*:*:*",
+                    "referenceLocator": "cpe:2.3:a:google:flatbuffers:25.2.10:*:*:*:*:*:*:*",
                     "referenceType": "cpe23Type"
                 }
             ],
@@ -132,7 +132,7 @@
             "licenseDeclared": "Apache-2.0",
             "name": "FlatBuffers",
             "supplier": "Organization: Google",
-            "versionInfo": "23.5.26"
+            "versionInfo": "25.2.10"
         },
         {
             "SPDXID": "SPDXRef-package-32f470fe-3af4-4572-a02b-226850686a71",
@@ -475,7 +475,7 @@
             "licenseConcluded": "Apache-2.0 WITH LLVM-exception",
             "licenseDeclared": "Apache-2.0 WITH LLVM-exception",
             "copyrightText": "NOASSERTION",
-            "versionInfo": "802ea0eb78f7",
+            "versionInfo": "334d438bf8a6",
             "supplier": "Organization: llvm (github.com)",
             "licenseInfoFromFiles": [
                 "NOASSERTION"
@@ -484,19 +484,19 @@
                 {
                     "referenceCategory": "PACKAGE-MANAGER",
                     "referenceType": "purl",
-                    "referenceLocator": "pkg:generic/llvm-project@802ea0eb78f7"
+                    "referenceLocator": "pkg:generic/llvm-project@334d438bf8a6"
                 }
             ]
         },
         {
             "SPDXID": "SPDXRef-package-5c74f3d9-f969-4f70-a58b-c1988e3c164d",
-            "name": "tosa_mlir_translator",
+            "name": "tosa-tools",
             "downloadLocation": "NOASSERTION",
             "filesAnalyzed": false,
-            "licenseConcluded": "Apache-2.0 WITH LLVM-exception",
-            "licenseDeclared": "Apache-2.0 WITH LLVM-exception",
+            "licenseConcluded": "(Apache-2.0 WITH LLVM-exception AND Apache-2.0)",
+            "licenseDeclared": "(Apache-2.0 WITH LLVM-exception AND Apache-2.0)",
             "copyrightText": "Copyright (c) ARM Limited.",
-            "versionInfo": "v2025.07.1",
+            "versionInfo": "v2025.11",
             "supplier": "Organization: tosa (https://gitlab.arm.com/tosa)",
             "licenseInfoFromFiles": [
                 "NOASSERTION"
@@ -505,28 +505,7 @@
                 {
                     "referenceCategory": "PACKAGE-MANAGER",
                     "referenceType": "purl",
-                    "referenceLocator": "pkg:generic/tosa_mlir_translator@v2025.07.1"
-                }
-            ]
-        },
-        {
-            "SPDXID": "SPDXRef-package-a741951e-e91a-46cd-a0a9-717a2cd60d3d",
-            "name": "serialization_lib",
-            "downloadLocation": "NOASSERTION",
-            "filesAnalyzed": false,
-            "licenseConcluded": "Apache 2.0",
-            "licenseDeclared": "Apache 2.0",
-            "copyrightText": "Copyright (c) ARM Limited.",
-            "versionInfo": "v2025.07.1",
-            "supplier": "Organization: tosa (https://gitlab.arm.com/tosa)",
-            "licenseInfoFromFiles": [
-                "NOASSERTION"
-            ],
-            "externalRefs": [
-                {
-                    "referenceCategory": "PACKAGE-MANAGER",
-                    "referenceType": "purl",
-                    "referenceLocator": "pkg:generic/serialization_lib@v2025.07.1"
+                    "referenceLocator": "pkg:generic/tosa-tools@v2025.11"
                 }
             ]
         },
@@ -647,24 +626,37 @@
             "versionInfo": "1.26.4"
         },
         {
-            "SPDXID": "SPDXRef-package-ae8439cd-e38a-46cd-a0a9-717a2cd60d3d",
-            "name": "Half",
+            "SPDXID": "SPDXRef-package-eb39c089-c8a3-4d30-8772-786c90af9e78",
             "downloadLocation": "NOASSERTION",
-            "filesAnalyzed": false,
-            "licenseConcluded": "Apache-2.0",
-            "licenseDeclared": "Apache-2.0",
-            "versionInfo": "v2.2.0",
-            "supplier": "Organization: tosa (https://gitlab.arm.com/tosa)",
-            "licenseInfoFromFiles": [
-                "NOASSERTION"
-            ],
             "externalRefs": [
                 {
+                    "referenceCategory": "OTHER",
+                    "referenceLocator": "343c994c-4330-488f-8aa3-303cdd1e0f6c",
+                    "referenceType": "BlackDuck-Component"
+                },
+                {
                     "referenceCategory": "PACKAGE-MANAGER",
-                    "referenceType": "purl",
-                    "referenceLocator": "pkg:generic/Half@v2.2.0"
+                    "referenceLocator": "pkg:gitlab/libeigen/eigen@3.4.0",
+                    "referenceType": "purl"
+                },
+                {
+                    "referenceCategory": "OTHER",
+                    "referenceLocator": "c30b1627-ad6c-49c5-b503-23e417771d9b",
+                    "referenceType": "BlackDuck-ComponentOrigin"
+                },
+                {
+                    "referenceCategory": "OTHER",
+                    "referenceLocator": "eb39c089-c8a3-4d30-8772-786c90af9e78",
+                    "referenceType": "BlackDuck-ComponentVersion"
                 }
-            ]
+            ],
+            "filesAnalyzed": false,
+            "licenseConcluded": "MPL-2.0",
+            "licenseDeclared": "MPL-2.0",
+            "name": "Eigen",
+            "originator": "Organization: libeigen",
+            "supplier": "Organization: libeigen",
+            "versionInfo": "3.4.0"
         }
     ],
     "relationships": [
@@ -764,11 +756,6 @@
             "relatedSpdxElement": "SPDXRef-package-5c74f3d9-f969-4f70-a58b-c1988e3c164d"
         },
         {
-            "spdxElementId": "SPDXRef-package-5c74f3d9-f969-4f70-a58b-c1988e3c164d",
-            "relationshipType": "CONTAINS",
-            "relatedSpdxElement": "SPDXRef-package-a741951e-e91a-46cd-a0a9-717a2cd60d3d"
-        },
-        {
             "spdxElementId": "SPDXRef-package-ce2b91e5-996c-4dc7-be9e-146bd1c789c9",
             "relationshipType": "DEPENDS_ON",
             "relatedSpdxElement": "SPDXRef-package-18e36ba3-5553-495c-afa3-ef67a7b417c"
@@ -789,9 +776,9 @@
             "relatedSpdxElement": "SPDXRef-package-3c53bb1a-f1ad-4f37-9f56-e59f0e9ef333"
         },
         {
-            "spdxElementId": "SPDXRef-package-a741951e-e91a-46cd-a0a9-717a2cd60d3d",
+            "spdxElementId": "SPDXRef-package-5c74f3d9-f969-4f70-a58b-c1988e3c164d",
             "relationshipType": "DEPENDS_ON",
-            "relatedSpdxElement": "SPDXRef-package-ae8439cd-e38a-46cd-a0a9-717a2cd60d3d"
+            "relatedSpdxElement": "SPDXRef-package-eb39c089-c8a3-4d30-8772-786c90af9e78"
         }
     ]
 }

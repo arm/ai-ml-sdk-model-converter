@@ -65,7 +65,7 @@ struct FuncSignatureConvert : public OpConversionPattern<func::FuncOp> {
         auto newFuncType = FunctionType::get(rewriter.getContext(), signatureConverter.getConvertedTypes(), newResults);
 
         func::FuncOp newFuncOp =
-            rewriter.create<func::FuncOp>(funcOp.getLoc(), newName, newFuncType, visibilityAttr, argAttrs, resAttrs);
+            func::FuncOp::create(rewriter, funcOp.getLoc(), newName, newFuncType, visibilityAttr, argAttrs, resAttrs);
 
         newFuncOp->setAttrs(adaptor.getAttributes());
 
@@ -159,7 +159,7 @@ template <typename OpTy, typename OpTyAdaptor>
 void addReduceAccTypePattern(ConversionTarget &target, RewritePatternSet &patterns, mlir::TypeConverter &typeConverter,
                              MLIRContext *ctx) {
     target.addDynamicallyLegalOp<OpTy>(
-        [&](OpTy op) { return typeConverter.isLegal(op.getAccType()) && typeConverter.isLegal(op); });
+        [&](OpTy op) { return typeConverter.isLegal(op.getAccType()) && typeConverter.isLegal(op.getOperation()); });
     patterns.add<ReduceFloatAccTypePattern<OpTy, OpTyAdaptor>>(typeConverter, ctx);
 }
 
@@ -178,10 +178,10 @@ class TypeNarrowingPass final : public TypeNarrowingPassBase<TypeNarrowingPass> 
         typeConverter.addConversion([&](TensorType type) { return type.clone(Float16Type::get(ctx)); });
 
         typeConverter.addSourceMaterialization([](OpBuilder &builder, Type type, ValueRange inputs, Location loc) {
-            return builder.create<tosa::CastOp>(loc, type, inputs);
+            return tosa::CastOp::create(builder, loc, type, inputs);
         });
         typeConverter.addTargetMaterialization([](OpBuilder &builder, Type type, ValueRange inputs, Location loc) {
-            return builder.create<tosa::CastOp>(loc, type, inputs);
+            return tosa::CastOp::create(builder, loc, type, inputs);
         });
 
         ConversionTarget target(*ctx);
@@ -192,7 +192,8 @@ class TypeNarrowingPass final : public TypeNarrowingPassBase<TypeNarrowingPass> 
         });
 
         target.addDynamicallyLegalOp<tosa::ConstOp>([&](tosa::ConstOp constOp) {
-            return typeConverter.isLegal(constOp.getValues().getType()) && typeConverter.isLegal(constOp);
+            return typeConverter.isLegal(constOp.getValues().getType()) &&
+                   typeConverter.isLegal(constOp.getOperation());
         });
 
         target.addDynamicallyLegalOp<tosa::CastOp>([&](tosa::CastOp castOp) {
