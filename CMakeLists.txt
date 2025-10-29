@@ -197,8 +197,8 @@ add_custom_target(model-converter-tests ALL DEPENDS VGF::vgf_dump)
 # Packaging
 ###############################################################################
 
-include(package)
 if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+    include(cmake/package.cmake)
     mlsdk_package(PACKAGE_NAME ${MODEL_CONVERTER_PACKAGE_NAME}
         NAMESPACE ${MODEL_CONVERTER_NAMESPACE}
         LICENSES "${CMAKE_CURRENT_LIST_DIR}/LICENSES/Apache-2.0.txt"
