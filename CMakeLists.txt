@@ -53,7 +53,7 @@ endif()
 # Third Party Dependency path resolver
 #########################################################################################
 
-set(TOSA_MLIR_TRANSLATOR_PATH "TOSA_MLIR_TRANSLATOR-NOTFOUND" CACHE PATH "Path to TOSA MLIR Translator")
+set(TOSA_TOOLS_PATH "TOSA_TOOLS-NOTFOUND" CACHE PATH "Path to TOSA Tools")
 
 #############################################################################
 # Toolchain configuration
@@ -73,7 +73,7 @@ include(flatbuffers)
 include(vgf-lib)
 include(llvm-project)
 include(version)
-include(tosa_mlir_translator)
+include(tosa_tools)
 
 set(DEFAULT_CMAKE_BUILD_TYPE "Debug")
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)

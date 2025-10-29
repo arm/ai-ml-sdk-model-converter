@@ -9,7 +9,7 @@ module attributes {tf_saved_model.semantics, tfl.description = "MLIR Converted."
         %2 = "tosa.const"() {values = dense<[23]> : tensor<1xi8>} : () -> tensor<1xi8>
         %3 = "tosa.const"() {values = dense<0> : tensor<1xi32>} : () -> tensor<1xi32>
         %4 = "tosa.const"() {values = dense<0> : tensor<1xi16>} : () -> tensor<1xi16>
-        %5 = "tosa.rescale"(%arg0, %1, %2, %3, %4) {rounding_mode = "DOUBLE_ROUND", per_channel = false, scale32 = true, input_unsigned = false, output_unsigned = false} : (tensor<1x1xi32>, tensor<1xi32>, tensor<1xi8>, tensor<1xi32>, tensor<1xi16>) -> tensor<1x1xi16>
+        %5 = tosa.rescale %arg0, %1, %2, %3, %4 {rounding_mode = DOUBLE_ROUND, per_channel = false, scale32 = true, input_unsigned = false, output_unsigned = false} : (tensor<1x1xi32>, tensor<1xi32>, tensor<1xi8>, tensor<1xi32>, tensor<1xi16>) -> tensor<1x1xi16>
         return %5 : tensor<1x1xi16>
     }
 }

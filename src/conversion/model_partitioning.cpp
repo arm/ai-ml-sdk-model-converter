@@ -46,8 +46,8 @@ struct FuncOpRewriter : public OpConversionPattern<func::FuncOp> {
     LogicalResult matchAndRewrite(func::FuncOp funcOp, OpAdaptor adaptor,
                                   ConversionPatternRewriter &rewriter) const override {
         auto sequenceOp =
-            rewriter.create<vgf::SequenceOp>(funcOp.getLoc(), adaptor.getSymName(), adaptor.getFunctionType(),
-                                             adaptor.getArgAttrsAttr(), adaptor.getResAttrsAttr());
+            vgf::SequenceOp::create(rewriter, funcOp.getLoc(), adaptor.getSymName(), adaptor.getFunctionType(),
+                                    adaptor.getArgAttrsAttr(), adaptor.getResAttrsAttr());
         sequenceOp->setAttrs(adaptor.getAttributes());
         rewriter.inlineRegionBefore(funcOp.getBody(), sequenceOp.getBody(), sequenceOp.end());
         rewriter.eraseOp(funcOp);
@@ -381,8 +381,8 @@ class ModelPartitioningPass : public ModelPartitioningPassBase<ModelPartitioning
                 bool isComputeSegment = partitionOps.size() == 1 && llvm::isa<tosa::CustomOp>(partitionOps[0]);
                 const auto segmentType = isComputeSegment ? vgf::SegmentTypeEnum::COMPUTE : vgf::SegmentTypeEnum::GRAPH;
 
-                auto segmentOp = builder.create<vgf::SegmentOp>(funcOp.getLoc(), segmentName, segmentType,
-                                                                segmentFunctionType, nullptr, nullptr);
+                auto segmentOp = vgf::SegmentOp::create(builder, funcOp.getLoc(), segmentName, segmentType,
+                                                        segmentFunctionType, nullptr, nullptr);
                 segmentOp->setAttr("segment_id", IntegerAttr::get(tUI32, partitionId));
                 {
                     OpBuilder::InsertionGuard segmentGuard{builder};
@@ -401,14 +401,14 @@ class ModelPartitioningPass : public ModelPartitioningPassBase<ModelPartitioning
                         llvm::SmallVector<Value, 4> segmentResults;
                         std::transform(results.begin(), results.end(), std::back_inserter(segmentResults),
                                        [&](Value value) { return segmentMapping.lookupOrDefault(value); });
-                        builder.create<vgf::SegmentOutputOp>(segmentOp.getLoc(), segmentResults);
+                        vgf::SegmentOutputOp::create(builder, segmentOp.getLoc(), segmentResults);
                     } else {
                         auto newFuncOp =
-                            builder.create<func::FuncOp>(funcOp.getLoc(), segmentName, segmentFunctionType);
+                            func::FuncOp::create(builder, funcOp.getLoc(), segmentName, segmentFunctionType);
                         newFuncOp->setAttr("segment_id", IntegerAttr::get(tUI32, partitionId));
 
                         llvm::SmallVector<Value, 0> segmentResults;
-                        builder.create<vgf::SegmentOutputOp>(segmentOp.getLoc(), segmentResults);
+                        vgf::SegmentOutputOp::create(builder, segmentOp.getLoc(), segmentResults);
 
                         {
                             OpBuilder::InsertionGuard funcGuard{builder};
@@ -427,7 +427,7 @@ class ModelPartitioningPass : public ModelPartitioningPassBase<ModelPartitioning
                             llvm::SmallVector<Value, 4> funcResults;
                             std::transform(results.begin(), results.end(), std::back_inserter(funcResults),
                                            [&](Value value) { return funcMapping.lookupOrDefault(value); });
-                            builder.create<func::ReturnOp>(newFuncOp.getLoc(), funcResults);
+                            func::ReturnOp::create(builder, newFuncOp.getLoc(), funcResults);
                         }
                     }
                 }
@@ -435,9 +435,8 @@ class ModelPartitioningPass : public ModelPartitioningPassBase<ModelPartitioning
                 llvm::SmallVector<Value, 4> runInputs;
                 std::transform(inputs.begin(), inputs.end(), std::back_inserter(runInputs),
                                [&](Value value) { return externalMapping.lookupOrDefault(value); });
-                auto segmentRunOp =
-                    builder.create<vgf::SegmentRunOp>(segmentOp.getLoc(), segmentOp.getResultTypes(),
-                                                      SymbolRefAttr::get(segmentOp), ValueRange(runInputs));
+                auto segmentRunOp = vgf::SegmentRunOp::create(builder, segmentOp.getLoc(), segmentOp.getResultTypes(),
+                                                              SymbolRefAttr::get(segmentOp), ValueRange(runInputs));
                 segmentRunOp->setAttr("segment_id", IntegerAttr::get(tUI32, partitionId));
 
                 for (auto [result, segmentRunOpArg] : llvm::zip(results, segmentRunOp.getResults())) {

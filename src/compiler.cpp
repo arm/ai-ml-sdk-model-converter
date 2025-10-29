@@ -14,8 +14,8 @@
 #include "vgf-dialect/VGFDialect.h"
 #include "vgf_builder.hpp"
 
-#include "include/DeserializationPasses.h" // from @tosa_mlir_translator
-#include "include/SerializationPasses.h"   // from @tosa_mlir_translator
+#include "include/DeserializationPasses.h" // from @tosa_tools/mlir_translator
+#include "include/SerializationPasses.h"   // from @tosa_tools/mlir_translator
 
 #include <filesystem>
 #include <iostream>

@@ -11,10 +11,10 @@ module attributes {tf_saved_model.semantics, tfl.description = "MLIR Converted."
     %3 = "tosa.const"() {values = dense<42> : tensor<16xi8>} : () -> tensor<16xi8>
     %4 = "tosa.const"() {values = dense<-128> : tensor<1xi8>} : () -> tensor<1xi8>
     %5 = "tosa.const"() {values = dense<0> : tensor<1xi8>} : () -> tensor<1xi8>
-    %6 = "tosa.conv2d"(%arg0, %1, %0, %4, %5) {dilation = array<i64: 1, 1>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 2>, acc_type = i32} : (tensor<1x16x16x16xi8>, tensor<16x2x2x16xi8>, tensor<16xi32>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x8x8x16xi32>
+    %6 = tosa.conv2d %arg0, %1, %0, %4, %5 {dilation = array<i64: 1, 1>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 2>, acc_type = i32} : (tensor<1x16x16x16xi8>, tensor<16x2x2x16xi8>, tensor<16xi32>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x8x8x16xi32>
     %7 = "tosa.const"() {values = dense<0> : tensor<1xi32>} : () -> tensor<1xi32>
     %8 = "tosa.const"() {values = dense<0> : tensor<1xi8>} : () -> tensor<1xi8>
-    %9 = "tosa.rescale"(%6, %2, %3, %7, %8) {rounding_mode = "DOUBLE_ROUND", per_channel = true, scale32 = true,  input_unsigned = false, output_unsigned = false} : (tensor<1x8x8x16xi32>, tensor<16xi32>, tensor<16xi8>, tensor<1xi32>, tensor<1xi8>) -> tensor<1x8x8x16xi8>
+    %9 = tosa.rescale %6, %2, %3, %7, %8 {rounding_mode = DOUBLE_ROUND, per_channel = true, scale32 = true,  input_unsigned = false, output_unsigned = false} : (tensor<1x8x8x16xi32>, tensor<16xi32>, tensor<16xi8>, tensor<1xi32>, tensor<1xi8>) -> tensor<1x8x8x16xi8>
     return %9 : tensor<1x8x8x16xi8>
   }
 }
