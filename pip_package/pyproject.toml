@@ -8,6 +8,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai_ml_sdk_model_converter"
+description = "ML SDK Model Converter"
+readme = "README.md"
 dynamic = ["version"]
 
 [project.scripts]
