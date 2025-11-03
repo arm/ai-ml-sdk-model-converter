@@ -225,12 +225,8 @@ For more information, see the help output:
 
 ## License
 
-[Apache-2.0](LICENSES/Apache-2.0.txt)
-
-## Security
-
-If you believe you have discovered a security issue please refer to the
-[Security Section](SECURITY.md)
+The ML SDK Model Conveter is distributed under the software licenses in
+LICENSES directory.
 
 ## Trademark notice
 
