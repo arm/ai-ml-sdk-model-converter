@@ -19,23 +19,22 @@ tensor is detected, the program will exit with an error.
 
 The suggested workflow for this tool as part of the ML SDK for Vulkan® is:
 
-1.  A TOSA MLIR file is converted to a VGF file using the ML SDK Model Converter
-    (this project).
-2.  The generated VGF file and VGF library VGF Dump Tool is used to create a
-    JSON scenario template file. The template file is edited with the correct
-    filenames and paths.
-3.  Using the generated VGF file and scenario file, the ML SDK Scenario Runner
-    then dispatches the contained SPIR-V™ modules to the ML extensions for
-    Vulkan®.
+1. A TOSA MLIR file is converted to a VGF file using the ML SDK Model Converter
+   (this project).
+2. The generated VGF file and VGF library VGF Dump Tool is used to create a
+   JSON scenario template file. The template file is edited with the correct
+   filenames and paths.
+3. Using the generated VGF file and scenario file, the ML SDK Scenario Runner
+   then dispatches the contained SPIR-V™ modules to the ML extensions for
+   Vulkan®.
 
-### Cloning the repository
+## Cloning the repository
 
 To clone the ML SDK Model Converter as a stand-alone repository, you can use
 regular git clone commands. However, for better management of dependencies and
 to ensure everything is placed in the appropriate directories, we recommend
 using the `git-repo` tool to clone the repository as part of the ML SDK for
-Vulkan® suite. The tool is available
-[here](https://gerrit.googlesource.com/git-repo).
+Vulkan® suite. [Repo tool](https://gerrit.googlesource.com/git-repo).
 
 For a minimal build and to initialize only the ML SDK Model Converter and its
 dependencies, run:
@@ -98,7 +97,7 @@ Converter in `<repo_root>/sw/model-converter/`. You can also find all the
 dependencies required by the ML SDK Model Converter in
 :`<repo_root>/dependencies/`.
 
-### Building the ML SDK Model Converter from source
+## Building the ML SDK Model Converter from source
 
 The build system must have:
 
@@ -117,33 +116,33 @@ The following dependencies are also needed:
 
 For the preferred dependency versions see the manifest file.
 
-### Providing Flatc
+## Providing Flatc
 
 There are 3 options for providing the flatc binary and headers.
 
-1.  Using the default path. When the repository is initialized using the repo
-    manifest, the flatbuffers source is checked out in
-    `<repo-root>/dependencies/flatbuffers/`. The VGF Library cmake scripts
-    automatically find and build flatc in this location.
+1. Using the default path. When the repository is initialized using the repo
+   manifest, the flatbuffers source is checked out in
+   `<repo-root>/dependencies/flatbuffers/`. The VGF Library cmake scripts
+   automatically find and build flatc in this location.
 
-2.  Providing a custom flatc path. If flatc cannot be found in the default
-    `<repo-root>/dependencies/flatbuffers` path, you can provide a custom binary
-    file path to the build script using the `--flatc-path <path_to_flatc>`
-    option, see [Building with the script](#building-with-the-script).
+2. Providing a custom flatc path. If flatc cannot be found in the default
+   `<repo-root>/dependencies/flatbuffers` path, you can provide a custom binary
+   file path to the build script using the `--flatc-path <path_to_flatc>`
+   option, see [Building with the script](#building-with-the-script).
 
-3.  Installing flatc to the system. If flatc cannot be found in the default path
-    and no custom path is provided, it will be searched using `PATH`. To install
-    flatc to the system and make it available on the searchable `PATH`, see the
-    [flatbuffers documentation](https://flatbuffers.dev/). For example, on Linux
-    navigate to the flatbuffers checkout location and run the following
-    commands:
+3. Installing flatc to the system. If flatc cannot be found in the default path
+   and no custom path is provided, it will be searched using `PATH`. To install
+   flatc to the system and make it available on the searchable `PATH`, see the
+   [flatbuffers documentation](https://flatbuffers.dev/). For example, on Linux
+   navigate to the flatbuffers checkout location and run the following
+   commands:
 
 ```bash
 cmake -B build -DCMAKE_INSTALL_PREFIX=/usr/local
 cmake --build build --target install
 ```
 
-### Building with the script
+## Building with the script
 
 Arm® provides a python build script to make build configuration options easily
 discoverable. When the script is run from a git-repo manifest checkout, the
@@ -195,7 +194,7 @@ For more information, see the help output:
 python3 scripts/build.py --help
 ```
 
-### Usage
+## Usage
 
 To generate a VGF file, run:
 
