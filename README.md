@@ -225,7 +225,7 @@ For more information, see the help output:
 
 ## License
 
-The ML SDK Model Conveter is distributed under the software licenses in
+The ML SDK Model Converter is distributed under the software licenses in
 LICENSES directory.
 
 ## Trademark notice
