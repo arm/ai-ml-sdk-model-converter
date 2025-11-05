@@ -146,6 +146,8 @@ class Builder:
             "-B",
             self.build_dir,
             f"-DCMAKE_BUILD_TYPE={self.build_type}",
+            "-G",
+            "Ninja",
         ]
 
         if self.prefix_path:
@@ -293,8 +295,6 @@ class Builder:
                     str(self.threads),
                     "--build-dir",
                     self.build_dir,
-                    "--build-type",
-                    self.build_type,
                 ]
                 if self.enable_sanitizers:
                     pytest_cmd.append("--sanitizers")

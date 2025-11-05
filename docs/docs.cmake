@@ -35,7 +35,6 @@ add_custom_command(
             -P ${CMAKE_CURRENT_LIST_DIR}/redirect-output.cmake
     COMMAND_EXPAND_LISTS
     DEPENDS ${MODEL_CONVERTER_NAMESPACE}::model-converter
-    BYPRODUCTS ${MODEL_CONVERTER_ARG_HELP_TXT}
     VERBATIM
     COMMENT "Generating model-converter tool ARGPARSE help documentation"
 )
