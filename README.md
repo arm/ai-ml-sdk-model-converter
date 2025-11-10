@@ -215,6 +215,16 @@ For more information, see the help output:
 ./build/model-converter --help
 ```
 
+## PyPI
+
+The ML SDK Model Converter is available on PyPI as the [ai-ml-sdk-model-converter](https://pypi.org/project/ai-ml-sdk-model-converter) package.
+
+Install:
+
+```bash
+pip install ai-ml-sdk-model-converter
+```
+
 ## Known Limitations
 
 - Usage of the `patches/llvm.patch` file is temporary until the required changes
