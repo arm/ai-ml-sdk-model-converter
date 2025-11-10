@@ -1,0 +1,31 @@
+#
+# SPDX-FileCopyrightText: Copyright 2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+# SPDX-License-Identifier: Apache-2.0
+#
+version = 1
+SPDX-PackageName = "ai-ml-sdk-model-converter"
+
+[[annotations]]
+path = "*.md"
+SPDX-FileCopyrightText = "Copyright 2023-2024 Arm Limited and/or its affiliates <open-source-office@arm.com>"
+SPDX-License-Identifier = "Apache-2.0 WITH LLVM-exception"
+
+[[annotations]]
+path = "CONTRIBUTORS.txt"
+SPDX-FileCopyrightText = "Copyright 2025 Arm Limited and/or its affiliates <open-source-office@arm.com>"
+SPDX-License-Identifier = "Apache-2.0 WITH LLVM-exception"
+
+[[annotations]]
+path = "docs/source/*.rst"
+SPDX-FileCopyrightText = "Copyright 2023-2024 Arm Limited and/or its affiliates <open-source-office@arm.com>"
+SPDX-License-Identifier = "Apache-2.0 WITH LLVM-exception"
+
+[[annotations]]
+path = "patches/*.patch"
+SPDX-FileCopyrightText = "Copyright 2023-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>"
+SPDX-License-Identifier = "Apache-2.0 WITH LLVM-exception"
+
+[[annotations]]
+path = "test/json/*.json"
+SPDX-FileCopyrightText = "Copyright 2023-2024 Arm Limited and/or its affiliates <open-source-office@arm.com>"
+SPDX-License-Identifier = "Apache-2.0 WITH LLVM-exception"
