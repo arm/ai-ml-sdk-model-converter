@@ -7,4 +7,4 @@
 # It is not intended for use in building or packaging with Conan.
 
 [requires]
-flatbuffers/23.5.26
+flatbuffers/25.2.10
