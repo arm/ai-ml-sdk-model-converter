@@ -141,9 +141,18 @@ index 000000000000..20fb9ef11a42
 +
 +#endif // MLIR_CONVERSION_TOSATOSPIRV_TOSATOSPIRV_H
 diff --git a/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVBase.td b/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVBase.td
-index b628f1a3f7b2..d9a132c1fc79 100644
+index b628f1a3f7b2..776510927a8f 100644
 --- a/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVBase.td
 +++ b/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVBase.td
+@@ -1343,7 +1343,7 @@ def SPIRV_C_StorageTensorArrayNonUniformIndexingEXT     : I32EnumAttrCase<"Stora
+   ];
+ }
+ def SPIRV_C_GraphARM                                    : I32EnumAttrCase<"GraphARM", 4191> {
+-  list<I32EnumAttrCase> implies = [SPIRV_C_TensorsARM];
++  list<I32EnumAttrCase> implies = [SPIRV_C_TensorsARM, SPIRV_C_Shader, SPIRV_C_VulkanMemoryModel];
+   list<Availability> availability = [
+     Extension<[SPV_ARM_graph]>
+   ];
 @@ -4233,6 +4233,7 @@ def SPIRV_IsTensorArmType : CPred<"::llvm::isa<::mlir::spirv::TensorArmType>($_s
  def SPIRV_Void : TypeAlias<NoneType, "void">;
  def SPIRV_Bool : TypeAlias<I1, "bool">;
@@ -2134,10 +2143,10 @@ index 000000000000..75b534ff8973
 +)
 diff --git a/mlir/lib/Conversion/TosaToSPIRV/ConvertTosaConstants.cpp b/mlir/lib/Conversion/TosaToSPIRV/ConvertTosaConstants.cpp
 new file mode 100644
-index 000000000000..90d7fa5c9ca7
+index 000000000000..02173446b9c5
 --- /dev/null
 +++ b/mlir/lib/Conversion/TosaToSPIRV/ConvertTosaConstants.cpp
-@@ -0,0 +1,247 @@
+@@ -0,0 +1,214 @@
 +//===- ConvertTosaConstants.cpp - Tosa constant to SPIR-V constant pass ---===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -2168,7 +2177,6 @@ index 000000000000..90d7fa5c9ca7
 +namespace tosa {
 +
 +static constexpr uint32_t SPIRV_CONSTANT_MAX_SIZE_FOR_TOSA_CONST = 16;
-+
 +static constexpr uint32_t SPIRV_CONSTANT_MAX_SIZE_FOR_TOSA_CONST_SHAPE = 32;
 +
 +static constexpr llvm::StringLiteral graphConstAttrName =
@@ -2198,23 +2206,20 @@ index 000000000000..90d7fa5c9ca7
 +  ElementsAttr valueAttr;
 +  if (auto constOp = dyn_cast_or_null<tosa::ConstOp>(op)) {
 +    valueAttr = constOp.getValuesAttr();
-+  }
-+
-+  if (auto constShapeOp = dyn_cast_or_null<tosa::ConstShapeOp>(op)) {
++  } else if (auto constShapeOp = dyn_cast_or_null<tosa::ConstShapeOp>(op)) {
 +    valueAttr = constShapeOp.getValuesAttr();
 +  }
 +
 +  assert(valueAttr && "Failed to get value attribute");
 +
 +  uint32_t constantSize = 0;
-+  if (auto elemAttr = llvm::dyn_cast<ElementsAttr>(valueAttr)) {
++  if (auto elemAttr = dyn_cast_or_null<ElementsAttr>(valueAttr)) {
 +    if (elemAttr.getShapedType().getRank() > 1) {
 +      return true;
 +    }
 +    constantSize = elemAttr.size();
-+  }
-+
-+  if (auto denseArrayAttr = llvm::dyn_cast<DenseArrayAttr>(valueAttr)) {
++  } else if (auto denseArrayAttr =
++                 dyn_cast_or_null<DenseArrayAttr>(valueAttr)) {
 +    constantSize = denseArrayAttr.size();
 +  }
 +
@@ -2223,32 +2228,6 @@ index 000000000000..90d7fa5c9ca7
 +                         : SPIRV_CONSTANT_MAX_SIZE_FOR_TOSA_CONST_SHAPE;
 +
 +  return constantSize > maxSize;
-+}
-+
-+bool isOperandCompileTimeConstant(OpOperand &operand) {
-+  auto op = operand.getOwner();
-+  auto idx = operand.getOperandNumber();
-+  return
-+      // CTC from tosa.const op
-+      (llvm::isa<tosa::AvgPool2dOp>(op) && (idx == 1 || idx == 2)) ||
-+      (llvm::isa<tosa::Conv2DOp>(op) && (idx == 3 || idx == 4)) ||
-+      (llvm::isa<tosa::Conv3DOp>(op) && (idx == 3 || idx == 4)) ||
-+      (llvm::isa<tosa::DepthwiseConv2DOp>(op) && (idx == 3 || idx == 4)) ||
-+      (llvm::isa<tosa::MatMulOp>(op) && (idx == 2 || idx == 3)) ||
-+      (llvm::isa<tosa::TransposeConv2DOp>(op) && (idx == 3 || idx == 4)) ||
-+      (llvm::isa<tosa::MulOp>(op) && idx == 2) ||
-+      (llvm::isa<tosa::TableOp>(op) && idx == 1) ||
-+      (llvm::isa<tosa::NegateOp>(op) && (idx == 1 || idx == 2)) ||
-+      (llvm::isa<tosa::PadOp>(op) && idx == 2) ||
-+      (llvm::isa<tosa::RescaleOp>(op) &&
-+       (idx == 1 || idx == 2 || idx == 3 || idx == 4)) ||
-+
-+      // CTC from tosa.const_shape op
-+      (llvm::isa<tosa::PadOp>(op) && idx == 1) ||
-+      (llvm::isa<tosa::ReshapeOp>(op) && idx == 1) ||
-+      (llvm::isa<tosa::SliceOp>(op) && (idx == 1 || idx == 2)) ||
-+      (llvm::isa<tosa::TileOp>(op) && idx == 1) ||
-+      (llvm::isa<tosa::ResizeOp>(op) && (idx == 1 || idx == 2 || idx == 3));
 +}
 +
 +class OpInfo {
@@ -2353,9 +2332,6 @@ index 000000000000..90d7fa5c9ca7
 +        // Operand defining op is not tosa.const or tosa.const
 +        if (!llvm::isa<tosa::ConstOp>(*definingOp) &&
 +            !llvm::isa<tosa::ConstShapeOp>(*definingOp))
-+          continue;
-+
-+        if (isOperandCompileTimeConstant(operand))
 +          continue;
 +
 +        getOpInfo(getOpHandle(*definingOp)).addUseCount();
@@ -5443,3 +5419,16 @@ index 000000000000..f53fbd393873
 +  }
 +  return mlir::success();
 +}
+diff --git a/mlir/test/Dialect/SPIRV/Transforms/vce-deduction.mlir b/mlir/test/Dialect/SPIRV/Transforms/vce-deduction.mlir
+index 7dab87f8081e..326137b50479 100644
+--- a/mlir/test/Dialect/SPIRV/Transforms/vce-deduction.mlir
++++ b/mlir/test/Dialect/SPIRV/Transforms/vce-deduction.mlir
+@@ -232,7 +232,7 @@ spirv.module Logical GLSL450 attributes {
+   }
+ }
+ 
+-// CHECK: requires #spirv.vce<v1.5, [GraphARM, Int8, TensorsARM, Float16, VulkanMemoryModel], [SPV_ARM_graph, SPV_ARM_tensors, SPV_KHR_vulkan_memory_model]>
++// CHECK: requires #spirv.vce<v1.5, [GraphARM, Int8, TensorsARM, Float16, VulkanMemoryModel, Shader, Matrix], [SPV_ARM_graph, SPV_ARM_tensors, SPV_KHR_vulkan_memory_model]>
+ spirv.module Logical Vulkan attributes {
+   spirv.target_env = #spirv.target_env<
+     #spirv.vce<v1.5, [VulkanMemoryModel, GraphARM, TensorsARM, Float16], [SPV_ARM_tensors, SPV_ARM_graph]>,
