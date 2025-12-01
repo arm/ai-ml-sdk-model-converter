@@ -170,9 +170,16 @@ If the components are in their default locations, it is not necessary to specify
 the `--vgf-lib-path`, `--flatbuffers-path`, `--argparse-path`,
 `--tosa-tools-path`, and `--external-llvm` options.
 
-Tests can be enabled and run with `--test` and linting by `--lint`. The
-documentation can be built with `--doc`. To build the documentation, sphinx and
-doxygen must be installed on the machine.
+Tests can be enabled and run with `--test` and linting by `--lint`. To enable
+tests and documentation building python dependencies must be installed:
+
+```bash
+pip install -r requirements.txt
+pip install -r tooling_requirements.txt
+```
+
+The documentation can be built with `--doc`. To build the documentation, sphinx
+and doxygen must be installed on the machine.
 
 You can install the project build artifacts into a specified location by passing
 the option `--install` with the required path.
