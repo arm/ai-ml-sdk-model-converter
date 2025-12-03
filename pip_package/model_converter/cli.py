@@ -12,4 +12,5 @@ def main():
         "model-converter.exe" if sys.platform.startswith("win") else "model-converter"
     )
     binary_path = os.path.join(os.path.dirname(__file__), "binaries/bin", binary_name)
-    return subprocess.run([binary_path] + sys.argv[1:])
+    result = subprocess.run([binary_path] + sys.argv[1:])
+    return result.returncode
