@@ -42,7 +42,6 @@ class Builder:
         self.skip_llvm_patch = args.skip_llvm_patch
         self.run_tests = args.test
         self.build_type = args.build_type
-        self.flatc_path = args.flatc_path
         self.vgf_lib_path = args.vgf_lib_path
         self.json_path = args.json_path
         self.flatbuffers_path = args.flatbuffers_path
@@ -158,9 +157,6 @@ class Builder:
 
         if not self.setup_platform_build(cmake_setup_cmd):
             return 1
-
-        if self.flatc_path:
-            cmake_setup_cmd.append(f"-DFLATC_PATH={self.flatc_path}")
 
         if self.vgf_lib_path:
             cmake_setup_cmd.append(f"-DML_SDK_VGF_LIB_PATH={self.vgf_lib_path}")
@@ -364,11 +360,6 @@ def parse_arguments():
         "--build-type",
         help="Type of build to perform. Default: %(default)s",
         default="Release",
-    )
-    parser.add_argument(
-        "--flatc-path",
-        help="Path to the flatc compiler",
-        default="",
     )
     parser.add_argument(
         "--vgf-lib-path",
