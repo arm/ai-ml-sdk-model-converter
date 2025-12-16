@@ -409,7 +409,7 @@
             "externalRefs": [
                 {
                     "referenceCategory": "PACKAGE-MANAGER",
-                    "referenceLocator": "pkg:pypi/iniconfig@2.1.0",
+                    "referenceLocator": "pkg:pypi/iniconfig@2.3.0",
                     "referenceType": "purl"
                 },
                 {
@@ -433,7 +433,7 @@
             "licenseDeclared": "MIT",
             "name": "RonnyPfannschmidt/iniconfig",
             "supplier": "Organization: pypi",
-            "versionInfo": "2.1.0"
+            "versionInfo": "2.3.0"
         },
         {
             "SPDXID": "SPDXRef-package-7244dee8-6675-4803-84f7-457f0340346c",
@@ -441,7 +441,7 @@
             "externalRefs": [
                 {
                     "referenceCategory": "PACKAGE-MANAGER",
-                    "referenceLocator": "pkg:pypi/tomli@2.2.1",
+                    "referenceLocator": "pkg:pypi/tomli@2.3.0",
                     "referenceType": "purl"
                 },
                 {
@@ -465,7 +465,7 @@
             "licenseDeclared": "MIT",
             "name": "tomli",
             "supplier": "Organization: pypi",
-            "versionInfo": "2.2.1"
+            "versionInfo": "2.3.0"
         },
         {
             "SPDXID": "SPDXRef-package-e7bd2fb4-8b81-4400-99f1-390dbab23846",
@@ -510,6 +510,85 @@
             ]
         },
         {
+            "SPDXID": "SPDXRef-package-6c6c020b-60a1-4a7d-9042-a300bf02b6bf",
+            "downloadLocation": "NOASSERTION",
+            "externalRefs": [
+                {
+                    "referenceCategory": "OTHER",
+                    "referenceLocator": "6c6c020b-60a1-4a7d-9042-a300bf02b6bf",
+                    "referenceType": "BlackDuck-ComponentVersion"
+                },
+                {
+                    "referenceCategory": "OTHER",
+                    "referenceLocator": "deb692c6-4848-4b98-a831-d11499e81b8d",
+                    "referenceType": "BlackDuck-Component"
+                }
+            ],
+            "filesAnalyzed": false,
+            "licenseConcluded": "MIT",
+            "licenseDeclared": "MIT",
+            "name": "cxxopts",
+            "originator": "Organization: cxxopts",
+            "supplier": "Organization: cxxopts",
+            "versionInfo": "v3.2.1"
+        },
+        {
+            "SPDXID": "SPDXRef-package-f43b9468-5687-4e83-b9eb-78fe8a316bed",
+            "downloadLocation": "NOASSERTION",
+            "externalRefs": [
+                {
+                    "referenceCategory": "OTHER",
+                    "referenceLocator": "f43b9468-5687-4e83-b9eb-78fe8a316bed",
+                    "referenceType": "BlackDuck-ComponentVersion"
+                },
+                {
+                    "referenceCategory": "OTHER",
+                    "referenceLocator": "7c5a054b-e18e-417e-82db-c917254653d4",
+                    "referenceType": "BlackDuck-Component"
+                }
+            ],
+            "filesAnalyzed": false,
+            "licenseConcluded": "MIT",
+            "licenseDeclared": "MIT",
+            "name": "doctest testing framework",
+            "originator": "Organization: doctest testing framework",
+            "supplier": "Organization: doctest testing framework",
+            "versionInfo": "v2.4.11"
+        },
+        {
+            "SPDXID": "SPDXRef-package-eb39c089-c8a3-4d30-8772-786c90af9e78",
+            "downloadLocation": "NOASSERTION",
+            "externalRefs": [
+                {
+                    "referenceCategory": "OTHER",
+                    "referenceLocator": "343c994c-4330-488f-8aa3-303cdd1e0f6c",
+                    "referenceType": "BlackDuck-Component"
+                },
+                {
+                    "referenceCategory": "PACKAGE-MANAGER",
+                    "referenceLocator": "pkg:gitlab/libeigen/eigen@3.4.0",
+                    "referenceType": "purl"
+                },
+                {
+                    "referenceCategory": "OTHER",
+                    "referenceLocator": "c30b1627-ad6c-49c5-b503-23e417771d9b",
+                    "referenceType": "BlackDuck-ComponentOrigin"
+                },
+                {
+                    "referenceCategory": "OTHER",
+                    "referenceLocator": "eb39c089-c8a3-4d30-8772-786c90af9e78",
+                    "referenceType": "BlackDuck-ComponentVersion"
+                }
+            ],
+            "filesAnalyzed": false,
+            "licenseConcluded": "MPL-2.0",
+            "licenseDeclared": "MPL-2.0",
+            "name": "Eigen",
+            "originator": "Organization: libeigen",
+            "supplier": "Organization: libeigen",
+            "versionInfo": "3.4.0"
+        },
+        {
             "SPDXID": "SPDXRef-package-18e36ba3-5553-495c-afa3-ef67a7b417c1",
             "downloadLocation": "NOASSERTION",
             "externalRefs": [
@@ -533,7 +612,7 @@
             "licenseConcluded": "BSD-3-Clause",
             "licenseDeclared": "BSD-3-Clause",
             "name": "CMake",
-            "supplier": "Organization: conan",
+            "supplier": "Organization: CMake",
             "versionInfo": "v3.31.8"
         },
         {
@@ -624,39 +703,6 @@
             "name": "NumPy",
             "supplier": "Organization: pypi",
             "versionInfo": "1.26.4"
-        },
-        {
-            "SPDXID": "SPDXRef-package-eb39c089-c8a3-4d30-8772-786c90af9e78",
-            "downloadLocation": "NOASSERTION",
-            "externalRefs": [
-                {
-                    "referenceCategory": "OTHER",
-                    "referenceLocator": "343c994c-4330-488f-8aa3-303cdd1e0f6c",
-                    "referenceType": "BlackDuck-Component"
-                },
-                {
-                    "referenceCategory": "PACKAGE-MANAGER",
-                    "referenceLocator": "pkg:gitlab/libeigen/eigen@3.4.0",
-                    "referenceType": "purl"
-                },
-                {
-                    "referenceCategory": "OTHER",
-                    "referenceLocator": "c30b1627-ad6c-49c5-b503-23e417771d9b",
-                    "referenceType": "BlackDuck-ComponentOrigin"
-                },
-                {
-                    "referenceCategory": "OTHER",
-                    "referenceLocator": "eb39c089-c8a3-4d30-8772-786c90af9e78",
-                    "referenceType": "BlackDuck-ComponentVersion"
-                }
-            ],
-            "filesAnalyzed": false,
-            "licenseConcluded": "MPL-2.0",
-            "licenseDeclared": "MPL-2.0",
-            "name": "Eigen",
-            "originator": "Organization: libeigen",
-            "supplier": "Organization: libeigen",
-            "versionInfo": "3.4.0"
         }
     ],
     "relationships": [
@@ -774,6 +820,16 @@
             "spdxElementId": "SPDXRef-package-edd58207-4b2b-4095-b0a5-cf41f1d9d6dd",
             "relationshipType": "DEPENDS_ON",
             "relatedSpdxElement": "SPDXRef-package-3c53bb1a-f1ad-4f37-9f56-e59f0e9ef333"
+        },
+        {
+            "spdxElementId": "SPDXRef-package-5c74f3d9-f969-4f70-a58b-c1988e3c164d",
+            "relationshipType": "DEPENDS_ON",
+            "relatedSpdxElement": "SPDXRef-package-6c6c020b-60a1-4a7d-9042-a300bf02b6bf"
+        },
+        {
+            "spdxElementId": "SPDXRef-package-5c74f3d9-f969-4f70-a58b-c1988e3c164d",
+            "relationshipType": "DEPENDS_ON",
+            "relatedSpdxElement": "SPDXRef-package-f43b9468-5687-4e83-b9eb-78fe8a316bed"
         },
         {
             "spdxElementId": "SPDXRef-package-5c74f3d9-f969-4f70-a58b-c1988e3c164d",
