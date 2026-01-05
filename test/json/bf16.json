@@ -1,0 +1,101 @@
+{
+    "constants": [],
+    "header": {
+        "major": 0,
+        "minor": 4,
+        "patch": 0
+    },
+    "model_sequence": {
+        "inputs": [
+            {
+                "binding": 0,
+                "index": 0,
+                "mrt_index": 0,
+                "name": "input_0"
+            }
+        ],
+        "outputs": [
+            {
+                "binding": 1,
+                "index": 0,
+                "mrt_index": 1,
+                "name": "output_0"
+            }
+        ],
+        "segments": [
+            {
+                "constants": [],
+                "descriptor_set_infos": [
+                    [
+                        {
+                            "binding": 0,
+                            "index": 0,
+                            "mrt_index": 0
+                        },
+                        {
+                            "binding": 1,
+                            "index": 1,
+                            "mrt_index": 1
+                        }
+                    ]
+                ],
+                "dispatch_shape": [
+                    0,
+                    0,
+                    0
+                ],
+                "index": 0,
+                "inputs": [
+                    {
+                        "binding": 0,
+                        "index": 0,
+                        "mrt_index": 0
+                    }
+                ],
+                "module_index": 0,
+                "name": "graph_segment_0",
+                "outputs": [
+                    {
+                        "binding": 1,
+                        "index": 0,
+                        "mrt_index": 1
+                    }
+                ],
+                "push_constant_ranges": [],
+                "type": "GRAPH"
+            }
+        ]
+    },
+    "modules": [
+        {
+            "code_size": 190,
+            "entry_point": "graph_partition_0",
+            "has_spirv": true,
+            "index": 0,
+            "name": "graph_partition_0",
+            "type": "GRAPH"
+        }
+    ],
+    "resources": [
+        {
+            "category": "INPUT",
+            "index": 0,
+            "shape": [
+                4
+            ],
+            "stride": [],
+            "vk_descriptor_type": "VK_DESCRIPTOR_TYPE_TENSOR_ARM",
+            "vk_format": "VK_FORMAT_R16_SFLOAT_FPENCODING_BFLOAT16_ARM"
+        },
+        {
+            "category": "OUTPUT",
+            "index": 1,
+            "shape": [
+                4
+            ],
+            "stride": [],
+            "vk_descriptor_type": "VK_DESCRIPTOR_TYPE_TENSOR_ARM",
+            "vk_format": "VK_FORMAT_R16_SFLOAT_FPENCODING_BFLOAT16_ARM"
+        }
+    ]
+}
