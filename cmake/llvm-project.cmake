@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright 2022-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+# SPDX-FileCopyrightText: Copyright 2022-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 
@@ -33,7 +33,7 @@ endfunction()
 
 if(EXISTS ${LLVM_PATH}/llvm/CMakeLists.txt)
     if(MODEL_CONVERTER_APPLY_LLVM_PATCH)
-        set(LLVM_PATCH_COMMIT_MESSAGE "llvm-changes-for-model-converter-14-11-2025")
+        set(LLVM_PATCH_COMMIT_MESSAGE "llvm-changes-for-model-converter-09-01-2026")
         execute_process(
             COMMAND git log --grep=${LLVM_PATCH_COMMIT_MESSAGE}
             WORKING_DIRECTORY "${LLVM_PATH}"

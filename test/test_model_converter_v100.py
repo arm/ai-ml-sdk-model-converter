@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright 2023-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+# SPDX-FileCopyrightText: Copyright 2023-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 import binascii
@@ -57,6 +57,12 @@ tests = [
     (
         "add.mlir",
         "add.json",
+        [],
+    ),
+    # Test 6: Single op with higher rank inlined constant
+    (
+        "inlined_higher_rank_constant.mlir",
+        "inlined_higher_rank_constant.json",
         [],
     ),
 ]
