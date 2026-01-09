@@ -1,6 +1,6 @@
 From: svc_sdk <svc_sdk@arm.com>
-Date: Fri Nov 14 00:00:00 2025
-Subject: llvm-changes-for-model-converter-14-11-2025
+Date: Fri Jan 09 00:00:00 2026
+Subject: llvm-changes-for-model-converter-09-01-2026
 
 diff --git a/mlir/include/mlir/Conversion/Passes.h b/mlir/include/mlir/Conversion/Passes.h
 index 40d866ec7bf1..d1db147bed44 100644
@@ -2146,7 +2146,7 @@ new file mode 100644
 index 000000000000..02173446b9c5
 --- /dev/null
 +++ b/mlir/lib/Conversion/TosaToSPIRV/ConvertTosaConstants.cpp
-@@ -0,0 +1,214 @@
+@@ -0,0 +1,211 @@
 +//===- ConvertTosaConstants.cpp - Tosa constant to SPIR-V constant pass ---===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -2214,9 +2214,6 @@ index 000000000000..02173446b9c5
 +
 +  uint32_t constantSize = 0;
 +  if (auto elemAttr = dyn_cast_or_null<ElementsAttr>(valueAttr)) {
-+    if (elemAttr.getShapedType().getRank() > 1) {
-+      return true;
-+    }
 +    constantSize = elemAttr.size();
 +  } else if (auto denseArrayAttr =
 +                 dyn_cast_or_null<DenseArrayAttr>(valueAttr)) {
