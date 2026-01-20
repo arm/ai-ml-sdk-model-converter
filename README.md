@@ -148,7 +148,7 @@ tests and documentation building python dependencies must be installed:
 
 ```bash
 pip install -r requirements.txt
-pip install -r tooling_requirements.txt
+pip install -r tooling-requirements.txt
 ```
 
 The documentation can be built with `--doc`. To build the documentation, sphinx
