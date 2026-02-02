@@ -65,6 +65,12 @@ tests = [
         "inlined_higher_rank_constant.json",
         [],
     ),
+    # Test 7: BF16 inputs
+    (
+        "bf16.mlir",
+        "bf16.json",
+        [],
+    ),
 ]
 
 

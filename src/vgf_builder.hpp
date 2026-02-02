@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2023-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2023-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
@@ -32,6 +32,7 @@ class VGFBuilder {
         VK_FORMAT_R32_SFLOAT = 100,
         VK_FORMAT_R64_SINT = 111,
         VK_FORMAT_R8_BOOL_ARM = 1000460000,
+        VK_FORMAT_R16_SFLOAT_FPENCODING_BFLOAT16_ARM = 1000460001,
     };
 
     static mlir::LogicalResult mlirTypeToVkFormat(mlir::Type mlirType, VkFormat &format, bool useUnsignedForSignless) {
@@ -74,6 +75,8 @@ class VGFBuilder {
             format = VkFormat::VK_FORMAT_R16_SFLOAT;
         } else if (mlirType.isF32()) {
             format = VkFormat::VK_FORMAT_R32_SFLOAT;
+        } else if (mlirType.isBF16()) {
+            format = VkFormat::VK_FORMAT_R16_SFLOAT_FPENCODING_BFLOAT16_ARM;
         } else {
             return mlir::failure();
         }
