@@ -33,7 +33,7 @@ endfunction()
 
 if(EXISTS ${LLVM_PATH}/llvm/CMakeLists.txt)
     if(MODEL_CONVERTER_APPLY_LLVM_PATCH)
-        set(LLVM_PATCH_COMMIT_MESSAGE "llvm-changes-for-model-converter-09-01-2026")
+        set(LLVM_PATCH_COMMIT_MESSAGE "llvm-changes-for-model-converter-30-01-2026")
         execute_process(
             COMMAND git log --grep=${LLVM_PATCH_COMMIT_MESSAGE}
             WORKING_DIRECTORY "${LLVM_PATH}"
