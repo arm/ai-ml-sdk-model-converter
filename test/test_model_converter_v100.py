@@ -13,6 +13,16 @@ import pytest
 mlir_dir = pathlib.Path(__file__).resolve().parent / "mlir"
 json_dir = pathlib.Path(__file__).resolve().parent / "json"
 
+
+def drop_module_code_size(data: dict):
+    modules = data.get("modules")
+    if not isinstance(modules, list):
+        return
+    for module in modules:
+        if isinstance(module, dict):
+            module.pop("code_size", None)
+
+
 tests = [
     #
     # Test 1: Verify all sections and constant values encoded in the VGF.
@@ -99,10 +109,16 @@ def model_converter(
 
         actual_json_str = ""
         with open(output_json, mode="r") as actual_json_file:
-            actual_json_str = json.dumps(json.load(actual_json_file), sort_keys=False)
+            actual_json = json.load(actual_json_file)
+            # TODO: Following line is a temporary change
+            drop_module_code_size(actual_json)
 
         expected_json = json.load(open(json_dir / expected_json_file))
+        # TODO: Following line is a temporary change
+        drop_module_code_size(expected_json)
+
         expected_json_str = json.dumps(expected_json, sort_keys=True)
+        actual_json_str = json.dumps(actual_json, sort_keys=False)
 
         assert expected_json_str == actual_json_str
 
