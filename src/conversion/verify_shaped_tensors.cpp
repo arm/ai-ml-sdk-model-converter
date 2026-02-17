@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2023-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2023-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
@@ -10,6 +10,8 @@
 
 namespace mlir {
 namespace model_converter_passes {
+#define GEN_PASS_DEF_TOSASHAPEDVERIFICATIONPASS
+#include "passes.hpp.inc"
 
 namespace {
 bool isRealizedShape(ArrayRef<int64_t> shape) {
@@ -17,7 +19,7 @@ bool isRealizedShape(ArrayRef<int64_t> shape) {
 }
 } // namespace
 
-class TosaShapedVerificationPass : public TosaShapedVerificationPassBase<TosaShapedVerificationPass> {
+class TosaShapedVerificationPass : public impl::TosaShapedVerificationPassBase<TosaShapedVerificationPass> {
   public:
     void runOnOperation() final {
         auto funcOp = getOperation();
@@ -119,13 +121,6 @@ class TosaShapedVerificationPass : public TosaShapedVerificationPassBase<TosaSha
         }
     }
 };
-
-std::unique_ptr<Pass> createTosaShapedVerificationPass() { return std::make_unique<TosaShapedVerificationPass>(); }
-
-void registerTosaShapedVerificationPass() {
-    PassRegistration<TosaShapedVerificationPass>(
-        []() -> std::unique_ptr<Pass> { return createTosaShapedVerificationPass(); });
-}
 
 } // namespace model_converter_passes
 } // namespace mlir

@@ -23,6 +23,7 @@ def drop_module_code_size(data: dict):
             module.pop("code_size", None)
 
 
+# Test
 tests = [
     #
     # Test 1: Verify all sections and constant values encoded in the VGF.

@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2023-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2023-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
@@ -19,6 +19,8 @@ using namespace mlsdk::vgflib;
 
 namespace mlir {
 namespace model_converter_passes {
+#define GEN_PASS_DEF_SERIALIZEVGFPASS
+#include "passes.hpp.inc"
 namespace {
 
 using SegmentId = uint64_t;
@@ -56,8 +58,13 @@ void setGlobalVarOpBindingAndDescriptorSet(spirv::GraphARMOp opGraph, Value oper
     }
 }
 
-class SerializeVGFPass : public SerializeVGFPassBase<SerializeVGFPass> {
+class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
   public:
+    SerializeVGFPass() : SerializeVGFPass(std::make_shared<VGFBuilder>(), "binary.vgf", {}) {}
+
+    explicit SerializeVGFPass(const SerializeVGFPassOptions &options)
+        : SerializeVGFPass(std::make_shared<VGFBuilder>(), "binary.vgf", options) {}
+
     SerializeVGFPass(std::shared_ptr<VGFBuilder> VGFBuilder, std::string outputName,
                      const SerializeVGFPassOptions &options)
         : _VGFBuilder(std::move(VGFBuilder)), _outputName(std::move(outputName)),
@@ -566,12 +573,6 @@ class SerializeVGFPass : public SerializeVGFPassBase<SerializeVGFPass> {
 std::unique_ptr<Pass> createSerializeVGFPass(std::shared_ptr<VGFBuilder> VGFBuilder, std::string outputName,
                                              const SerializeVGFPassOptions &options) {
     return std::make_unique<SerializeVGFPass>(VGFBuilder, outputName, options);
-}
-
-void registerSerializeVGFPass() {
-    PassRegistration<SerializeVGFPass>([]() -> std::unique_ptr<Pass> {
-        return createSerializeVGFPass(std::make_shared<VGFBuilder>(), "binary.vgf", {false});
-    });
 }
 
 } // namespace model_converter_passes

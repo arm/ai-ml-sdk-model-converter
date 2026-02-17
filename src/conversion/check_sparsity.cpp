@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2023-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2023-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
@@ -10,9 +10,11 @@
 
 namespace mlir {
 namespace model_converter_passes {
+#define GEN_PASS_DEF_CHECKCONSTANTSPARSITYPASS
+#include "passes.hpp.inc"
 namespace {
 
-class CheckConstantSparsityPass : public CheckConstantSparsityPassBase<CheckConstantSparsityPass> {
+class CheckConstantSparsityPass : public impl::CheckConstantSparsityPassBase<CheckConstantSparsityPass> {
   public:
     void runOnOperation() override {
 
@@ -107,13 +109,6 @@ bool CheckConstantSparsityPass::checkSparsityLoop(const T *data, int64_t otherDi
 }
 
 } // namespace
-
-std::unique_ptr<Pass> createCheckConstantSparsityPass() { return std::make_unique<CheckConstantSparsityPass>(); }
-
-void registerCheckConstantSparsityPass() {
-    PassRegistration<CheckConstantSparsityPass>(
-        []() -> std::unique_ptr<Pass> { return createCheckConstantSparsityPass(); });
-}
 
 } // namespace model_converter_passes
 } // namespace mlir

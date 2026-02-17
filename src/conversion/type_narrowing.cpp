@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2024-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2024-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 #include "include/type_narrowing.hpp"
@@ -10,6 +10,8 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 namespace mlir::model_converter_passes {
+#define GEN_PASS_DEF_TYPENARROWINGPASS
+#include "passes.hpp.inc"
 namespace {
 
 // Reduce the precision of the accumulator type attribute of a given operator
@@ -163,12 +165,10 @@ void addReduceAccTypePattern(ConversionTarget &target, RewritePatternSet &patter
     patterns.add<ReduceFloatAccTypePattern<OpTy, OpTyAdaptor>>(typeConverter, ctx);
 }
 
-class TypeNarrowingPass final : public TypeNarrowingPassBase<TypeNarrowingPass> {
-    using TypeNarrowingPassBase::TypeNarrowingPassBase;
+class TypeNarrowingPass final : public impl::TypeNarrowingPassBase<TypeNarrowingPass> {
+    using impl::TypeNarrowingPassBase<TypeNarrowingPass>::TypeNarrowingPassBase;
 
   public:
-    explicit TypeNarrowingPass(const TypeNarrowingPassOptions &options) { mode = options.mode; }
-
     void runOnOperation() override {
         MLIRContext *ctx = &getContext();
         mlir::Operation *op = getOperation();
@@ -236,15 +236,5 @@ class TypeNarrowingPass final : public TypeNarrowingPassBase<TypeNarrowingPass> 
 };
 
 } // namespace
-
-std::unique_ptr<Pass> createTypeNarrowingPass() { return std::make_unique<TypeNarrowingPass>(); }
-
-std::unique_ptr<Pass> createTypeNarrowingPass(TypeNarrowingPassOptions options) {
-    return std::make_unique<TypeNarrowingPass>(options);
-}
-
-void registerTypeNarrowingPass() {
-    PassRegistration<TypeNarrowingPass>([]() -> std::unique_ptr<Pass> { return createTypeNarrowingPass(); });
-}
 
 } // namespace mlir::model_converter_passes
