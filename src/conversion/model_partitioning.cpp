@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2024-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2024-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
@@ -15,6 +15,8 @@
 
 namespace mlir {
 namespace model_converter_passes {
+#define GEN_PASS_DEF_MODELPARTITIONINGPASS
+#include "passes.hpp.inc"
 namespace {
 
 std::string chop(std::string &text, const std::string &c) {
@@ -325,9 +327,9 @@ void deleteOldOps(ModuleOp moduleOp) {
     }
 }
 
-class ModelPartitioningPass : public ModelPartitioningPassBase<ModelPartitioningPass> {
+class ModelPartitioningPass : public impl::ModelPartitioningPassBase<ModelPartitioningPass> {
   public:
-    explicit ModelPartitioningPass(const ModelPartitioningPassOptions &options) : analysis(options.analysis) {}
+    using impl::ModelPartitioningPassBase<ModelPartitioningPass>::ModelPartitioningPassBase;
 
     void runOnOperation() override {
         mlir::ModuleOp moduleOp = getOperation();
@@ -464,21 +466,9 @@ class ModelPartitioningPass : public ModelPartitioningPassBase<ModelPartitioning
             return signalPassFailure();
         }
     }
-
-  private:
-    bool analysis;
 };
 
 } // namespace
-
-std::unique_ptr<Pass> createModelPartitioningPass(ModelPartitioningPassOptions options) {
-    return std::make_unique<ModelPartitioningPass>(options);
-}
-
-void registerModelPartitioningPass() {
-    PassRegistration<ModelPartitioningPass>(
-        []() -> std::unique_ptr<Pass> { return createModelPartitioningPass({false}); });
-}
 
 } // namespace model_converter_passes
 } // namespace mlir

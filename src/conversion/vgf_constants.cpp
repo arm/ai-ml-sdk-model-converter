@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2023-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2023-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
@@ -16,10 +16,14 @@ using namespace mlsdk::vgflib;
 
 namespace mlir {
 namespace model_converter_passes {
+#define GEN_PASS_DEF_VGFCONSTANTSPASS
+#include "passes.hpp.inc"
 namespace {
 
-class VGFConstantsPass : public VGFConstantsPassBase<VGFConstantsPass> {
+class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
   public:
+    VGFConstantsPass() : VGFConstantsPass(std::make_shared<VGFBuilder>()) {}
+
     explicit VGFConstantsPass(std::shared_ptr<VGFBuilder> VGFBuilder) : _VGFBuilder(std::move(VGFBuilder)) {}
 
     void runOnOperation() override {
@@ -96,11 +100,6 @@ class VGFConstantsPass : public VGFConstantsPassBase<VGFConstantsPass> {
 
 std::unique_ptr<Pass> createVGFConstantsPass(std::shared_ptr<VGFBuilder> VGFBuilder) {
     return std::make_unique<VGFConstantsPass>(VGFBuilder);
-}
-
-void registerVGFConstantsPass() {
-    PassRegistration<VGFConstantsPass>(
-        []() -> std::unique_ptr<Pass> { return createVGFConstantsPass(std::make_shared<VGFBuilder>()); });
 }
 
 } // namespace model_converter_passes

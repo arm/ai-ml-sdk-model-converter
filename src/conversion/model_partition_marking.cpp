@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2024-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2024-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
@@ -9,9 +9,11 @@
 
 namespace mlir {
 namespace model_converter_passes {
+#define GEN_PASS_DEF_MODELPARTITIONMARKINGPASS
+#include "passes.hpp.inc"
 namespace {
 
-class ModelPartitionMarkingPass : public ModelPartitionMarkingPassBase<ModelPartitionMarkingPass> {
+class ModelPartitionMarkingPass : public impl::ModelPartitionMarkingPassBase<ModelPartitionMarkingPass> {
   public:
     void runOnOperation() override {
         mlir::ModuleOp moduleOp = getOperation();
@@ -84,13 +86,6 @@ class ModelPartitionMarkingPass : public ModelPartitionMarkingPassBase<ModelPart
 };
 
 } // namespace
-
-std::unique_ptr<Pass> createModelPartitionMarkingPass() { return std::make_unique<ModelPartitionMarkingPass>(); }
-
-void registerModelPartitionMarkingPass() {
-    PassRegistration<ModelPartitionMarkingPass>(
-        []() -> std::unique_ptr<Pass> { return createModelPartitionMarkingPass(); });
-}
 
 } // namespace model_converter_passes
 } // namespace mlir

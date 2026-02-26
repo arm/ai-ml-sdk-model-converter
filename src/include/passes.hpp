@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2022-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2022-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
@@ -22,18 +22,8 @@ using mlsdk::model_converter::VGFBuilder;
 
 namespace mlir::model_converter_passes {
 
-#define GEN_PASS_CLASSES
 #define GEN_PASS_DECL
-
-void registerCheckConstantSparsityPass();
-void registerDenseResourceInlinerPass();
-void registerModelPartitionMarkingPass();
-void registerSignlessIntegerMarkingPass();
-void registerTosaShapedVerificationPass();
-void registerModelPartitioningPass();
-void registerSerializeVGFPass();
-void registerTypeNarrowingPass();
-void registerVGFConstantsPass();
+#define GEN_PASS_REGISTRATION
 
 #include "passes.hpp.inc"
 

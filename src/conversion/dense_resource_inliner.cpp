@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2025-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 #include "include/passes.hpp"
@@ -11,12 +11,14 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 namespace mlir::model_converter_passes {
+#define GEN_PASS_DEF_DENSERESOURCEINLINERPASS
+#include "passes.hpp.inc"
 namespace {
 
 //----------------------------------------------------------------------------//
 // Pass Definition
 //----------------------------------------------------------------------------//
-class DenseResourceInlinerPass final : public DenseResourceInlinerPassBase<DenseResourceInlinerPass> {
+class DenseResourceInlinerPass final : public impl::DenseResourceInlinerPassBase<DenseResourceInlinerPass> {
 
     void runOnOperation() override {
         auto funcOp = getOperation();
@@ -35,8 +37,7 @@ class DenseResourceInlinerPass final : public DenseResourceInlinerPassBase<Dense
 
             ArrayRef<char> data = blob->getData();
             const auto attrType = constOp.getType();
-            bool isSplat = false;
-            if (!DenseElementsAttr::isValidRawBuffer(attrType, data, isSplat))
+            if (!DenseElementsAttr::isValidRawBuffer(attrType, data))
                 return;
 
             auto denseElementsAttr = DenseElementsAttr::getFromRawBuffer(attrType, data);
@@ -46,12 +47,5 @@ class DenseResourceInlinerPass final : public DenseResourceInlinerPassBase<Dense
 };
 
 } // namespace
-
-std::unique_ptr<Pass> createDenseResourceInlinerPass() { return std::make_unique<DenseResourceInlinerPass>(); }
-
-void registerDenseResourceInlinerPass() {
-    PassRegistration<DenseResourceInlinerPass>(
-        []() -> std::unique_ptr<Pass> { return createDenseResourceInlinerPass(); });
-}
 
 } // namespace mlir::model_converter_passes

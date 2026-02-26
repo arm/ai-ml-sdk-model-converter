@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2023-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2023-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
@@ -7,8 +7,10 @@
 
 namespace mlir {
 namespace model_converter_passes {
+#define GEN_PASS_DEF_SIGNLESSINTEGERMARKINGPASS
+#include "passes.hpp.inc"
 namespace {
-class SignlessIntegerMarkingPass : public SignlessIntegerMarkingPassBase<SignlessIntegerMarkingPass> {
+class SignlessIntegerMarkingPass : public impl::SignlessIntegerMarkingPassBase<SignlessIntegerMarkingPass> {
   public:
     SignlessIntegerMarkingPass() = default;
 
@@ -66,13 +68,6 @@ class SignlessIntegerMarkingPass : public SignlessIntegerMarkingPassBase<Signles
 };
 
 } // namespace
-
-std::unique_ptr<Pass> createSignlessIntegerMarkingPass() { return std::make_unique<SignlessIntegerMarkingPass>(); }
-
-void registerSignlessIntegerMarkingPass() {
-    PassRegistration<SignlessIntegerMarkingPass>(
-        []() -> std::unique_ptr<Pass> { return createSignlessIntegerMarkingPass(); });
-}
 
 } // namespace model_converter_passes
 } // namespace mlir
