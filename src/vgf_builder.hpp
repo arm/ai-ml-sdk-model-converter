@@ -33,6 +33,8 @@ class VGFBuilder {
         VK_FORMAT_R64_SINT = 111,
         VK_FORMAT_R8_BOOL_ARM = 1000460000,
         VK_FORMAT_R16_SFLOAT_FPENCODING_BFLOAT16_ARM = 1000460001,
+        VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E4M3_ARM = 1000460002,
+        VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E5M2_ARM = 1000460003,
     };
 
     static mlir::LogicalResult mlirTypeToVkFormat(mlir::Type mlirType, VkFormat &format, bool useUnsignedForSignless) {
@@ -77,6 +79,10 @@ class VGFBuilder {
             format = VkFormat::VK_FORMAT_R32_SFLOAT;
         } else if (mlirType.isBF16()) {
             format = VkFormat::VK_FORMAT_R16_SFLOAT_FPENCODING_BFLOAT16_ARM;
+        } else if (mlirType.isF8E4M3FN()) {
+            format = VkFormat::VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E4M3_ARM;
+        } else if (mlirType.isF8E5M2()) {
+            format = VkFormat::VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E5M2_ARM;
         } else {
             return mlir::failure();
         }

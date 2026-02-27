@@ -82,6 +82,18 @@ tests = [
         "bf16.json",
         [],
     ),
+    # Test 7: F8E4M3 inputs
+    (
+        "float8e4m3.mlir",
+        "float8e4m3.json",
+        [],
+    ),
+    # Test 9: F8M5M2 inputs
+    (
+        "float8e5m2.mlir",
+        "float8e5m2.json",
+        [],
+    ),
 ]
 
 
