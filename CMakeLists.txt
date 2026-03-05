@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright 2022-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+# SPDX-FileCopyrightText: Copyright 2022-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 
@@ -49,12 +49,6 @@ else()
     set(CPACK_PACKAGE_NAME "ai_ml_sdk_model_converter")
 endif()
 
-#########################################################################################
-# Third Party Dependency path resolver
-#########################################################################################
-
-set(TOSA_TOOLS_PATH "TOSA_TOOLS-NOTFOUND" CACHE PATH "Path to TOSA Tools")
-
 #############################################################################
 # Toolchain configuration
 #############################################################################
@@ -72,8 +66,8 @@ include(argparse)
 include(flatbuffers)
 include(vgf-lib)
 include(llvm-project)
+include(tosa-tools)
 include(version)
-include(tosa_tools)
 
 set(DEFAULT_CMAKE_BUILD_TYPE "Debug")
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -179,6 +173,7 @@ mlsdk_generate_version_header(
         LLVM
         MLIR
         VGF
+        tosa_serialize
 )
 
 add_executable(${MODEL_CONVERTER_NAMESPACE}::model-converter ALIAS model-converter)
