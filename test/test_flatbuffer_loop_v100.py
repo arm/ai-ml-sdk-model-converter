@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright 2023-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+# SPDX-FileCopyrightText: Copyright 2023-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 import filecmp
@@ -62,7 +62,13 @@ def flatbuffer_loop(model_converter_exe_path, input, schema):
 def parametrize_samples(dir, inject, at):
     params = []
     for file in pathlib.Path(dir).iterdir():
-        if file.name in ["custom.mlir", "double_custom.mlir"]:
+        if file.name in [
+            "custom.mlir",
+            "double_custom.mlir",
+            "custom_glsl.mlir",
+            "custom_hlsl.mlir",
+            "custom_spirv.mlir",
+        ]:
             continue
 
         cpy = deepcopy(inject)

@@ -3,7 +3,7 @@
     "header": {
         "major": 0,
         "minor": 4,
-        "patch": 0
+        "patch": 1
     },
     "model_sequence": {
         "inputs": [
@@ -84,11 +84,11 @@
     },
     "modules": [
         {
-            "code_size": 0,
             "entry_point": "main",
-            "has_spirv": false,
             "index": 0,
             "name": "graph_partition_0",
+            "shader_code_available": false,
+            "shader_type": "SPIR-V",
             "type": "COMPUTE"
         }
     ],

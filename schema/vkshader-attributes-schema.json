@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/vk-custom-op-attrs.schema.json",
+  "title": "Vulkan Shader in TOSA Custom Operation Attributes",
+  "type": "object",
+  "description": "Schema describing attributes for embedding a Vulkan shader inside a TOSA custom operation. This includes entry point definition, workgroup configuration, shader source or binary (SPIR-V), and Vulkan resource binding metadata.",
+  "properties": {
+    "entry_point": {
+      "type": "string",
+      "description": "Name of the shader's entry point."
+    },
+    "workgroup_sizes": {
+      "type": "array",
+      "description": "Workgroup size as [x, y, z].",
+      "items": {
+        "type": "integer",
+        "minimum": 1
+      },
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "push_constants": {
+      "type": "string",
+      "description": "(Optional) Comma-separated list of \"key: size\" pairs representing push constant name and size in bytes (e.g. \"const1: 4, const2: 8\")."
+    },
+    "shader_language": {
+      "type": "string",
+      "enum": [
+        "",
+        "SPIR-V",
+        "GLSL",
+        "HLSL"
+      ],
+      "default": "",
+      "description": "(Optional) Language used in shader_code."
+    },
+    "shader_code": {
+      "type": "string",
+      "default": "",
+      "description": "(Optional) Shader code. Validation depends on shader_language."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "shader_language": {
+            "const": "SPIR-V"
+          }
+        },
+        "required": [
+          "shader_language",
+          "shader_code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "shader_code": {
+            "type": "string",
+            "contentEncoding": "base64",
+            "description": "Base64-encoded SPIR-V binary blob."
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "shader_code": {
+            "type": "string",
+            "description": "Textual shader source (e.g. GLSL, HLSL)."
+          }
+        }
+      }
+    }
+  ],
+  "patternProperties": {
+    "^(input|output)_(0|[1-9]\\d*)_vkformat$": {
+      "type": "string",
+      "description": "Vulkan format of the indexed input/output."
+    },
+    "^(input|output)_(0|[1-9]\\d*)_vkdescriptortype$": {
+      "type": "string",
+      "pattern": "^VK_DESCRIPTOR_TYPE_[A-Z0-9_]+$",
+      "description": "Vulkan descriptor set type of the indexed input/output. Must follow Vulkan naming convention."
+    },
+    "^(input|output)_(0|[1-9]\\d*)_type$": {
+      "type": "string",
+      "description": "Resource type of the indexed input/output (e.g. Tensor, Image, Buffer)."
+    },
+    "^(input|output)_(0|[1-9]\\d*)_binding$": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Binding id of the indexed input/output."
+    },
+    "^(input|output)_(0|[1-9]\\d*)_descriptorset$": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Descriptor set index of the indexed input/output."
+    }
+  },
+  "required": [
+    "entry_point",
+    "workgroup_sizes"
+  ],
+  "additionalProperties": true
+}

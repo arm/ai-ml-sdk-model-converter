@@ -7,41 +7,22 @@
 #include "mlir/IR/IRMapping.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "vgf-dialect/VGFDialect.h"
+#include "llvm/Support/Base64.h"
+#include "llvm/Support/Error.h"
 
-#include <flatbuffers/flexbuffers.h>
+#include <nlohmann/json.hpp>
 
+#include <cstring>
 #include <optional>
 #include <queue>
+#include <vector>
 
 namespace mlir {
 namespace model_converter_passes {
 #define GEN_PASS_DEF_MODELPARTITIONINGPASS
 #include "passes.hpp.inc"
 namespace {
-
-std::string chop(std::string &text, const std::string &c) {
-    size_t pos = text.find_first_of(c);
-    if (std::string::npos == pos) {
-        return "";
-    }
-    std::string pre = text.substr(0, pos);
-    text = text.substr(pos + 1);
-    return pre;
-}
-
-LogicalResult parseInts(SmallVector<int64_t, 3> &output, std::string &&text, const std::string &sep) {
-    try {
-        std::string token = chop(text, sep);
-        while (!token.empty()) {
-            output.push_back(std::stol(token));
-            token = chop(text, sep);
-        }
-        output.push_back(std::stol(text));
-        return success();
-    } catch (...) {
-        return failure();
-    }
-}
+using json = nlohmann::json;
 
 struct FuncOpRewriter : public OpConversionPattern<func::FuncOp> {
     using OpConversionPattern<func::FuncOp>::OpConversionPattern;
@@ -75,100 +56,145 @@ struct TosaCustomOpRewriter : public OpConversionPattern<tosa::CustomOp> {
 
     LogicalResult matchAndRewrite(tosa::CustomOp customOp, OpAdaptor adaptor,
                                   ConversionPatternRewriter &rewriter) const override {
-        auto implementationAttrs = adaptor.getImplementationAttrs();
-        auto root = flexbuffers::GetRoot(reinterpret_cast<const uint8_t *>(implementationAttrs.data()),
-                                         implementationAttrs.size());
-        if (!root.IsMap()) {
+        json map;
+        try {
+            map = json::parse(adaptor.getImplementationAttrs().str());
+        } catch (...) {
+            llvm::errs() << "Invalid JSON implementation_attrs in tosa.custom op at " << customOp->getLoc() << "\n";
             return failure();
         }
-        auto map = root.AsMap();
+        if (!map.is_object()) {
+            llvm::errs() << "implementation_attrs must be a JSON object in tosa.custom op at " << customOp->getLoc()
+                         << "\n";
+            return failure();
+        }
 
         StringAttr shaderNameAttr;
         StringAttr entryPointAttr;
         DenseI64ArrayAttr inputBindingsAttr;
         DenseI64ArrayAttr outputBindingsAttr;
-        IntegerAttr inputDescriptorSetAttr;
-        IntegerAttr outputDescriptorSetAttr;
+        DenseI64ArrayAttr inputDescriptorSetsAttr;
+        DenseI64ArrayAttr outputDescriptorSetsAttr;
         ArrayAttr inputVkDescriptorTypesAttr;
         ArrayAttr outputVkDescriptorTypesAttr;
         ArrayAttr inputVkFormatsAttr;
         ArrayAttr outputVkFormatsAttr;
         DenseI64ArrayAttr workgroupSizesAttr;
-        std::optional<DenseI32ArrayAttr> shaderCodeAttr;
+        std::optional<StringAttr> shaderLanguageAttr;
+        std::optional<Attribute> shaderCodeAttr;
 
         shaderNameAttr = rewriter.getStringAttr(adaptor.getDomainName().str() + "::" + adaptor.getOperatorName().str());
 
-        if (failed(fetch(map, "entry_point", [&](auto &reference) {
-                if (!reference.IsString()) {
-                    return failure();
+        if (!fetch(map, "entry_point", [&](const json &reference) {
+                if (!reference.is_string()) {
+                    return false;
                 }
-                entryPointAttr = rewriter.getStringAttr(reference.AsString().str());
-                return success();
-            }))) {
+                entryPointAttr = rewriter.getStringAttr(reference.get<std::string>());
+                return true;
+            })) {
             llvm::errs() << "Missing attribute or invalid value for entry_point in tosa.custom op at "
                          << customOp->getLoc() << "\n";
             return failure();
         }
 
-        if (failed(parseIO(rewriter, map, "input", customOp->getNumOperands(), inputBindingsAttr,
-                           inputDescriptorSetAttr, inputVkDescriptorTypesAttr, inputVkFormatsAttr))) {
+        if (!parseIO(rewriter, map, "input", customOp->getNumOperands(), inputBindingsAttr, inputDescriptorSetsAttr,
+                     inputVkDescriptorTypesAttr, inputVkFormatsAttr)) {
             llvm::errs() << "Missing input attribute(s) or invalid value in tosa.custom op at " << customOp->getLoc()
                          << "\n";
             return failure();
         }
 
-        if (failed(parseIO(rewriter, map, "output", customOp->getNumResults(), outputBindingsAttr,
-                           outputDescriptorSetAttr, outputVkDescriptorTypesAttr, outputVkFormatsAttr,
-                           /* offset=*/customOp->getNumOperands()))) {
+        if (!parseIO(rewriter, map, "output", customOp->getNumResults(), outputBindingsAttr, outputDescriptorSetsAttr,
+                     outputVkDescriptorTypesAttr, outputVkFormatsAttr)) {
             llvm::errs() << "Missing output attribute(s) or invalid value in tosa.custom op at " << customOp->getLoc()
                          << "\n";
             return failure();
         }
 
-        if (failed(fetch(map, "workgroup_sizes", [&](auto &reference) {
-                if (!reference.IsString()) {
-                    return failure();
-                }
+        if (!fetch(map, "workgroup_sizes", [&](const json &reference) {
                 SmallVector<int64_t, 3> workgroupSizes;
-                if (failed(parseInts(workgroupSizes, reference.AsString().str(), ","))) {
-                    return failure();
+                if (!reference.is_array()) {
+                    return false;
+                }
+                if (reference.size() != 3) {
+                    return false;
+                }
+                for (const auto &value : reference) {
+                    if (!value.is_number_integer() && !value.is_number_unsigned()) {
+                        return false;
+                    }
+                    workgroupSizes.push_back(value.get<int64_t>());
                 }
                 workgroupSizesAttr = rewriter.getDenseI64ArrayAttr(workgroupSizes);
-                return success();
-            }))) {
+                return true;
+            })) {
             llvm::errs() << "Missing attribute or invalid value for workgroup_sizes in tosa.custom op at "
                          << customOp->getLoc() << "\n";
             return failure();
         }
 
-        if (failed(fetch(
-                map, "shader_code",
-                [&](auto &reference) {
-                    if (!reference.IsString()) {
-                        return failure();
+        if (has(map, "shader_language")) {
+            if (!fetch(map, "shader_language", [&](const json &reference) {
+                    if (!reference.is_string()) {
+                        return false;
                     }
-                    // FIXME: here we should either decode the base64 string or get the binary from the metadata
-                    SmallVector<int8_t> code /* = ??? */;
-                    if (code.size() % sizeof(int32_t) != 0) {
-                        return failure();
-                    }
-                    ArrayRef<int32_t> spv(reinterpret_cast<const int32_t *>(code.data()),
-                                          code.size() / sizeof(int32_t));
-                    shaderCodeAttr = rewriter.getDenseI32ArrayAttr(spv);
-                    return success();
-                },
-                true))) {
+                    shaderLanguageAttr = rewriter.getStringAttr(reference.get<std::string>());
+                    return true;
+                })) {
+                llvm::errs() << "Invalid value for shader_language attribute in tosa.custom op at "
+                             << customOp->getLoc() << "\n";
+                return failure();
+            }
+        }
 
-            llvm::errs() << "Invalid value for shader_code attribute in tosa.custom op at " << customOp->getLoc()
-                         << "\n";
+        if (has(map, "shader_code")) {
+            if (!fetch(map, "shader_code", [&](const json &reference) {
+                    if (!reference.is_string()) {
+                        return false;
+                    }
+                    const auto code = reference.get<std::string>();
+                    if (shaderLanguageAttr.has_value() &&
+                        (shaderLanguageAttr.value().str() == "GLSL" || shaderLanguageAttr.value().str() == "HLSL")) {
+                        shaderCodeAttr = rewriter.getStringAttr(code);
+                        return true;
+                    }
+
+                    if (!shaderLanguageAttr.has_value() || shaderLanguageAttr.value().str() != "SPIR-V") {
+                        return false;
+                    }
+
+                    std::vector<char> binaryCode;
+                    llvm::Error decodeError = llvm::decodeBase64(code, binaryCode);
+                    if (decodeError) {
+                        llvm::consumeError(std::move(decodeError));
+                        return false;
+                    }
+                    if (binaryCode.size() % sizeof(int32_t) != 0) {
+                        return false;
+                    }
+                    ArrayRef<int32_t> array(reinterpret_cast<int32_t *>(binaryCode.data()),
+                                            binaryCode.size() / sizeof(int32_t));
+                    shaderCodeAttr = rewriter.getDenseI32ArrayAttr(array);
+                    return true;
+                })) {
+
+                llvm::errs() << "Invalid value for shader_code attribute in tosa.custom op at " << customOp->getLoc()
+                             << "\n";
+                return failure();
+            }
+        }
+
+        if (shaderLanguageAttr.has_value() != shaderCodeAttr.has_value()) {
+            llvm::errs() << "shader_language and shader_code must both be set or both be unset in tosa.custom op at "
+                         << customOp->getLoc() << "\n";
             return failure();
         }
 
         rewriter.replaceOpWithNewOp<vgf::ShaderPlaceholderOp>(
             customOp, customOp.getResultTypes(), shaderNameAttr, entryPointAttr, inputBindingsAttr, outputBindingsAttr,
-            inputDescriptorSetAttr, outputDescriptorSetAttr, inputVkDescriptorTypesAttr, outputVkDescriptorTypesAttr,
-            inputVkFormatsAttr, outputVkFormatsAttr, workgroupSizesAttr, shaderCodeAttr.value_or(nullptr),
-            adaptor.getOperands());
+            inputDescriptorSetsAttr, outputDescriptorSetsAttr, inputVkDescriptorTypesAttr, outputVkDescriptorTypesAttr,
+            inputVkFormatsAttr, outputVkFormatsAttr, workgroupSizesAttr, shaderLanguageAttr.value_or(nullptr),
+            shaderCodeAttr.value_or(nullptr), adaptor.getOperands());
 
         if (analysis) {
             llvm::errs() << "Successfully lowered: " << customOp->getName() << " at " << customOp->getLoc() << "\n";
@@ -179,94 +205,89 @@ struct TosaCustomOpRewriter : public OpConversionPattern<tosa::CustomOp> {
   private:
     bool analysis;
 
-    LogicalResult fetch(const flexbuffers::Map &map, const std::string &key,
-                        std::function<LogicalResult(flexbuffers::Reference &)> callback, bool optional = false) const {
-        auto reference = map[key];
-        if (reference.IsNull()) {
-            return optional ? success() : failure();
+    const json *get(const json &map, const std::string &key) const {
+        const auto it = map.find(key);
+        if (it == map.end() || it->is_null()) {
+            return nullptr;
         }
-        if (failed(callback(reference))) {
-            return failure();
-        }
-        return success();
+        return &*it;
     }
 
-    LogicalResult parseIO(ConversionPatternRewriter &rewriter, const flexbuffers::Map &map, const std::string &prefix,
-                          const unsigned numIOs, DenseI64ArrayAttr &bindingsAttr, IntegerAttr &descriptorSetAttr,
-                          ArrayAttr &vkDescriptorTypesAttr, ArrayAttr &vkFormatsAttr, const unsigned offset = 0) const {
-        SmallVector<int64_t, 8> bindings;
-        SmallVector<StringRef, 8> vkDescriptorTypes;
-        SmallVector<StringRef, 8> vkFormats;
-        int64_t descriptorSet = 0; // FIXME: no default should be needed since metadata should be mandatory
+    bool has(const json &map, const std::string &key) const { return get(map, key) != nullptr; }
 
-        const auto descriptorSetKey = prefix + "_descriptor_set";
-        if (failed(fetch(
-                map, descriptorSetKey,
-                [&](auto &reference) {
-                    if (!reference.IsIntOrUint()) {
-                        return failure();
-                    }
-                    descriptorSet = reference.AsInt64();
-                    return success();
-                },
-                /* FIXME: this should be mandatory */
-                true))) {
-            return failure();
-        }
+    template <typename Fn> bool fetch(const json &map, const std::string &key, Fn &&callback) const {
+        const auto *value = get(map, key);
+        return value != nullptr && callback(*value);
+    }
+
+    bool parseIO(ConversionPatternRewriter &rewriter, const json &map, const std::string &prefix, const unsigned numIOs,
+                 DenseI64ArrayAttr &bindingsAttr, DenseI64ArrayAttr &descriptorSetsAttr,
+                 ArrayAttr &vkDescriptorTypesAttr, ArrayAttr &vkFormatsAttr) const {
+        SmallVector<int64_t, 8> bindings;
+        SmallVector<int64_t, 8> descriptorSets;
+        SmallVector<Attribute, 8> vkDescriptorTypes;
+        SmallVector<Attribute, 8> vkFormats;
 
         for (unsigned i = 0; i < numIOs; ++i) {
-            const auto bindingKey = prefix + "<" + std::to_string(i) + ">" + "_binding";
-            if (failed(fetch(
-                    map, bindingKey,
-                    [&](auto &reference) {
-                        if (!reference.IsIntOrUint()) {
-                            return failure();
-                        }
-                        bindings.push_back(reference.AsInt64());
-                        return success();
-                    },
-                    /* FIXME: this should be mandatory */
-                    true))) {
-                return failure();
+            const auto index = std::to_string(i);
+            std::string ioKeyPrefix = prefix;
+            ioKeyPrefix += "_";
+            ioKeyPrefix += index;
+
+            std::string key = ioKeyPrefix;
+            key += "_binding";
+            if (!fetch(map, key, [&](const json &reference) {
+                    if (!reference.is_number_integer() && !reference.is_number_unsigned()) {
+                        return false;
+                    }
+                    bindings.push_back(reference.get<int64_t>());
+                    return true;
+                })) {
+                return false;
             }
 
-            const auto vkDescriptorTypeKey = prefix + "<" + std::to_string(i) + ">" + "_vkdescriptortype";
-            if (failed(fetch(map, vkDescriptorTypeKey, [&](auto &reference) {
-                    if (!reference.IsString()) {
-                        return failure();
+            key = ioKeyPrefix;
+            key += "_descriptorset";
+            if (!fetch(map, key, [&](const json &reference) {
+                    if (!reference.is_number_integer() && !reference.is_number_unsigned()) {
+                        return false;
                     }
-                    auto str = reference.AsString();
-                    vkDescriptorTypes.push_back(StringRef(str.c_str(), str.length()));
-                    return success();
-                }))) {
-                return failure();
+                    descriptorSets.push_back(reference.get<int64_t>());
+                    return true;
+                })) {
+                return false;
             }
-            const auto vkFormatKey = prefix + "<" + std::to_string(i) + ">" + "_vkformat";
-            if (failed(fetch(map, vkFormatKey, [&](auto &reference) {
-                    if (!reference.IsString()) {
-                        return failure();
-                    }
-                    auto str = reference.AsString();
-                    vkFormats.push_back(StringRef(str.c_str(), str.length()));
-                    return success();
-                }))) {
-                return failure();
-            }
-        }
 
-        // FIXME: this should not be needed since the binding_id should be mandatory metadata
-        if (bindings.size() < numIOs) {
-            bindings.clear();
-            for (unsigned i = 0; i < numIOs; ++i) {
-                bindings.push_back(i + offset);
+            key = ioKeyPrefix;
+            key += "_vkdescriptortype";
+            if (!fetch(map, key, [&](const json &reference) {
+                    if (!reference.is_string()) {
+                        return false;
+                    }
+                    vkDescriptorTypes.push_back(rewriter.getStringAttr(reference.get_ref<const std::string &>()));
+                    return true;
+                })) {
+                return false;
+            }
+
+            key = ioKeyPrefix;
+            key += "_vkformat";
+            if (!fetch(map, key, [&](const json &reference) {
+                    if (!reference.is_string()) {
+                        return false;
+                    }
+                    vkFormats.push_back(rewriter.getStringAttr(reference.get_ref<const std::string &>()));
+                    return true;
+                })) {
+                return false;
             }
         }
 
         bindingsAttr = rewriter.getDenseI64ArrayAttr(bindings);
-        descriptorSetAttr = rewriter.getIntegerAttr(rewriter.getI64Type(), descriptorSet);
-        vkDescriptorTypesAttr = rewriter.getStrArrayAttr(vkDescriptorTypes);
-        vkFormatsAttr = rewriter.getStrArrayAttr(vkFormats);
-        return success();
+        descriptorSetsAttr = rewriter.getDenseI64ArrayAttr(descriptorSets);
+        vkDescriptorTypesAttr = rewriter.getArrayAttr(vkDescriptorTypes);
+        vkFormatsAttr = rewriter.getArrayAttr(vkFormats);
+        return true;
     }
 };
 
