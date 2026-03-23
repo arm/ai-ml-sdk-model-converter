@@ -2,6 +2,23 @@
 
 ---
 
+## Version 0.9.0 – *Datatype Support & Toolchain Rebase*
+
+### Converter & Toolchain
+
+- Added BF16 and FP8 (`fp8e4m3`, `fp8e5m2`) datatype support.
+- Updated TOSA/SPIR-V™ enum handling and constant lowering, including support
+  for inlined higher-rank constants.
+- Updated LLVM integration for rebased branches and fixed related patching
+  issues.
+
+### Build, Packaging & Developer Experience
+
+- Dependency change to use tosa-tools repository
+- Updated console-script naming to match native binary behavior.
+- Refreshed pre-commit dependencies and corrected developer-facing docs/tooling
+  paths.
+
 ## Version 0.8.0 – *Toolchain Refresh & Packaging Expansion*
 
 ### Converter & Toolchain
