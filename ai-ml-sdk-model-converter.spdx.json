@@ -475,7 +475,7 @@
             "licenseConcluded": "Apache-2.0 WITH LLVM-exception",
             "licenseDeclared": "Apache-2.0 WITH LLVM-exception",
             "copyrightText": "NOASSERTION",
-            "versionInfo": "147e615a658d",
+            "versionInfo": "93c93ff199a1",
             "supplier": "Organization: llvm (github.com)",
             "licenseInfoFromFiles": [
                 "NOASSERTION"
@@ -484,7 +484,7 @@
                 {
                     "referenceCategory": "PACKAGE-MANAGER",
                     "referenceType": "purl",
-                    "referenceLocator": "pkg:generic/llvm-project@147e615a658d"
+                    "referenceLocator": "pkg:generic/llvm-project@93c93ff199a1"
                 }
             ]
         },
@@ -496,7 +496,7 @@
             "licenseConcluded": "(Apache-2.0 WITH LLVM-exception AND Apache-2.0)",
             "licenseDeclared": "(Apache-2.0 WITH LLVM-exception AND Apache-2.0)",
             "copyrightText": "Copyright (c) ARM Limited.",
-            "versionInfo": "v2025.11",
+            "versionInfo": "v2026.02",
             "supplier": "Organization: tosa (https://gitlab.arm.com/tosa)",
             "licenseInfoFromFiles": [
                 "NOASSERTION"
@@ -505,7 +505,7 @@
                 {
                     "referenceCategory": "PACKAGE-MANAGER",
                     "referenceType": "purl",
-                    "referenceLocator": "pkg:generic/tosa-tools@v2025.11"
+                    "referenceLocator": "pkg:generic/tosa-tools@v2026.02"
                 }
             ]
         },
@@ -530,7 +530,7 @@
             "name": "cxxopts",
             "originator": "Organization: cxxopts",
             "supplier": "Organization: cxxopts",
-            "versionInfo": "v3.2.1"
+            "versionInfo": "v3.3.1"
         },
         {
             "SPDXID": "SPDXRef-package-f43b9468-5687-4e83-b9eb-78fe8a316bed",
@@ -553,7 +553,7 @@
             "name": "doctest testing framework",
             "originator": "Organization: doctest testing framework",
             "supplier": "Organization: doctest testing framework",
-            "versionInfo": "v2.4.11"
+            "versionInfo": "v2.4.12"
         },
         {
             "SPDXID": "SPDXRef-package-eb39c089-c8a3-4d30-8772-786c90af9e78",
@@ -566,7 +566,7 @@
                 },
                 {
                     "referenceCategory": "PACKAGE-MANAGER",
-                    "referenceLocator": "pkg:gitlab/libeigen/eigen@3.4.0",
+                    "referenceLocator": "pkg:gitlab/libeigen/eigen@3.4.1",
                     "referenceType": "purl"
                 },
                 {
@@ -586,7 +586,7 @@
             "name": "Eigen",
             "originator": "Organization: libeigen",
             "supplier": "Organization: libeigen",
-            "versionInfo": "3.4.0"
+            "versionInfo": "3.4.1"
         },
         {
             "SPDXID": "SPDXRef-package-18e36ba3-5553-495c-afa3-ef67a7b417c1",
