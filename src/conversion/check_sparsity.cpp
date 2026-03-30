@@ -21,15 +21,18 @@ class CheckConstantSparsityPass : public impl::CheckConstantSparsityPassBase<Che
         mlir::ModuleOp moduleOp = getOperation();
 
         moduleOp.walk([this](Operation *op) {
-            if (!isOpSupported(op))
+            if (!isOpSupported(op)) {
                 return;
+            }
 
             Operation *definingOp = op->getOperand(1).getDefiningOp();
-            if (definingOp == nullptr)
+            if (definingOp == nullptr) {
                 return;
+            }
 
-            if (!llvm::isa<tosa::ConstOp>(*definingOp))
+            if (!llvm::isa<tosa::ConstOp>(*definingOp)) {
                 return;
+            }
 
             mlir::DenseIntOrFPElementsAttr value =
                 llvm::dyn_cast<DenseIntOrFPElementsAttr>(definingOp->getAttr("values"));
@@ -77,12 +80,12 @@ bool CheckConstantSparsityPass::checkSparsity(mlir::DenseIntOrFPElementsAttr &va
     if (elementType.isInteger(8) || elementType.isInteger(4)) {
         const int8_t *data = reinterpret_cast<const int8_t *>(value.getRawData().data());
         return checkSparsityLoop(data, otherDim, icDim, static_cast<int8_t>(zp));
-
-    } else if (elementType.isF32()) {
+    }
+    if (elementType.isF32()) {
         const uint32_t *data = reinterpret_cast<const uint32_t *>(value.getRawData().data());
         return checkSparsityLoop(data, otherDim, icDim, static_cast<uint32_t>(zp));
-
-    } else if (elementType.isF16()) {
+    }
+    if (elementType.isF16()) {
         const uint16_t *data = reinterpret_cast<const uint16_t *>(value.getRawData().data());
         return checkSparsityLoop(data, otherDim, icDim, static_cast<uint16_t>(zp));
     }
@@ -97,12 +100,13 @@ bool CheckConstantSparsityPass::checkSparsityLoop(const T *data, int64_t otherDi
             int zeroCount = 0;
 
             for (int64_t weightIdx = i; weightIdx < (i + 4) && (weightIdx < icDim); ++weightIdx) {
-
-                if (data[icDim * j + weightIdx] == zp)
+                if (data[icDim * j + weightIdx] == zp) {
                     zeroCount++;
+                }
             }
-            if (zeroCount < 2)
+            if (zeroCount < 2) {
                 return false;
+            }
         }
     }
     return true;

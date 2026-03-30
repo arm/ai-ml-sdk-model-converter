@@ -23,7 +23,7 @@ class Compiler {
   public:
     struct Options {
         std::string filename_output;
-        std::string tosa_fb_schema = "";
+        std::string tosa_fb_schema;
         bool tosa_serialize = false;
         bool enable_verifier = false;
         bool enable_statistics = false;

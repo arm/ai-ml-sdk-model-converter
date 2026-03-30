@@ -28,16 +28,16 @@ using SegmentId = uint64_t;
 // As defined in vulkan_core.h
 // FIXME: We may choose to link in vulkan_headers directly once we need to
 // support more types, but for now we just need this one value so here it is.
-static constexpr DescriptorType DESCRIPTOR_TYPE_TENSOR_ARM = 1000460000;
+constexpr DescriptorType DESCRIPTOR_TYPE_TENSOR_ARM = 1000460000;
 
 void setGlobalVarOpBindingAndDescriptorSet(spirv::GraphARMOp opGraph, Value operand, uint32_t bindingId) {
-    auto runSegmentOp = opGraph->getParentOp()->getParentOp()->getNextNode();
+    auto *runSegmentOp = opGraph->getParentOp()->getParentOp()->getNextNode();
     if (auto moduleOp = llvm::dyn_cast<spirv::ModuleOp>(opGraph->getParentOp())) {
 
         SmallVector<Value> rangeOperandsAndResults = ValueRange(runSegmentOp->getOperands());
         rangeOperandsAndResults.append(runSegmentOp->getResults().begin(), runSegmentOp->getResults().end());
 
-        auto it = std::find(rangeOperandsAndResults.begin(), rangeOperandsAndResults.end(), operand);
+        auto *it = std::find(rangeOperandsAndResults.begin(), rangeOperandsAndResults.end(), operand);
         if (it == rangeOperandsAndResults.end()) {
             return;
         }
@@ -112,7 +112,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                [&](const Value sequenceOpArgument) { return sequenceOpArgument == operand; });
         };
 
-        auto sequenceOutputOp = sequenceOp.front().getTerminator();
+        auto *sequenceOutputOp = sequenceOp.front().getTerminator();
         auto isSequenceOutputOperand = [&](Value operand) {
             return std::any_of(sequenceOutputOp->getOperands().begin(), sequenceOutputOp->getOperands().end(),
                                [&](const Value sequenceOutputOperand) { return sequenceOutputOperand == operand; });
@@ -128,7 +128,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
             sequenceOp.walk([&](vgf::SegmentOp segmentOp) {
                 const auto segmentType = segmentOp.getSegmentType();
                 auto segmentId = segmentOp->getAttrOfType<IntegerAttr>("segment_id").getUInt();
-                auto runSegmentOp = segmentOp->getNextNode();
+                auto *runSegmentOp = segmentOp->getNextNode();
 
                 WalkResult segmentWalkResult;
                 if (segmentType == vgf::SegmentTypeEnum::COMPUTE) {
@@ -213,7 +213,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
         WalkResult sequenceWalkResult = sequenceOp.walk([&](vgf::SegmentOp segmentOp) {
             const auto segmentType = segmentOp.getSegmentType();
             auto segmentId = segmentOp->getAttrOfType<IntegerAttr>("segment_id").getUInt();
-            auto runSegmentOp = segmentOp->getNextNode();
+            auto *runSegmentOp = segmentOp->getNextNode();
 
             WalkResult segmentWalkResult;
             std::vector<BindingSlotRef> segmentInputBindings = {};
@@ -350,7 +350,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
             sequenceOp.walk([&](vgf::SegmentOp segmentOp) {
                 const auto segmentType = segmentOp.getSegmentType();
                 auto segmentId = segmentOp->getAttrOfType<IntegerAttr>("segment_id").getUInt();
-                auto runSegmentOp = segmentOp->getNextNode();
+                auto *runSegmentOp = segmentOp->getNextNode();
 
                 WalkResult segmentWalkResult;
                 if (segmentType == vgf::SegmentTypeEnum::COMPUTE) {
