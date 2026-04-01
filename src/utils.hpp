@@ -10,7 +10,7 @@
 
 namespace mlir {
 
-void AccessDataFor(const mlir::DenseIntOrFPElementsAttr &attr, std::function<void(const char *, size_t)> &&callback);
+void AccessDataFor(const mlir::DenseTypedElementsAttr &attr, std::function<void(const char *, size_t)> &&callback);
 
 void AccessDataFor(const mlir::DenseArrayAttr &attr, std::function<void(const char *, size_t)> &&callback);
 
