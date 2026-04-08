@@ -116,8 +116,7 @@ mlir_tablegen(VGFEnums.h.inc -gen-enum-decls)
 mlir_tablegen(VGFEnums.cpp.inc -gen-enum-defs)
 add_public_tablegen_target(MLIRVGFAttributesIncGen)
 
-set(CONVERTER_LIB_SOURCES
-    "src/compiler.cpp"
+set(CONVERTER_PASS_LIB_SOURCES
     "src/conversion/check_sparsity.cpp"
     "src/conversion/dense_resource_inliner.cpp"
     "src/conversion/model_partition_marking.cpp"
@@ -131,36 +130,54 @@ set(CONVERTER_LIB_SOURCES
     "src/vgf-dialect/VGFDialect.cpp"
 )
 
-set(CONVERTER_LIB_DEPENDENCIES
+set(CONVERTER_PASS_LIB_DEPENDENCIES
     flatbuffers::flatbuffers
     MLIRFuncDialect
-    MLIRGPUDialect
-    MLIRTosaDialect
-    MLIRTosaToSPIRV
+    MLIRPass
     MLIRSPIRVDialect
     MLIRSPIRVSerialization
-    MLIRSPIRVTransforms
-    tosa_serialize
+    MLIRTosaDialect
+    MLIRTosaToSPIRV
+    MLIRTransforms
     VGF::vgf
 )
 
-add_library(model-converter-lib STATIC ${CONVERTER_LIB_SOURCES})
-target_compile_definitions(model-converter-lib PRIVATE
+set(CONVERTER_DRIVER_LIB_DEPENDENCIES
+    MLIRFuncDialect
+    MLIRParser
+    MLIRSPIRVTransforms
+    MLIRTosaDialect
+    MLIRTosaTransforms
+    model-converter-passes-lib
+    tosa_serialize
+)
+
+add_library(model-converter-passes-lib STATIC ${CONVERTER_PASS_LIB_SOURCES})
+target_compile_definitions(model-converter-passes-lib PRIVATE
     $<$<BOOL:${MODEL_CONVERTER_LOG_TRACE_MASK}>:LOG_TRACE_ENABLE=${MODEL_CONVERTER_LOG_TRACE_MASK}>
 )
-target_include_directories(model-converter-lib PUBLIC src)
-target_include_directories(model-converter-lib SYSTEM PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(model-converter-lib PUBLIC ${CONVERTER_LIB_DEPENDENCIES})
-target_compile_options(model-converter-lib PRIVATE ${ML_SDK_MODEL_CONVERTER_COMPILE_OPTIONS})
+target_include_directories(model-converter-passes-lib PUBLIC src)
+target_include_directories(model-converter-passes-lib SYSTEM PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(model-converter-passes-lib PUBLIC ${CONVERTER_PASS_LIB_DEPENDENCIES})
+target_compile_options(model-converter-passes-lib PRIVATE ${ML_SDK_MODEL_CONVERTER_COMPILE_OPTIONS})
 
-add_dependencies(model-converter-lib
+add_dependencies(model-converter-passes-lib
                 MLIRModelConverterPasses
                 MLIRVGFDialectIncGen
                 MLIRVGFOpsIncGen
                 MLIRVGFAttributesIncGen)
 
+add_library(model-converter-driver-lib STATIC "src/compiler.cpp")
+target_compile_definitions(model-converter-driver-lib PRIVATE
+    $<$<BOOL:${MODEL_CONVERTER_LOG_TRACE_MASK}>:LOG_TRACE_ENABLE=${MODEL_CONVERTER_LOG_TRACE_MASK}>
+)
+target_include_directories(model-converter-driver-lib PUBLIC src)
+target_include_directories(model-converter-driver-lib SYSTEM PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(model-converter-driver-lib PUBLIC ${CONVERTER_DRIVER_LIB_DEPENDENCIES})
+target_compile_options(model-converter-driver-lib PRIVATE ${ML_SDK_MODEL_CONVERTER_COMPILE_OPTIONS})
+
 add_executable(model-converter "src/main.cpp")
-target_link_libraries(model-converter PRIVATE model-converter-lib argparse::argparse)
+target_link_libraries(model-converter PRIVATE model-converter-driver-lib argparse::argparse)
 target_compile_options(model-converter PRIVATE ${ML_SDK_MODEL_CONVERTER_COMPILE_OPTIONS})
 
 mlsdk_generate_version_header(
@@ -210,9 +227,9 @@ target_include_directories(model-converter-opt SYSTEM PRIVATE ${CMAKE_CURRENT_BI
 
 target_link_libraries(model-converter-opt PRIVATE
     MLIROptLib
-    model-converter-lib)
+    model-converter-passes-lib)
 
-add_dependencies(model-converter-opt model-converter-lib)
+add_dependencies(model-converter-opt model-converter-passes-lib)
 
 llvm_update_compile_flags(model-converter-opt)
 mlir_check_all_link_libraries(model-converter-opt)
