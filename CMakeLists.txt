@@ -67,6 +67,7 @@ include(flatbuffers)
 include(vgf-lib)
 include(llvm-project)
 include(tosa-tools)
+include(json)
 include(version)
 
 set(DEFAULT_CMAKE_BUILD_TYPE "Debug")
@@ -132,6 +133,7 @@ set(CONVERTER_PASS_LIB_SOURCES
 
 set(CONVERTER_PASS_LIB_DEPENDENCIES
     flatbuffers::flatbuffers
+    nlohmann_json::nlohmann_json
     MLIRFuncDialect
     MLIRPass
     MLIRSPIRVDialect
@@ -191,6 +193,7 @@ mlsdk_generate_version_header(
         MLIR
         VGF
         tosa_serialize
+        nlohmann_json
 )
 
 add_executable(${MODEL_CONVERTER_NAMESPACE}::model-converter ALIAS model-converter)

@@ -3,7 +3,7 @@
     "header": {
         "major": 0,
         "minor": 4,
-        "patch": 0
+        "patch": 1
     },
     "model_sequence": {
         "inputs": [
@@ -68,11 +68,11 @@
     },
     "modules": [
         {
-            "code_size": 190,
             "entry_point": "graph_partition_0",
-            "has_spirv": true,
             "index": 0,
             "name": "graph_partition_0",
+            "shader_code_available": true,
+            "shader_type": "SPIR-V",
             "type": "GRAPH"
         }
     ],

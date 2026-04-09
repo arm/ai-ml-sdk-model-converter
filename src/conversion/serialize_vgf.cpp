@@ -8,12 +8,19 @@
 #include "utils.hpp"
 #include "vgf/encoder.hpp"
 #include "vgf_builder.hpp"
+#include "llvm/Support/Casting.h"
 
 #define VGFLIB_VK_HELPERS
 #include "vgf/vulkan_helpers.generated.hpp"
 
+#include <algorithm>
+#include <cassert>
 #include <fstream>
 #include <iostream>
+#include <iterator>
+#include <map>
+#include <optional>
+#include <set>
 
 using namespace mlsdk::vgflib;
 
@@ -29,6 +36,16 @@ using SegmentId = uint64_t;
 // FIXME: We may choose to link in vulkan_headers directly once we need to
 // support more types, but for now we just need this one value so here it is.
 constexpr DescriptorType DESCRIPTOR_TYPE_TENSOR_ARM = 1000460000;
+
+std::optional<ShaderType> toShaderType(const StringRef language) {
+    if (language == "GLSL") {
+        return ShaderType::GLSL;
+    }
+    if (language == "HLSL") {
+        return ShaderType::HLSL;
+    }
+    return std::nullopt;
+}
 
 void setGlobalVarOpBindingAndDescriptorSet(spirv::GraphARMOp opGraph, Value operand, uint32_t bindingId) {
     auto *runSegmentOp = opGraph->getParentOp()->getParentOp()->getNextNode();
@@ -119,8 +136,35 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
         };
 
         DenseMap<Value, std::shared_ptr<BindingSlotRef>> mapOperandsAndBindingRef;
+        DenseMap<Value, std::shared_ptr<ResourceRef>> mapOperandsAndResourceRef;
+        DenseMap<Value, std::map<uint32_t, BindingSlotRef>> mapOperandsAndDescriptorBindingRef;
         std::map<SegmentId, std::vector<BindingSlotRef>> mapSegmentInputBindings = {};
         std::map<SegmentId, std::vector<BindingSlotRef>> mapSegmentOutputBindings = {};
+        std::map<SegmentId, std::map<uint32_t, std::vector<BindingSlotRef>>> mapSegmentDescriptorSetBindings = {};
+        std::map<SegmentId, std::map<uint32_t, std::set<uint32_t>>> mapSegmentDescriptorSetBindingRefs = {};
+
+        auto addBindingToDescriptorSet = [&](const SegmentId segmentId, const int64_t descriptorSet,
+                                             const BindingSlotRef bindingSlotRef) {
+            const auto descriptorSetIndex = static_cast<uint32_t>(descriptorSet);
+            auto &bindingRefs = mapSegmentDescriptorSetBindingRefs[segmentId][descriptorSetIndex];
+            if (bindingRefs.insert(bindingSlotRef.reference).second) {
+                mapSegmentDescriptorSetBindings[segmentId][descriptorSetIndex].push_back(bindingSlotRef);
+            }
+        };
+
+        auto getDescriptorSetBinding = [&](Value operand, uint32_t binding) {
+            auto &descriptorBindings = mapOperandsAndDescriptorBindingRef[operand];
+            auto descriptorBindingIt = descriptorBindings.find(binding);
+            if (descriptorBindingIt == descriptorBindings.end()) {
+                auto resourceIt = mapOperandsAndResourceRef.find(operand);
+                assert(resourceIt != mapOperandsAndResourceRef.end());
+                descriptorBindingIt =
+                    descriptorBindings
+                        .emplace(binding, _VGFBuilder->getEncoder()->AddBindingSlot(binding, *(resourceIt->second)))
+                        .first;
+            }
+            return descriptorBindingIt->second;
+        };
 
         // First: Resolve sequence input resources' bindings
         std::vector<BindingSlotRef> sequenceInputBindings = {};
@@ -133,9 +177,11 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                 WalkResult segmentWalkResult;
                 if (segmentType == vgf::SegmentTypeEnum::COMPUTE) {
                     segmentWalkResult = segmentOp.walk([&](vgf::ShaderPlaceholderOp shaderPlaceholderOp) {
-                        for (const auto &[inputDescriptorType, inputVkFormat, input] :
-                             llvm::zip(shaderPlaceholderOp.getInputVkDescriptorTypes(),
-                                       shaderPlaceholderOp.getInputVkFormats(), runSegmentOp->getOperands())) {
+                        for (const auto &[inputBinding, inputDescriptorType, inputVkFormat, inputDescriptorSet, input] :
+                             llvm::zip(shaderPlaceholderOp.getInputBindings(),
+                                       shaderPlaceholderOp.getInputVkDescriptorTypes(),
+                                       shaderPlaceholderOp.getInputVkFormats(),
+                                       shaderPlaceholderOp.getInputDescriptorSets(), runSegmentOp->getOperands())) {
                             if (input == operand &&
                                 mapOperandsAndBindingRef.find(input) == mapOperandsAndBindingRef.end()) {
                                 const ShapedType type = llvm::dyn_cast<ShapedType>(input.getType());
@@ -148,9 +194,13 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                 auto bindingSlotRef = std::make_shared<BindingSlotRef>(
                                     _VGFBuilder->getEncoder()->AddBindingSlot(operand.getArgNumber(), *resourceRef));
 
+                                mapOperandsAndResourceRef[input] = resourceRef;
                                 mapOperandsAndBindingRef[input] = bindingSlotRef;
                                 sequenceInputBindings.push_back(*bindingSlotRef);
                                 mapSegmentInputBindings[segmentId].push_back(*bindingSlotRef);
+                                addBindingToDescriptorSet(
+                                    segmentId, inputDescriptorSet,
+                                    getDescriptorSetBinding(input, static_cast<uint32_t>(inputBinding)));
                             }
                         }
 
@@ -185,6 +235,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                     auto bindingSlotRef = std::make_shared<BindingSlotRef>(
                                         _VGFBuilder->getEncoder()->AddBindingSlot(operand.getArgNumber(), resourceRef));
 
+                                    mapOperandsAndResourceRef[input] = std::make_shared<ResourceRef>(resourceRef);
                                     mapOperandsAndBindingRef[input] = bindingSlotRef;
                                     sequenceInputBindings.push_back(*bindingSlotRef);
                                     mapSegmentInputBindings[segmentId].push_back(*bindingSlotRef);
@@ -219,9 +270,11 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
             std::vector<BindingSlotRef> segmentInputBindings = {};
             if (segmentType == vgf::SegmentTypeEnum::COMPUTE) {
                 segmentWalkResult = segmentOp.walk([&](vgf::ShaderPlaceholderOp shaderPlaceholderOp) {
-                    for (const auto &[inputDescriptorType, inputVkFormat, input] :
-                         llvm::zip(shaderPlaceholderOp.getInputVkDescriptorTypes(),
-                                   shaderPlaceholderOp.getInputVkFormats(), runSegmentOp->getOperands())) {
+                    for (const auto &[inputBinding, inputDescriptorType, inputVkFormat, inputDescriptorSet, input] :
+                         llvm::zip(shaderPlaceholderOp.getInputBindings(),
+                                   shaderPlaceholderOp.getInputVkDescriptorTypes(),
+                                   shaderPlaceholderOp.getInputVkFormats(),
+                                   shaderPlaceholderOp.getInputDescriptorSets(), runSegmentOp->getOperands())) {
                         if (!isSequenceInputOperand(input)) {
                             auto it = mapOperandsAndBindingRef.find(input);
                             if (it == mapOperandsAndBindingRef.end()) {
@@ -237,17 +290,27 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                 auto bindingSlotRef = std::make_shared<BindingSlotRef>(
                                     _VGFBuilder->getEncoder()->AddBindingSlot(bindingId++, *resourceRef));
 
+                                mapOperandsAndResourceRef[input] = resourceRef;
                                 mapOperandsAndBindingRef[input] = bindingSlotRef;
                                 mapSegmentInputBindings[segmentId].push_back(*bindingSlotRef);
+                                addBindingToDescriptorSet(
+                                    segmentId, inputDescriptorSet,
+                                    getDescriptorSetBinding(input, static_cast<uint32_t>(inputBinding)));
                             } else {
                                 mapSegmentInputBindings[segmentId].push_back(*(it->second));
+                                addBindingToDescriptorSet(
+                                    segmentId, inputDescriptorSet,
+                                    getDescriptorSetBinding(input, static_cast<uint32_t>(inputBinding)));
                             }
                         }
                     }
 
-                    for (const auto &[outputDescriptorType, outputVkFormat, result] :
-                         llvm::zip(shaderPlaceholderOp.getOutputVkDescriptorTypes(),
-                                   shaderPlaceholderOp.getOutputVkFormats(), runSegmentOp->getResults())) {
+                    for (const auto &[outputBinding, outputDescriptorType, outputVkFormat, outputDescriptorSet,
+                                      result] :
+                         llvm::zip(shaderPlaceholderOp.getOutputBindings(),
+                                   shaderPlaceholderOp.getOutputVkDescriptorTypes(),
+                                   shaderPlaceholderOp.getOutputVkFormats(),
+                                   shaderPlaceholderOp.getOutputDescriptorSets(), runSegmentOp->getResults())) {
                         if (!isSequenceOutputOperand(result)) {
                             auto it = mapOperandsAndBindingRef.find(result);
                             if (it == mapOperandsAndBindingRef.end()) {
@@ -263,10 +326,17 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                 auto bindingSlotRef = std::make_shared<BindingSlotRef>(
                                     _VGFBuilder->getEncoder()->AddBindingSlot(bindingId++, *resourceRef));
 
+                                mapOperandsAndResourceRef[result] = resourceRef;
                                 mapOperandsAndBindingRef[result] = bindingSlotRef;
                                 mapSegmentOutputBindings[segmentId].push_back(*bindingSlotRef);
+                                addBindingToDescriptorSet(
+                                    segmentId, outputDescriptorSet,
+                                    getDescriptorSetBinding(result, static_cast<uint32_t>(outputBinding)));
                             } else {
                                 mapSegmentOutputBindings[segmentId].push_back(*(it->second));
+                                addBindingToDescriptorSet(
+                                    segmentId, outputDescriptorSet,
+                                    getDescriptorSetBinding(result, static_cast<uint32_t>(outputBinding)));
                             }
                         }
                     }
@@ -296,6 +366,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                     auto bindingSlotRef = std::make_shared<BindingSlotRef>(
                                         _VGFBuilder->getEncoder()->AddBindingSlot(bindingId++, resourceRef));
 
+                                    mapOperandsAndResourceRef[input] = std::make_shared<ResourceRef>(resourceRef);
                                     mapOperandsAndBindingRef[input] = bindingSlotRef;
                                     mapSegmentInputBindings[segmentId].push_back(*bindingSlotRef);
                                 } else {
@@ -326,6 +397,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                     auto bindingSlotRef = std::make_shared<BindingSlotRef>(
                                         _VGFBuilder->getEncoder()->AddBindingSlot(bindingId++, *resourceRef));
 
+                                    mapOperandsAndResourceRef[result] = resourceRef;
                                     mapOperandsAndBindingRef[result] = bindingSlotRef;
                                     mapSegmentOutputBindings[segmentId].push_back(*bindingSlotRef);
                                 } else {
@@ -355,9 +427,12 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                 WalkResult segmentWalkResult;
                 if (segmentType == vgf::SegmentTypeEnum::COMPUTE) {
                     segmentWalkResult = segmentOp.walk([&](vgf::ShaderPlaceholderOp shaderPlaceholderOp) {
-                        for (const auto &[outputDescriptorType, outputVkFormat, result] :
-                             llvm::zip(shaderPlaceholderOp.getOutputVkDescriptorTypes(),
-                                       shaderPlaceholderOp.getOutputVkFormats(), runSegmentOp->getResults())) {
+                        for (const auto &[outputBinding, outputDescriptorType, outputVkFormat, outputDescriptorSet,
+                                          result] :
+                             llvm::zip(shaderPlaceholderOp.getOutputBindings(),
+                                       shaderPlaceholderOp.getOutputVkDescriptorTypes(),
+                                       shaderPlaceholderOp.getOutputVkFormats(),
+                                       shaderPlaceholderOp.getOutputDescriptorSets(), runSegmentOp->getResults())) {
 
                             if (result == operand &&
                                 mapOperandsAndBindingRef.find(result) == mapOperandsAndBindingRef.end()) {
@@ -372,9 +447,13 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                 auto bindingSlotRef = std::make_shared<BindingSlotRef>(
                                     _VGFBuilder->getEncoder()->AddBindingSlot(bindingId++, *resourceRef));
 
+                                mapOperandsAndResourceRef[result] = resourceRef;
                                 mapOperandsAndBindingRef[result] = bindingSlotRef;
                                 sequenceOutputBindings.push_back(*bindingSlotRef);
                                 mapSegmentOutputBindings[segmentId].push_back(*bindingSlotRef);
+                                addBindingToDescriptorSet(
+                                    segmentId, outputDescriptorSet,
+                                    getDescriptorSetBinding(result, static_cast<uint32_t>(outputBinding)));
                             }
                         }
 
@@ -409,6 +488,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                     auto bindingSlotRef = std::make_shared<BindingSlotRef>(
                                         _VGFBuilder->getEncoder()->AddBindingSlot(bindingId++, resourceRef));
 
+                                    mapOperandsAndResourceRef[result] = std::make_shared<ResourceRef>(resourceRef);
                                     mapOperandsAndBindingRef[result] = bindingSlotRef;
                                     sequenceOutputBindings.push_back(*bindingSlotRef);
                                     mapSegmentOutputBindings[segmentId].push_back(*bindingSlotRef);
@@ -443,8 +523,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
         uint32_t computeSegmentId = 0;
         uint32_t graphSegmentId = 0;
 
-        sequenceWalkResult = sequenceOp.walk([this, &computeSegmentId, &graphSegmentId, &mapSegmentInputBindings,
-                                              &mapSegmentOutputBindings](vgf::SegmentOp segmentOp) {
+        sequenceWalkResult = sequenceOp.walk([&](vgf::SegmentOp segmentOp) {
             const auto segmentName = segmentOp.getSymName();
             const auto segmentType = segmentOp.getSegmentType();
             auto segmentId = segmentOp->getAttrOfType<IntegerAttr>("segment_id").getUInt();
@@ -454,16 +533,43 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
             if (segmentType == vgf::SegmentTypeEnum::COMPUTE) {
                 segmentWalkResult = segmentOp.walk([&](vgf::ShaderPlaceholderOp shaderPlaceholderOp) {
                     // Add shader module table entry
-                    ModuleRef computeModuleRef = _VGFBuilder->getEncoder()->AddModule(
-                        ModuleType::COMPUTE, segmentName.str(), shaderPlaceholderOp.getEntryPointAttr().str());
+                    const auto computeModuleRef = [&]() {
+                        auto shaderLanguageAttr = shaderPlaceholderOp.getShaderLanguageAttr();
+                        if (shaderLanguageAttr) {
+                            auto shaderCodeAttr = shaderPlaceholderOp.getShaderCodeAttr();
 
-                    std::copy(mapSegmentInputBindings[segmentId].cbegin(), mapSegmentInputBindings[segmentId].cend(),
-                              std::back_inserter(segmentAllBindings));
-                    std::copy(mapSegmentOutputBindings[segmentId].cbegin(), mapSegmentOutputBindings[segmentId].cend(),
-                              std::back_inserter(segmentAllBindings));
+                            if (shaderLanguageAttr.str() == "SPIR-V") {
+                                if (auto shaderBinaryCodeAttr =
+                                        llvm::dyn_cast_if_present<DenseI32ArrayAttr>(shaderCodeAttr)) {
+                                    std::vector<uint32_t> binaryCode;
+                                    binaryCode.reserve(shaderBinaryCodeAttr.asArrayRef().size());
+                                    std::transform(shaderBinaryCodeAttr.asArrayRef().begin(),
+                                                   shaderBinaryCodeAttr.asArrayRef().end(),
+                                                   std::back_inserter(binaryCode),
+                                                   [](int32_t word) { return static_cast<uint32_t>(word); });
+                                    return _VGFBuilder->getEncoder()->AddModule(
+                                        ModuleType::COMPUTE, segmentName.str(),
+                                        shaderPlaceholderOp.getEntryPointAttr().str(), binaryCode);
+                                }
+                            } else if (auto shaderSourceAttr = llvm::dyn_cast_if_present<StringAttr>(shaderCodeAttr)) {
+                                const auto shaderType = toShaderType(shaderLanguageAttr.str());
+                                if (shaderType.has_value()) {
+                                    return _VGFBuilder->getEncoder()->AddModule(
+                                        ModuleType::COMPUTE, segmentName.str(),
+                                        shaderPlaceholderOp.getEntryPointAttr().str(), shaderType.value(),
+                                        shaderSourceAttr.str());
+                                }
+                            }
+                        }
 
-                    const DescriptorSetInfoRef descSetInfo =
-                        _VGFBuilder->getEncoder()->AddDescriptorSetInfo(segmentAllBindings);
+                        return _VGFBuilder->getEncoder()->AddModule(ModuleType::COMPUTE, segmentName.str(),
+                                                                    shaderPlaceholderOp.getEntryPointAttr().str());
+                    }();
+
+                    std::vector<DescriptorSetInfoRef> descriptorSetInfos = {};
+                    for (const auto &[descriptorSetIndex, bindings] : mapSegmentDescriptorSetBindings[segmentId]) {
+                        descriptorSetInfos.push_back(_VGFBuilder->getEncoder()->AddDescriptorSetInfo(bindings));
+                    }
 
                     auto workgroupSizes = ArrayRef<int64_t>(shaderPlaceholderOp.getWorkgroupSizesAttr());
                     assert(workgroupSizes.size() == 3);
@@ -472,7 +578,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                                                    static_cast<uint32_t>(workgroupSizes[2])};
 
                     _VGFBuilder->getEncoder()->AddSegmentInfo(
-                        computeModuleRef, "compute_segment_" + std::to_string(computeSegmentId++), {descSetInfo},
+                        computeModuleRef, "compute_segment_" + std::to_string(computeSegmentId++), descriptorSetInfos,
                         mapSegmentInputBindings[segmentId], mapSegmentOutputBindings[segmentId],
                         _VGFBuilder->getConstantRefs(), dispatchShape);
 

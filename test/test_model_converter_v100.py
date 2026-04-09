@@ -13,27 +13,17 @@ import pytest
 mlir_dir = pathlib.Path(__file__).resolve().parent / "mlir"
 json_dir = pathlib.Path(__file__).resolve().parent / "json"
 
-
-def drop_module_code_size(data: dict):
-    modules = data.get("modules")
-    if not isinstance(modules, list):
-        return
-    for module in modules:
-        if isinstance(module, dict):
-            module.pop("code_size", None)
-
-
 # Test
 tests = [
     #
-    # Test 1: Verify all sections and constant values encoded in the VGF.
+    # Verify all sections and constant values encoded in the VGF.
     (
         "rescale.mlir",
         "rescale.json",
         [b"05000000", b"0800000009000000", b"1718"],
     ),
     #
-    # Test 2: Verify Sparse Constants are correctly marked as sparse in the VGF.
+    # Verify Sparse Constants are correctly marked as sparse in the VGF.
     (
         "double_conv2d.mlir",
         "double_conv2d.json",
@@ -43,52 +33,76 @@ tests = [
         ],
     ),
     #
-    # # Test 3: Verify parsing a VGF having both graph and compute segments.
-    # (
-    #     "double_custom.mlir",
-    #     "double_custom.json",
-    #     [],
-    # ),
-    # #
-    # # Test 4: Single custom op
-    # (
-    #     "custom.mlir",
-    #     "custom.json",
-    #     [],
-    # ),
+    # Single custom op
+    (
+        "custom.mlir",
+        "custom.json",
+        [],
+    ),
+    # Single custom op with GLSL shader source
+    (
+        "custom_glsl.mlir",
+        "custom_glsl.json",
+        [],
+    ),
+    # Single custom op with HLSL shader source
+    (
+        "custom_hlsl.mlir",
+        "custom_hlsl.json",
+        [],
+    ),
+    # Single custom op with base64-encoded SPIR-V shader code
+    (
+        "custom_spirv.mlir",
+        "custom_spirv.json",
+        [],
+    ),
     #
-    # Test 5: Verify Rescale op attribute input_signed = True processed correctly when input is a tosa.const value
+    # Verify parsing a VGF having both graph and compute segments.
+    (
+        "double_custom.mlir",
+        "double_custom.json",
+        [],
+    ),
+    #
+    # Verify custom binding on input/outputs of custom op.
+    (
+        "custom_binding.mlir",
+        "custom_binding.json",
+        [],
+    ),
+    # Verify Rescale op attribute input_signed = True processed correctly when input is a tosa.const value
     (
         "rescale.mlir",
         "rescale.json",
         [b"05000000", b"0800000009000000", b"1718"],
     ),
     #
-    # Test 5: Single op with rank 0
+    # Single op with rank 0
     (
         "add.mlir",
         "add.json",
         [],
     ),
-    # Test 6: Single op with higher rank inlined constant
+    # Single op with higher rank inlined constant
     (
         "inlined_higher_rank_constant.mlir",
         "inlined_higher_rank_constant.json",
         [],
     ),
-    # Test 7: BF16 inputs
+    # BF16 inputs
     (
         "bf16.mlir",
         "bf16.json",
         [],
     ),
-    # Test 7: F8E4M3 inputs
+    # F8E4M3 inputs
     (
         "float8e4m3.mlir",
         "float8e4m3.json",
         [],
     ),
-    # Test 9: F8M5M2 inputs
+    # F8M5M2 inputs
     (
         "float8e5m2.mlir",
         "float8e5m2.json",
@@ -123,12 +137,8 @@ def model_converter(
         actual_json_str = ""
         with open(output_json, mode="r") as actual_json_file:
             actual_json = json.load(actual_json_file)
-            # TODO: Following line is a temporary change
-            drop_module_code_size(actual_json)
 
         expected_json = json.load(open(json_dir / expected_json_file))
-        # TODO: Following line is a temporary change
-        drop_module_code_size(expected_json)
 
         expected_json_str = json.dumps(expected_json, sort_keys=True)
         actual_json_str = json.dumps(actual_json, sort_keys=False)

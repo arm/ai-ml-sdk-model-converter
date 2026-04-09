@@ -3,7 +3,7 @@
     "header": {
         "major": 0,
         "minor": 4,
-        "patch": 0
+        "patch": 1
     },
     "model_sequence": {
         "inputs": [
@@ -45,12 +45,12 @@
                             "mrt_index": 0
                         },
                         {
-                            "binding": 2,
+                            "binding": 1,
                             "index": 1,
                             "mrt_index": 2
                         },
                         {
-                            "binding": 3,
+                            "binding": 2,
                             "index": 2,
                             "mrt_index": 3
                         }
@@ -132,17 +132,17 @@
                 "descriptor_set_infos": [
                     [
                         {
-                            "binding": 1,
+                            "binding": 0,
                             "index": 0,
                             "mrt_index": 1
                         },
                         {
-                            "binding": 4,
+                            "binding": 1,
                             "index": 1,
                             "mrt_index": 4
                         },
                         {
-                            "binding": 5,
+                            "binding": 2,
                             "index": 2,
                             "mrt_index": 5
                         }
@@ -182,27 +182,27 @@
     },
     "modules": [
         {
-            "code_size": 0,
             "entry_point": "main",
-            "has_spirv": false,
             "index": 0,
             "name": "graph_partition_0",
+            "shader_code_available": false,
+            "shader_type": "SPIR-V",
             "type": "COMPUTE"
         },
         {
-            "code_size": 231,
             "entry_point": "graph_partition_1",
-            "has_spirv": true,
             "index": 1,
             "name": "graph_partition_1",
+            "shader_code_available": true,
+            "shader_type": "SPIR-V",
             "type": "GRAPH"
         },
         {
-            "code_size": 0,
             "entry_point": "main",
-            "has_spirv": false,
             "index": 2,
             "name": "graph_partition_2",
+            "shader_code_available": false,
+            "shader_type": "SPIR-V",
             "type": "COMPUTE"
         }
     ],

@@ -1,5 +1,5 @@
 /*
-* SPDX-FileCopyrightText: Copyright 2024-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+* SPDX-FileCopyrightText: Copyright 2024-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 */
 #ifndef MLIR_VGF_DIALECT_OPS_TD
@@ -12,6 +12,35 @@ include "mlir/Interfaces/SideEffectInterfaces.td"
 
 def InModuleScope : PredOpTrait<"",
   CPred<"$_op.getParentOp()->hasTrait<OpTrait::SymbolTable>()">>;
+
+def HasShaderCodeAttr : SubstLeaves<"$_self", "$_op.getAttr(\"shader_code\")",
+  CPred<"$_self">>;
+def HasShaderLanguageAttr : SubstLeaves<"$_self",
+  "$_op.getAttrOfType<::mlir::StringAttr>(\"shader_language\")", CPred<"$_self">>;
+
+class ShaderLanguageIs<string language> : SubstLeaves<"$_self",
+  "$_op.getAttrOfType<::mlir::StringAttr>(\"shader_language\")",
+  CPred<"$_self.getValue() == \"" # language # "\"">>;
+
+def ShaderCodeIsStringAttr : SubstLeaves<"$_self", "$_op.getAttr(\"shader_code\")",
+  CPred<"::llvm::isa<::mlir::StringAttr>($_self)">>;
+def ShaderCodeIsDenseI32ArrayAttr : SubstLeaves<"$_self", "$_op.getAttr(\"shader_code\")",
+  CPred<"::llvm::isa<::mlir::DenseI32ArrayAttr>($_self)">>;
+
+def ShaderCodeAndLanguagePresenceMatch : PredOpTrait<
+  "shader_language and shader_code must both be set or both be unset",
+  Or<[
+  And<[HasShaderCodeAttr, HasShaderLanguageAttr]>,
+  And<[Neg<HasShaderCodeAttr>, Neg<HasShaderLanguageAttr>]>
+]>>;
+
+def ShaderCodeTypeMatchesLanguage : PredOpTrait<
+  "shader_code type must match shader_language",
+  Or<[
+  Neg<HasShaderCodeAttr>,
+  And<[HasShaderLanguageAttr, ShaderLanguageIs<"SPIR-V">, ShaderCodeIsDenseI32ArrayAttr]>,
+  And<[HasShaderLanguageAttr, Or<[ShaderLanguageIs<"GLSL">, ShaderLanguageIs<"HLSL">]>, ShaderCodeIsStringAttr]>
+]>>;
 
 //===----------------------------------------------------------------------===//
 // VGF Dialect Operations
@@ -168,7 +197,9 @@ def SegmentOutputOp : VGF_Op<"segment_output",
 //===----------------------------------------------------------------------===//
 
 def ShaderPlaceholderOp : VGF_Op<"shader_placeholder",
-  [HasParent<"SegmentOp">]> {
+  [HasParent<"SegmentOp">,
+   ShaderCodeAndLanguagePresenceMatch,
+   ShaderCodeTypeMatchesLanguage]> {
 
   let summary = "TODO";
   let description = [{
@@ -179,14 +210,15 @@ def ShaderPlaceholderOp : VGF_Op<"shader_placeholder",
                        StrAttr:$entry_point,
                        DenseI64ArrayAttr:$input_bindings,
                        DenseI64ArrayAttr:$output_bindings,
-                       I64Attr: $input_descriptor_set,
-                       I64Attr: $output_descriptor_set,
+                       DenseI64ArrayAttr:$input_descriptor_sets,
+                       DenseI64ArrayAttr:$output_descriptor_sets,
                        StrArrayAttr:$input_vk_descriptor_types,
                        StrArrayAttr:$output_vk_descriptor_types,
                        StrArrayAttr:$input_vk_formats,
                        StrArrayAttr:$output_vk_formats,
                        DenseI64ArrayAttr:$workgroup_sizes,
-                       OptionalAttr<DenseI32ArrayAttr>:$shader_code,
+                       OptionalAttr<StrAttr>:$shader_language,
+                       OptionalAttr<AnyAttrOf<[StrAttr, DenseI32ArrayAttr]>>:$shader_code,
                        Variadic<AnyType>:$operands
   );
 
