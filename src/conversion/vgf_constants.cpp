@@ -79,7 +79,7 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
                             sparsityDimension = attr.getInt();
                         }
 
-                        auto attrVal = llvm::dyn_cast<DenseIntOrFPElementsAttr>(constOp.getValuesAttr());
+                        auto attrVal = llvm::dyn_cast<DenseTypedElementsAttr>(constOp.getValuesAttr());
                         serializeConstantData(attrVal, resourceRef, sparsityDimension);
                     }
                 }

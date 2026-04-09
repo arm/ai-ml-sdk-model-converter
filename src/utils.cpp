@@ -25,7 +25,7 @@ void UnsplatData(mlir::ArrayRef<char> array, size_t elementSize, size_t numEleme
 }
 } // namespace
 
-void AccessDataFor(const mlir::DenseIntOrFPElementsAttr &attr, std::function<void(const char *, size_t)> &&callback) {
+void AccessDataFor(const mlir::DenseTypedElementsAttr &attr, std::function<void(const char *, size_t)> &&callback) {
     mlir::DenseElementsAttr actual = attr;
     if (actual.getElementType().isInteger(48) || actual.getElementType().isInteger(4) ||
         actual.getElementType().isInteger(1)) {
