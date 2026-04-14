@@ -22,7 +22,7 @@ index c09faa86528e..1dc9779d5802 100644
 @@ -1410,6 +1410,38 @@ def TosaToSCFPass : Pass<"tosa-to-scf"> {
    }];
  }
-
+ 
 +//===----------------------------------------------------------------------===//
 +// TosaToSPIRV
 +//===----------------------------------------------------------------------===//
@@ -154,7 +154,7 @@ index 11a91958d748..a542f4c6474d 100644
 @@ -1493,6 +1493,13 @@ def SPIRV_C_Float8EXT : I32EnumAttrCase<"Float8EXT", 4212> {
    ];
  }
-
+ 
 +def SPIRV_C_Float8CooperativeMatrixEXT : I32EnumAttrCase<"Float8CooperativeMatrixEXT", 4213> {
 +  list<I32EnumAttrCase> implies = [SPIRV_C_Float8EXT, SPIRV_C_CooperativeMatrixKHR];
 +  list<Availability> availability = [
@@ -173,7 +173,7 @@ index 11a91958d748..a542f4c6474d 100644
 +      SPIRV_C_TensorFloat32RoundingINTEL, SPIRV_C_Float8EXT,
 +      SPIRV_C_Float8CooperativeMatrixEXT
      ]>;
-
+ 
  def SPIRV_AM_Logical                 : I32EnumAttrCase<"Logical", 0>;
 diff --git a/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTosaTypes.td b/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTosaTypes.td
 index 1fc3bdad48e7..92fe697b3075 100644
@@ -181,14 +181,14 @@ index 1fc3bdad48e7..92fe697b3075 100644
 +++ b/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTosaTypes.td
 @@ -17,7 +17,8 @@ include "mlir/IR/CommonAttrConstraints.td"
  include "mlir/Dialect/SPIRV/IR/SPIRVBase.td"
-
+ 
  def SPIRV_TosaInteger : AnyIntOfWidths<[8, 16, 32, 64]>;
 -def SPIRV_TosaFloat : AnyTypeOf<[SPIRV_Float16, SPIRV_Float32, SPIRV_BFloat16KHR]>;
 +def SPIRV_TosaFloat : AnyTypeOf<[SPIRV_Float16, SPIRV_Float32, SPIRV_BFloat16KHR,
 +  SPIRV_Float8E4M3EXT, SPIRV_Float8E5M2EXT]>;
  def SPIRV_TosaNumerical : AnyTypeOf<[SPIRV_TosaInteger, SPIRV_TosaFloat]>;
  def SPIRV_TosaAny : AnyTypeOf<[SPIRV_TosaNumerical, SPIRV_Bool]>;
-
+ 
 diff --git a/mlir/lib/Conversion/CMakeLists.txt b/mlir/lib/Conversion/CMakeLists.txt
 index e17988b12cad..2663b2c2a33c 100644
 --- a/mlir/lib/Conversion/CMakeLists.txt
@@ -2215,17 +2215,17 @@ index 331d98c1d931..6af6c811efd8 100644
 +++ b/mlir/lib/Dialect/SPIRV/IR/SPIRVTypes.cpp
 @@ -538,6 +538,9 @@ bool ScalarType::classof(Type type) {
  }
-
+ 
  bool ScalarType::isValid(FloatType type) {
 +  if(type.isF8E4M3FN() || type.isF8E5M2()) {
 +    return true;
 +  }
    return llvm::is_contained({16u, 32u, 64u}, type.getWidth());
  }
-
+ 
 @@ -546,7 +549,11 @@ bool ScalarType::isValid(IntegerType type) {
  }
-
+ 
  void TypeExtensionVisitor::addConcrete(ScalarType type) {
 -  if (isa<BFloat16Type>(type)) {
 +  if (type.isF8E4M3FN() || type.isF8E5M2()) {
@@ -2274,7 +2274,7 @@ index 31b70177a0d1..83e22487c862 100644
 +  %cst_tensor_i8 = arith.bitcast %cst_tensor : tensor<4xf8E4M3> to tensor<4xi8>
    return
  }
-
+ 
 diff --git a/mlir/test/Conversion/FuncToSPIRV/types-to-spirv.mlir b/mlir/test/Conversion/FuncToSPIRV/types-to-spirv.mlir
 index 0c77c8833457..97d4e3354819 100644
 --- a/mlir/test/Conversion/FuncToSPIRV/types-to-spirv.mlir
@@ -2313,7 +2313,7 @@ index 0c77c8833457..97d4e3354819 100644
 +  // UNSUPPORTED_FLOAT-SAME: %arg7: memref<8xf8E4M3, #spirv.storage_class<StorageBuffer>>
 +  // UNSUPPORTED_FLOAT-SAME: %arg8: tensor<4xf8E4M3>
    // UNSUPPORTED_FLOAT-SAME: ) {
-
+ 
    func.func @float8_to_integer8(
 -    %arg0: f8E5M2,                   // CHECK-NOT: f8E5M2
 -    %arg1: f8E4M3,                   // CHECK-NOT: f8E4M3
@@ -2345,7 +2345,7 @@ index 7dab87f8081e..326137b50479 100644
 @@ -232,7 +232,7 @@ spirv.module Logical GLSL450 attributes {
    }
  }
-
+ 
 -// CHECK: requires #spirv.vce<v1.5, [GraphARM, Int8, TensorsARM, Float16, VulkanMemoryModel], [SPV_ARM_graph, SPV_ARM_tensors, SPV_KHR_vulkan_memory_model]>
 +// CHECK: requires #spirv.vce<v1.5, [GraphARM, Int8, TensorsARM, Float16, VulkanMemoryModel, Shader, Matrix], [SPV_ARM_graph, SPV_ARM_tensors, SPV_KHR_vulkan_memory_model]>
  spirv.module Logical Vulkan attributes {
