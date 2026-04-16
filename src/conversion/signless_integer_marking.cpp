@@ -5,8 +5,7 @@
 
 #include "include/passes.hpp"
 
-namespace mlir {
-namespace model_converter_passes {
+namespace mlir::model_converter_passes {
 #define GEN_PASS_DEF_SIGNLESSINTEGERMARKINGPASS
 #include "passes.hpp.inc"
 namespace {
@@ -24,15 +23,15 @@ class SignlessIntegerMarkingPass : public impl::SignlessIntegerMarkingPassBase<S
     mlir::LogicalResult SignlessIntegerMarking(mlir::func::FuncOp func) {
         MLIRContext *context = &getContext();
         const FunctionType funcType = func.getFunctionType();
-        StringRef unsigned_attr = "mlsdk.unsigned_input_output";
+        StringRef unsignedAttr = "mlsdk.unsigned_input_output";
 
         // set the default unsigned_input_output attribute for inputs
         for (unsigned i = 0; i < funcType.getNumInputs(); ++i) {
-            func.setArgAttr(i, unsigned_attr, BoolAttr::get(context, false));
+            func.setArgAttr(i, unsignedAttr, BoolAttr::get(context, false));
         }
         // set the default unsigned_input_output attribute for outputs
         for (unsigned i = 0; i < funcType.getNumResults(); ++i) {
-            func.setResultAttr(i, unsigned_attr, BoolAttr::get(context, false));
+            func.setResultAttr(i, unsignedAttr, BoolAttr::get(context, false));
         }
 
         // find rescale operations attached to input
@@ -42,7 +41,7 @@ class SignlessIntegerMarkingPass : public impl::SignlessIntegerMarkingPassBase<S
                     if (op.getInputUnsigned()) {
                         if (BlockArgument arg = llvm::dyn_cast<BlockArgument>(operand)) {
                             unsigned inputIndex = arg.getArgNumber();
-                            func.setArgAttr(inputIndex, unsigned_attr, BoolAttr::get(context, true));
+                            func.setArgAttr(inputIndex, unsignedAttr, BoolAttr::get(context, true));
                         }
                     }
                 }
@@ -55,7 +54,7 @@ class SignlessIntegerMarkingPass : public impl::SignlessIntegerMarkingPassBase<S
                 if (Operation *input = operand.getDefiningOp()) {
                     if (auto rescaleOp = llvm::dyn_cast_or_null<tosa::RescaleOp>(input)) {
                         if (rescaleOp.getOutputUnsigned()) {
-                            func.setResultAttr(static_cast<uint32_t>(index), unsigned_attr,
+                            func.setResultAttr(static_cast<uint32_t>(index), unsignedAttr,
                                                BoolAttr::get(context, true));
                         }
                     }
@@ -69,5 +68,4 @@ class SignlessIntegerMarkingPass : public impl::SignlessIntegerMarkingPassBase<S
 
 } // namespace
 
-} // namespace model_converter_passes
-} // namespace mlir
+} // namespace mlir::model_converter_passes

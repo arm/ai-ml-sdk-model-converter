@@ -14,8 +14,7 @@
 
 using namespace mlsdk::vgflib;
 
-namespace mlir {
-namespace model_converter_passes {
+namespace mlir::model_converter_passes {
 #define GEN_PASS_DEF_VGFCONSTANTSPASS
 #include "passes.hpp.inc"
 namespace {
@@ -103,5 +102,4 @@ std::unique_ptr<Pass> createVGFConstantsPass(std::shared_ptr<VGFBuilder> VGFBuil
     return std::make_unique<VGFConstantsPass>(VGFBuilder);
 }
 
-} // namespace model_converter_passes
-} // namespace mlir
+} // namespace mlir::model_converter_passes

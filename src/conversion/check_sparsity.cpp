@@ -8,8 +8,7 @@
 
 #include <numeric>
 
-namespace mlir {
-namespace model_converter_passes {
+namespace mlir::model_converter_passes {
 #define GEN_PASS_DEF_CHECKCONSTANTSPARSITYPASS
 #include "passes.hpp.inc"
 namespace {
@@ -113,5 +112,4 @@ bool CheckConstantSparsityPass::checkSparsityLoop(const T *data, int64_t otherDi
 
 } // namespace
 
-} // namespace model_converter_passes
-} // namespace mlir
+} // namespace mlir::model_converter_passes
