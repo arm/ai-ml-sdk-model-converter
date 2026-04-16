@@ -7,6 +7,7 @@ import filecmp
 import json
 import os
 import pathlib
+import subprocess
 import tempfile
 
 import pytest
@@ -228,6 +229,34 @@ def check_tosa_mlir(narrowing_mode, vgf_dump_exe_path, opt_exe_path, test_path):
         assert actual_tosa_ir == expected_tosa_ir
 
 
+def extract_pass_dump(stderr, pass_marker):
+    lines = stderr.splitlines()
+    marker_line = next((i for i, line in enumerate(lines) if pass_marker in line), None)
+    if marker_line is None:
+        pytest.fail(f"Did not find '{pass_marker}' dump in stderr output")
+
+    dumped_ir_lines = []
+    for line in lines[marker_line + 1 :]:
+        if line.startswith("// -----// IR Dump "):
+            break
+        dumped_ir_lines.append(line)
+
+    return "\n".join(dumped_ir_lines).strip()
+
+
+def normalize_mlir_dump(text):
+    lines = text.splitlines()
+    first_content = next(
+        (
+            i
+            for i, line in enumerate(lines)
+            if line.strip() and not line.strip().startswith("//")
+        ),
+        len(lines),
+    )
+    return "\n".join(lines[first_content:]).strip()
+
+
 test_files = [
     (
         "abs.tosa-ir",
@@ -330,3 +359,64 @@ def test_tosa_mlir_type_narrowing_full(
 def test_tosa_mlir_fp32_partial_narrowing(vgf_dump_exe_path, opt_exe_path, test_file):
     test_path = f"{test_folder}/{test_file}"
     check_tosa_mlir(NarrowingType.PARTIAL, vgf_dump_exe_path, opt_exe_path, test_path)
+
+
+@pytest.mark.parametrize(
+    "pass_marker, test_file, expected_dump_file",
+    [
+        (
+            "IR Dump After TosaNarrowF64ToF32Pass",
+            "add_f64.tosa-ir",
+            "add_f64_narrowed.mlir",
+        ),
+        (
+            "IR Dump After TosaNarrowF64ToF32Pass",
+            "const_f64.tosa-ir",
+            "const_f64_narrowed.mlir",
+        ),
+        (
+            "IR Dump After TosaNarrowI64ToI32Pass",
+            "add_i64.tosa-ir",
+            "add_i64_narrowed.mlir",
+        ),
+        (
+            "IR Dump After TosaNarrowI64ToI32Pass",
+            "const_i64.tosa-ir",
+            "const_i64_narrowed.mlir",
+        ),
+    ],
+)
+def test_type_narrowing_numeric_dump(
+    model_converter_exe_path, pass_marker, test_file, expected_dump_file
+):
+    with tempfile.TemporaryDirectory() as tmp_path:
+        input_ir = f"{test_folder}/{test_file}"
+        output_tosa = f"{tmp_path}/output.tosa"
+
+        cmd = [
+            f"{model_converter_exe_path}",
+            "--input",
+            input_ir,
+            "--output",
+            output_tosa,
+            "--tosa-flatbuffer",
+            "--dump-mlir",
+        ]
+        result = subprocess.run(
+            cmd,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            pytest.fail(
+                "Failed to run ML SDK Model Converter:\n"
+                f"Command: {' '.join(cmd)}\n"
+                f"stderr:\n{result.stderr}"
+            )
+
+        actual_dump = normalize_mlir_dump(extract_pass_dump(result.stderr, pass_marker))
+        with open(f"{test_folder}/{expected_dump_file}", "r") as expected_file:
+            expected_dump = normalize_mlir_dump(expected_file.read())
+
+        assert actual_dump == expected_dump
