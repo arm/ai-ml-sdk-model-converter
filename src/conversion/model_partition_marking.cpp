@@ -7,8 +7,7 @@
 
 #include <algorithm>
 
-namespace mlir {
-namespace model_converter_passes {
+namespace mlir::model_converter_passes {
 #define GEN_PASS_DEF_MODELPARTITIONMARKINGPASS
 #include "passes.hpp.inc"
 namespace {
@@ -88,5 +87,4 @@ class ModelPartitionMarkingPass : public impl::ModelPartitionMarkingPassBase<Mod
 
 } // namespace
 
-} // namespace model_converter_passes
-} // namespace mlir
+} // namespace mlir::model_converter_passes

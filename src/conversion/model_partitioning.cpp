@@ -17,8 +17,7 @@
 #include <queue>
 #include <vector>
 
-namespace mlir {
-namespace model_converter_passes {
+namespace mlir::model_converter_passes {
 #define GEN_PASS_DEF_MODELPARTITIONINGPASS
 #include "passes.hpp.inc"
 namespace {
@@ -299,17 +298,17 @@ void insertPartitionOpInMap(const int64_t id, Operation *op, DenseMap<int64_t, S
 }
 
 bool comparePartitionResultIndex(const Value &a, const Value &b) {
-    int64_t a_idx = 0;
-    int64_t b_idx = 0;
+    int64_t aIdx = 0;
+    int64_t bIdx = 0;
 
     if (auto attr = a.getDefiningOp()->getAttrOfType<IntegerAttr>("graph_partition_sequence_output_index")) {
-        a_idx = attr.getInt();
+        aIdx = attr.getInt();
     }
     if (auto attr = b.getDefiningOp()->getAttrOfType<IntegerAttr>("graph_partition_sequence_output_index")) {
-        b_idx = attr.getInt();
+        bIdx = attr.getInt();
     }
 
-    return a_idx < b_idx;
+    return aIdx < bIdx;
 }
 
 void insertPartitionResultInMap(const int64_t id, Value value, DenseMap<int64_t, SmallVector<Value>> &map) {
@@ -493,5 +492,4 @@ class ModelPartitioningPass : public impl::ModelPartitioningPassBase<ModelPartit
 
 } // namespace
 
-} // namespace model_converter_passes
-} // namespace mlir
+} // namespace mlir::model_converter_passes

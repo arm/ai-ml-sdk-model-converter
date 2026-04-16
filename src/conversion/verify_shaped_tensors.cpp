@@ -8,8 +8,7 @@
 
 #include <memory>
 
-namespace mlir {
-namespace model_converter_passes {
+namespace mlir::model_converter_passes {
 #define GEN_PASS_DEF_TOSASHAPEDVERIFICATIONPASS
 #include "passes.hpp.inc"
 
@@ -77,20 +76,20 @@ class TosaShapedVerificationPass : public impl::TosaShapedVerificationPassBase<T
                 }
                 // Verify tensor has rank
                 if (!tensorType.hasRank()) {
-                    std::string _str;
-                    llvm::raw_string_ostream _stream(_str);
-                    _stream << "(unranked) " << tensorType << " in: " << operand;
-                    dynamicOps.push_back(_str);
+                    std::string str;
+                    llvm::raw_string_ostream stream(str);
+                    stream << "(unranked) " << tensorType << " in: " << operand;
+                    dynamicOps.push_back(str);
                     return;
                 }
 
                 // Verify all elements > 0
                 ArrayRef<int64_t> shape = tensorType.getShape();
                 if (!isRealizedShape(shape)) {
-                    std::string _str;
-                    llvm::raw_string_ostream _stream(_str);
-                    _stream << "(dynamic) " << tensorType << " in: " << operand;
-                    dynamicOps.push_back(_str);
+                    std::string str;
+                    llvm::raw_string_ostream stream(str);
+                    stream << "(dynamic) " << tensorType << " in: " << operand;
+                    dynamicOps.push_back(str);
                     return;
                 }
             }
@@ -122,5 +121,4 @@ class TosaShapedVerificationPass : public impl::TosaShapedVerificationPassBase<T
     }
 };
 
-} // namespace model_converter_passes
-} // namespace mlir
+} // namespace mlir::model_converter_passes
