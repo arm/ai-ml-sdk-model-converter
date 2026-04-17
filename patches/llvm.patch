@@ -1,6 +1,6 @@
 From: svc_sdk <svc_sdk@arm.com>
 Date: Thu Feb 19 00:00:00 2026
-Subject: llvm-changes-for-model-converter-01-04-2026
+Subject: llvm-changes-for-model-converter-16-04-2026
 
 diff --git a/mlir/include/mlir/Conversion/Passes.h b/mlir/include/mlir/Conversion/Passes.h
 index a54b98004c3b..499633994eb5 100644
@@ -16,7 +16,7 @@ index a54b98004c3b..499633994eb5 100644
  #include "mlir/Conversion/UBToLLVM/UBToLLVM.h"
  #include "mlir/Conversion/UBToSPIRV/UBToSPIRV.h"
 diff --git a/mlir/include/mlir/Conversion/Passes.td b/mlir/include/mlir/Conversion/Passes.td
-index c09faa86528e..1dc9779d5802 100644
+index d401b56c7602..17fe3c66709c 100644
 --- a/mlir/include/mlir/Conversion/Passes.td
 +++ b/mlir/include/mlir/Conversion/Passes.td
 @@ -1410,6 +1410,38 @@ def TosaToSCFPass : Pass<"tosa-to-scf"> {
@@ -139,10 +139,10 @@ index 000000000000..20fb9ef11a42
 +
 +#endif // MLIR_CONVERSION_TOSATOSPIRV_TOSATOSPIRV_H
 diff --git a/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVBase.td b/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVBase.td
-index 11a91958d748..a542f4c6474d 100644
+index 297dde3a67b2..3eab5907d20f 100644
 --- a/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVBase.td
 +++ b/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVBase.td
-@@ -1344,7 +1344,7 @@ def SPIRV_C_StorageTensorArrayNonUniformIndexingEXT     : I32EnumAttrCase<"Stora
+@@ -1346,7 +1346,7 @@ def SPIRV_C_StorageTensorArrayNonUniformIndexingEXT     : I32EnumAttrCase<"Stora
    ];
  }
  def SPIRV_C_GraphARM                                    : I32EnumAttrCase<"GraphARM", 4191> {
@@ -151,32 +151,8 @@ index 11a91958d748..a542f4c6474d 100644
    list<Availability> availability = [
      Extension<[SPV_ARM_graph]>
    ];
-@@ -1493,6 +1493,13 @@ def SPIRV_C_Float8EXT : I32EnumAttrCase<"Float8EXT", 4212> {
-   ];
- }
- 
-+def SPIRV_C_Float8CooperativeMatrixEXT : I32EnumAttrCase<"Float8CooperativeMatrixEXT", 4213> {
-+  list<I32EnumAttrCase> implies = [SPIRV_C_Float8EXT, SPIRV_C_CooperativeMatrixKHR];
-+  list<Availability> availability = [
-+    Extension<[SPV_EXT_float8]>
-+  ];
-+}
-+
- def SPIRV_CapabilityAttr :
-     SPIRV_I32EnumAttr<"Capability", "valid SPIR-V Capability", "capability", [
-       SPIRV_C_Matrix, SPIRV_C_Addresses, SPIRV_C_Linkage, SPIRV_C_Kernel, SPIRV_C_Float16,
-@@ -1590,7 +1597,8 @@ def SPIRV_CapabilityAttr :
-       SPIRV_C_ShaderStereoViewNV, SPIRV_C_Bfloat16ConversionINTEL,
-       SPIRV_C_CacheControlsINTEL, SPIRV_C_BFloat16TypeKHR,
-       SPIRV_C_BFloat16DotProductKHR, SPIRV_C_BFloat16CooperativeMatrixKHR,
--      SPIRV_C_TensorFloat32RoundingINTEL, SPIRV_C_Float8EXT
-+      SPIRV_C_TensorFloat32RoundingINTEL, SPIRV_C_Float8EXT,
-+      SPIRV_C_Float8CooperativeMatrixEXT
-     ]>;
- 
- def SPIRV_AM_Logical                 : I32EnumAttrCase<"Logical", 0>;
 diff --git a/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTosaTypes.td b/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTosaTypes.td
-index 1fc3bdad48e7..92fe697b3075 100644
+index 5a610aaa45ce..a36872cb5e88 100644
 --- a/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTosaTypes.td
 +++ b/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTosaTypes.td
 @@ -17,7 +17,8 @@ include "mlir/IR/CommonAttrConstraints.td"
@@ -2024,7 +2000,7 @@ index 000000000000..b6fe4f78fece
 +}
 diff --git a/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVPass.cpp b/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVPass.cpp
 new file mode 100644
-index 000000000000..cd8bb37372f6
+index 000000000000..f48775f66f9d
 --- /dev/null
 +++ b/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVPass.cpp
 @@ -0,0 +1,181 @@
@@ -2071,9 +2047,9 @@ index 000000000000..cd8bb37372f6
 +          spirv::Capability::Int8,
 +          spirv::Capability::Int16,
 +          spirv::Capability::Int64,
-+          spirv::Capability::Float8EXT,
 +          spirv::Capability::Float16,
 +          spirv::Capability::BFloat16TypeKHR,
++          spirv::Capability::Float8EXT,
 +          spirv::Capability::TensorsARM,
 +          spirv::Capability::GraphARM,
 +          spirv::Capability::ReplicatedCompositesEXT,
@@ -2082,10 +2058,10 @@ index 000000000000..cd8bb37372f6
 +          spirv::Extension::SPV_ARM_tensors,
 +          spirv::Extension::SPV_ARM_graph,
 +          spirv::Extension::SPV_KHR_vulkan_memory_model,
-+          spirv::Extension::SPV_EXT_float8,
 +          spirv::Extension::SPV_EXT_replicated_composites,
-+          spirv::Extension::SPV_KHR_non_semantic_info,
 +          spirv::Extension::SPV_KHR_bfloat16,
++          spirv::Extension::SPV_EXT_float8,
++          spirv::Extension::SPV_KHR_non_semantic_info,
 +      },
 +      context);
 +}
@@ -2210,33 +2186,35 @@ index 000000000000..cd8bb37372f6
 +  return std::make_unique<TosaToSPIRV>(analysis);
 +}
 diff --git a/mlir/lib/Dialect/SPIRV/IR/SPIRVTypes.cpp b/mlir/lib/Dialect/SPIRV/IR/SPIRVTypes.cpp
-index 331d98c1d931..6af6c811efd8 100644
+index 0853c5aa59f9..7ab7c46ce594 100644
 --- a/mlir/lib/Dialect/SPIRV/IR/SPIRVTypes.cpp
 +++ b/mlir/lib/Dialect/SPIRV/IR/SPIRVTypes.cpp
-@@ -538,6 +538,9 @@ bool ScalarType::classof(Type type) {
+@@ -541,6 +541,9 @@ bool ScalarType::classof(Type type) {
  }
  
  bool ScalarType::isValid(FloatType type) {
-+  if(type.isF8E4M3FN() || type.isF8E5M2()) {
++  if (type.isF8E4M3FN() || type.isF8E5M2()) {
 +    return true;
 +  }
    return llvm::is_contained({16u, 32u, 64u}, type.getWidth());
  }
  
-@@ -546,7 +549,11 @@ bool ScalarType::isValid(IntegerType type) {
+@@ -549,12 +552,12 @@ bool ScalarType::isValid(IntegerType type) {
  }
  
  void TypeExtensionVisitor::addConcrete(ScalarType type) {
 -  if (isa<BFloat16Type>(type)) {
-+  if (type.isF8E4M3FN() || type.isF8E5M2()) {
-+    static constexpr auto ext = Extension::SPV_EXT_float8;
-+    extensions.push_back(ext);
-+  }
 +  if (type.isBF16()) {
      static constexpr auto ext = Extension::SPV_KHR_bfloat16;
      extensions.push_back(ext);
    }
-@@ -654,16 +661,16 @@ void TypeCapabilityVisitor::addConcrete(ScalarType type) {
+ 
+-  if (isa<Float8E4M3FNType, Float8E5M2Type>(type)) {
++  if (type.isF8E4M3FN() || type.isF8E5M2()) {
+     static constexpr auto ext = Extension::SPV_EXT_float8;
+     extensions.push_back(ext);
+   }
+@@ -657,7 +660,7 @@ void TypeCapabilityVisitor::addConcrete(ScalarType type) {
      assert(isa<FloatType>(type));
      switch (bitwidth) {
      case 8: {
@@ -2245,9 +2223,7 @@ index 331d98c1d931..6af6c811efd8 100644
          static constexpr auto cap = Capability::Float8EXT;
          capabilities.push_back(cap);
        } else {
--        llvm_unreachable("invalid 8-bit float type to getCapabilities");
-+        llvm_unreachable("invalid bitwidth to getCapabilities");
-       }
+@@ -666,7 +669,7 @@ void TypeCapabilityVisitor::addConcrete(ScalarType type) {
        break;
      }
      case 16: {
@@ -2256,25 +2232,6 @@ index 331d98c1d931..6af6c811efd8 100644
          static constexpr auto cap = Capability::BFloat16TypeKHR;
          capabilities.push_back(cap);
        } else {
-diff --git a/mlir/test/Conversion/ArithToSPIRV/arith-to-spirv.mlir b/mlir/test/Conversion/ArithToSPIRV/arith-to-spirv.mlir
-index 31b70177a0d1..83e22487c862 100644
---- a/mlir/test/Conversion/ArithToSPIRV/arith-to-spirv.mlir
-+++ b/mlir/test/Conversion/ArithToSPIRV/arith-to-spirv.mlir
-@@ -648,10 +648,10 @@ func.func @constant_8bit_float() {
-   %cst_vector = arith.constant dense<1.0> : vector<4xf8E4M3>
-   // CHECK: spirv.Constant dense<56> : vector<4xi8>
-   %cst_vector_i8 = arith.bitcast %cst_vector : vector<4xf8E4M3> to vector<4xi8>
--  // CHECK: spirv.Constant dense<60> : tensor<4xi8> : !spirv.array<4 x i8>
--  %cst_tensor = arith.constant dense<1.0> : tensor<4xf8E5M2>
--  // CHECK: spirv.Constant dense<60> : tensor<4xi8> : !spirv.array<4 x i8>
--  %cst_tensor_i8 = arith.bitcast %cst_tensor : tensor<4xf8E5M2> to tensor<4xi8>
-+  // CHECK: spirv.Constant dense<56> : tensor<4xi8> : !spirv.array<4 x i8>
-+  %cst_tensor = arith.constant dense<1.0> : tensor<4xf8E4M3>
-+  // CHECK: spirv.Constant dense<56> : tensor<4xi8> : !spirv.array<4 x i8>
-+  %cst_tensor_i8 = arith.bitcast %cst_tensor : tensor<4xf8E4M3> to tensor<4xi8>
-   return
- }
- 
 diff --git a/mlir/test/Conversion/FuncToSPIRV/types-to-spirv.mlir b/mlir/test/Conversion/FuncToSPIRV/types-to-spirv.mlir
 index 0c77c8833457..97d4e3354819 100644
 --- a/mlir/test/Conversion/FuncToSPIRV/types-to-spirv.mlir
@@ -2339,7 +2296,7 @@ index 0c77c8833457..97d4e3354819 100644
      // CHECK: spirv.Return
      return
 diff --git a/mlir/test/Dialect/SPIRV/Transforms/vce-deduction.mlir b/mlir/test/Dialect/SPIRV/Transforms/vce-deduction.mlir
-index 7dab87f8081e..326137b50479 100644
+index 3b78c2303e6e..b19c1f1dc814 100644
 --- a/mlir/test/Dialect/SPIRV/Transforms/vce-deduction.mlir
 +++ b/mlir/test/Dialect/SPIRV/Transforms/vce-deduction.mlir
 @@ -232,7 +232,7 @@ spirv.module Logical GLSL450 attributes {
