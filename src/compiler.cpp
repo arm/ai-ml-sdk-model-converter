@@ -80,6 +80,12 @@ void Compiler::SetPassManager() {
         _pm.addPass(createTypeNarrowingPass({_options.type_narrowing}));
     }
 
+    {
+        OpPassManager &funcNestedPM = _pm.nest<func::FuncOp>();
+        funcNestedPM.addPass(mlir::tosa::createTosaNarrowI64ToI32Pass({true, true}));
+        funcNestedPM.addPass(mlir::tosa::createTosaNarrowF64ToF32Pass({true, true}));
+    }
+
     if (_options.tosa_serialize) {
         tosa_flatbuffer_filename = _options.filename_output;
         if (_options.tosa_fb_schema.empty()) {
