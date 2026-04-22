@@ -30,20 +30,25 @@
         ],
         "segments": [
             {
-                "constants": [0],
+                "constants": [
+                    0
+                ],
                 "descriptor_set_infos": [
-                    [
-                        {
-                            "binding": 0,
-                            "index": 0,
-                            "mrt_index": 1
-                        },
-                        {
-                            "binding": 1,
-                            "index": 1,
-                            "mrt_index": 2
-                        }
-                    ]
+                    {
+                        "bindings": [
+                            {
+                                "binding": 0,
+                                "index": 0,
+                                "mrt_index": 1
+                            },
+                            {
+                                "binding": 1,
+                                "index": 1,
+                                "mrt_index": 2
+                            }
+                        ],
+                        "set_index": 0
+                    }
                 ],
                 "dispatch_shape": [
                     0,

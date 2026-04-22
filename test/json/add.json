@@ -3,7 +3,7 @@
     "header": {
         "major": 0,
         "minor": 4,
-        "patch": 1
+        "patch": 2
     },
     "model_sequence": {
         "inputs": [
@@ -32,23 +32,26 @@
             {
                 "constants": [],
                 "descriptor_set_infos": [
-                    [
-                        {
-                            "binding": 0,
-                            "index": 0,
-                            "mrt_index": 0
-                        },
-                        {
-                            "binding": 1,
-                            "index": 1,
-                            "mrt_index": 1
-                        },
-                        {
-                            "binding": 2,
-                            "index": 2,
-                            "mrt_index": 2
-                        }
-                    ]
+                    {
+                        "bindings": [
+                            {
+                                "binding": 0,
+                                "index": 0,
+                                "mrt_index": 0
+                            },
+                            {
+                                "binding": 1,
+                                "index": 1,
+                                "mrt_index": 1
+                            },
+                            {
+                                "binding": 2,
+                                "index": 2,
+                                "mrt_index": 2
+                            }
+                        ],
+                        "set_index": 0
+                    }
                 ],
                 "dispatch_shape": [
                     0,
