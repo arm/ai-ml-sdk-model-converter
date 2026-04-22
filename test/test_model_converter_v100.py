@@ -71,6 +71,13 @@ tests = [
         "custom_binding.json",
         [],
     ),
+    #
+    # Verify custom op descriptor set indices are preserved in VGF descriptor_set_infos.
+    (
+        "custom_descriptor_set.mlir",
+        "custom_descriptor_set.json",
+        [],
+    ),
     # Verify Rescale op attribute input_signed = True processed correctly when input is a tosa.const value
     (
         "rescale.mlir",
