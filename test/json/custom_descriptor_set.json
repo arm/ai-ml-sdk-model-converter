@@ -92,14 +92,19 @@
                                 "binding": 0,
                                 "index": 0,
                                 "mrt_index": 2
-                            },
+                            }
+                        ],
+                        "set_index": 7
+                    },
+                    {
+                        "bindings": [
                             {
                                 "binding": 1,
-                                "index": 1,
+                                "index": 0,
                                 "mrt_index": 3
                             }
                         ],
-                        "set_index": 1
+                        "set_index": 9
                     }
                 ],
                 "dispatch_shape": [

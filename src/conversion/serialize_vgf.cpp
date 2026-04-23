@@ -567,7 +567,8 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
 
                     std::vector<DescriptorSetInfoRef> descriptorSetInfos = {};
                     for (const auto &[descriptorSetIndex, bindings] : mapSegmentDescriptorSetBindings[segmentId]) {
-                        descriptorSetInfos.push_back(_VGFBuilder->getEncoder()->AddDescriptorSetInfo(bindings));
+                        descriptorSetInfos.push_back(
+                            _VGFBuilder->getEncoder()->AddDescriptorSetInfo(bindings, descriptorSetIndex));
                     }
 
                     auto workgroupSizes = ArrayRef<int64_t>(shaderPlaceholderOp.getWorkgroupSizesAttr());
