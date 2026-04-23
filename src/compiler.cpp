@@ -123,8 +123,8 @@ void Compiler::SetPassManager() {
             OpPassManager &segmentNestedPM = sequenceNestedPM.nest<vgf::SegmentOp>();
             OpPassManager &spirvNestedPM = segmentNestedPM.nest<spirv::ModuleOp>();
             spirvNestedPM.addPass(mlir::spirv::createSPIRVReplicatedConstantCompositePass());
-            spirvNestedPM.addPass(mlir::spirv::createSPIRVUpdateVCEPass());
             spirvNestedPM.addPass(mlir::spirv::createSPIRVLowerABIAttributesPass());
+            spirvNestedPM.addPass(mlir::spirv::createSPIRVUpdateVCEPass());
 
             // Sequence Module Passes
             sequenceNestedPM.addPass(
