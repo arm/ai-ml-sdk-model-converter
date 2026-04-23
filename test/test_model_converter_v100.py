@@ -57,6 +57,12 @@ tests = [
         "custom_spirv.json",
         [],
     ),
+    # Single custom op with sampled image input and storage image output
+    (
+        "custom_image_sampler.mlir",
+        "custom_image_sampler.json",
+        [],
+    ),
     #
     # Verify parsing a VGF having both graph and compute segments.
     (

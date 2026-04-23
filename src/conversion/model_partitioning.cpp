@@ -83,6 +83,8 @@ struct TosaCustomOpRewriter : public OpConversionPattern<tosa::CustomOp> {
         ArrayAttr outputVkDescriptorTypesAttr;
         ArrayAttr inputVkFormatsAttr;
         ArrayAttr outputVkFormatsAttr;
+        ArrayAttr inputSamplerConfigsAttr;
+        ArrayAttr outputSamplerConfigsAttr;
         DenseI64ArrayAttr workgroupSizesAttr;
         std::optional<StringAttr> shaderLanguageAttr;
         std::optional<Attribute> shaderCodeAttr;
@@ -102,14 +104,14 @@ struct TosaCustomOpRewriter : public OpConversionPattern<tosa::CustomOp> {
         }
 
         if (!parseIO(rewriter, map, "input", customOp->getNumOperands(), inputBindingsAttr, inputDescriptorSetsAttr,
-                     inputVkDescriptorTypesAttr, inputVkFormatsAttr)) {
+                     inputVkDescriptorTypesAttr, inputVkFormatsAttr, inputSamplerConfigsAttr)) {
             llvm::errs() << "Missing input attribute(s) or invalid value in tosa.custom op at " << customOp->getLoc()
                          << "\n";
             return failure();
         }
 
         if (!parseIO(rewriter, map, "output", customOp->getNumResults(), outputBindingsAttr, outputDescriptorSetsAttr,
-                     outputVkDescriptorTypesAttr, outputVkFormatsAttr)) {
+                     outputVkDescriptorTypesAttr, outputVkFormatsAttr, outputSamplerConfigsAttr)) {
             llvm::errs() << "Missing output attribute(s) or invalid value in tosa.custom op at " << customOp->getLoc()
                          << "\n";
             return failure();
@@ -197,8 +199,9 @@ struct TosaCustomOpRewriter : public OpConversionPattern<tosa::CustomOp> {
         rewriter.replaceOpWithNewOp<vgf::ShaderPlaceholderOp>(
             customOp, customOp.getResultTypes(), shaderNameAttr, entryPointAttr, inputBindingsAttr, outputBindingsAttr,
             inputDescriptorSetsAttr, outputDescriptorSetsAttr, inputVkDescriptorTypesAttr, outputVkDescriptorTypesAttr,
-            inputVkFormatsAttr, outputVkFormatsAttr, workgroupSizesAttr, shaderLanguageAttr.value_or(nullptr),
-            shaderCodeAttr.value_or(nullptr), adaptor.getOperands());
+            inputVkFormatsAttr, outputVkFormatsAttr, inputSamplerConfigsAttr, outputSamplerConfigsAttr,
+            workgroupSizesAttr, shaderLanguageAttr.value_or(nullptr), shaderCodeAttr.value_or(nullptr),
+            adaptor.getOperands());
 
         if (analysis) {
             llvm::errs() << "Successfully lowered: " << customOp->getName() << " at " << customOp->getLoc() << "\n";
@@ -226,11 +229,25 @@ struct TosaCustomOpRewriter : public OpConversionPattern<tosa::CustomOp> {
 
     bool parseIO(ConversionPatternRewriter &rewriter, const json &map, const std::string &prefix, const unsigned numIOs,
                  DenseI64ArrayAttr &bindingsAttr, DenseI64ArrayAttr &descriptorSetsAttr,
-                 ArrayAttr &vkDescriptorTypesAttr, ArrayAttr &vkFormatsAttr) const {
+                 ArrayAttr &vkDescriptorTypesAttr, ArrayAttr &vkFormatsAttr, ArrayAttr &samplerConfigsAttr) const {
         SmallVector<int64_t, 8> bindings;
         SmallVector<int64_t, 8> descriptorSets;
         SmallVector<Attribute, 8> vkDescriptorTypes;
         SmallVector<Attribute, 8> vkFormats;
+        SmallVector<Attribute, 8> samplerConfigs;
+        bool hasAnySamplerConfig = false;
+
+        auto appendUnsetSamplerConfig = [&]() { samplerConfigs.push_back(rewriter.getDictionaryAttr({})); };
+
+        auto parseRequiredSamplerString = [&](const json &samplerConfig, const char *key, NamedAttrList &output) {
+            return fetch(samplerConfig, key, [&](const json &reference) {
+                if (!reference.is_string()) {
+                    return false;
+                }
+                output.append(key, rewriter.getStringAttr(reference.get_ref<const std::string &>()));
+                return true;
+            });
+        };
 
         for (unsigned i = 0; i < numIOs; ++i) {
             const auto index = std::to_string(i);
@@ -285,12 +302,36 @@ struct TosaCustomOpRewriter : public OpConversionPattern<tosa::CustomOp> {
                 })) {
                 return false;
             }
+
+            key = ioKeyPrefix;
+            key += "_sampler";
+            const auto samplerIt = map.find(key);
+            if (samplerIt == map.end()) {
+                appendUnsetSamplerConfig();
+                continue;
+            }
+
+            const json &samplerConfig = *samplerIt;
+            if (!samplerConfig.is_object()) {
+                return false;
+            }
+            NamedAttrList samplerConfigAttrs;
+            if (!parseRequiredSamplerString(samplerConfig, "min_filter", samplerConfigAttrs) ||
+                !parseRequiredSamplerString(samplerConfig, "mag_filter", samplerConfigAttrs) ||
+                !parseRequiredSamplerString(samplerConfig, "address_mode_u", samplerConfigAttrs) ||
+                !parseRequiredSamplerString(samplerConfig, "address_mode_v", samplerConfigAttrs) ||
+                !parseRequiredSamplerString(samplerConfig, "border_color", samplerConfigAttrs)) {
+                return false;
+            }
+            samplerConfigs.push_back(samplerConfigAttrs.getDictionary(rewriter.getContext()));
+            hasAnySamplerConfig = true;
         }
 
         bindingsAttr = rewriter.getDenseI64ArrayAttr(bindings);
         descriptorSetsAttr = rewriter.getDenseI64ArrayAttr(descriptorSets);
         vkDescriptorTypesAttr = rewriter.getArrayAttr(vkDescriptorTypes);
         vkFormatsAttr = rewriter.getArrayAttr(vkFormats);
+        samplerConfigsAttr = hasAnySamplerConfig ? rewriter.getArrayAttr(samplerConfigs) : nullptr;
         return true;
     }
 };

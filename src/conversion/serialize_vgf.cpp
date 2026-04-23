@@ -16,8 +16,10 @@
 #include <algorithm>
 #include <cassert>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <map>
 #include <optional>
 #include <set>
@@ -44,6 +46,65 @@ std::optional<ShaderType> toShaderType(const StringRef language) {
         return ShaderType::HLSL;
     }
     return std::nullopt;
+}
+
+constexpr uint32_t UNSET_SAMPLER_VALUE = std::numeric_limits<uint32_t>::max();
+
+struct SamplerConfigValues {
+    uint32_t minFilter = UNSET_SAMPLER_VALUE;
+    uint32_t magFilter = UNSET_SAMPLER_VALUE;
+    uint32_t addressModeU = UNSET_SAMPLER_VALUE;
+    uint32_t addressModeV = UNSET_SAMPLER_VALUE;
+    uint32_t borderColor = UNSET_SAMPLER_VALUE;
+};
+
+template <typename ParseFn> uint32_t parseSamplerEnumValue(const StringRef name, ParseFn &&parseFn) {
+    if (name.empty()) {
+        return UNSET_SAMPLER_VALUE;
+    }
+    const auto value = parseFn(name.str());
+    return value < 0 ? UNSET_SAMPLER_VALUE : static_cast<uint32_t>(value);
+}
+
+uint32_t parseSamplerFilter(const StringRef name) { return parseSamplerEnumValue(name, NameToFilterType); }
+
+uint32_t parseSamplerAddressMode(const StringRef name) {
+    return parseSamplerEnumValue(name, NameToSamplerAddressModeType);
+}
+
+uint32_t parseSamplerBorderColor(const StringRef name) { return parseSamplerEnumValue(name, NameToBorderColorType); }
+
+DictionaryAttr getSamplerConfig(ArrayAttr samplerConfigsAttr, size_t index) {
+    if (!samplerConfigsAttr || index >= samplerConfigsAttr.size()) {
+        return nullptr;
+    }
+    if (index > static_cast<size_t>(std::numeric_limits<unsigned>::max())) {
+        return nullptr;
+    }
+    return llvm::dyn_cast<DictionaryAttr>(samplerConfigsAttr[static_cast<unsigned>(index)]);
+}
+
+uint32_t getSamplerValue(DictionaryAttr samplerConfigAttr, StringRef key,
+                         const std::function<uint32_t(StringRef)> &parseFn) {
+    if (!samplerConfigAttr) {
+        return UNSET_SAMPLER_VALUE;
+    }
+    auto valueAttr = samplerConfigAttr.getAs<StringAttr>(key);
+    if (!valueAttr) {
+        return UNSET_SAMPLER_VALUE;
+    }
+    return parseFn(valueAttr.getValue());
+}
+
+SamplerConfigValues getSamplerConfigValues(ArrayAttr samplerConfigsAttr, size_t index) {
+    const auto samplerConfigAttr = getSamplerConfig(samplerConfigsAttr, index);
+    SamplerConfigValues samplerConfig;
+    samplerConfig.minFilter = getSamplerValue(samplerConfigAttr, "min_filter", parseSamplerFilter);
+    samplerConfig.magFilter = getSamplerValue(samplerConfigAttr, "mag_filter", parseSamplerFilter);
+    samplerConfig.addressModeU = getSamplerValue(samplerConfigAttr, "address_mode_u", parseSamplerAddressMode);
+    samplerConfig.addressModeV = getSamplerValue(samplerConfigAttr, "address_mode_v", parseSamplerAddressMode);
+    samplerConfig.borderColor = getSamplerValue(samplerConfigAttr, "border_color", parseSamplerBorderColor);
+    return samplerConfig;
 }
 
 class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
@@ -148,6 +209,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                 WalkResult segmentWalkResult;
                 if (segmentType == vgf::SegmentTypeEnum::COMPUTE) {
                     segmentWalkResult = segmentOp.walk([&](vgf::ShaderPlaceholderOp shaderPlaceholderOp) {
+                        size_t ioIndex = 0;
                         for (const auto &[inputBinding, inputDescriptorType, inputVkFormat, inputDescriptorSet, input] :
                              llvm::zip(shaderPlaceholderOp.getInputBindings(),
                                        shaderPlaceholderOp.getInputVkDescriptorTypes(),
@@ -156,11 +218,22 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                             if (input == operand &&
                                 mapOperandsAndBindingRef.find(input) == mapOperandsAndBindingRef.end()) {
                                 const ShapedType type = llvm::dyn_cast<ShapedType>(input.getType());
+                                const auto samplerConfigAttr =
+                                    getSamplerConfig(shaderPlaceholderOp.getInputSamplerConfigsAttr(), ioIndex);
                                 auto resourceRef =
                                     std::make_shared<ResourceRef>(_VGFBuilder->getEncoder()->AddInputResource(
                                         NameToDescriptorType(llvm::cast<StringAttr>(inputDescriptorType).str()),
                                         NameToFormatType(llvm::cast<StringAttr>(inputVkFormat).str()), type.getShape(),
                                         {}));
+
+                                if (samplerConfigAttr && !samplerConfigAttr.empty()) {
+                                    const auto samplerConfig = getSamplerConfigValues(
+                                        shaderPlaceholderOp.getInputSamplerConfigsAttr(), ioIndex);
+                                    _VGFBuilder->getEncoder()->AddSamplerConfig(
+                                        *resourceRef, samplerConfig.minFilter, samplerConfig.magFilter,
+                                        samplerConfig.addressModeU, samplerConfig.addressModeV,
+                                        samplerConfig.borderColor);
+                                }
 
                                 auto bindingSlotRef = std::make_shared<BindingSlotRef>(
                                     _VGFBuilder->getEncoder()->AddBindingSlot(operand.getArgNumber(), *resourceRef));
@@ -173,6 +246,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                     segmentId, inputDescriptorSet,
                                     getDescriptorSetBinding(input, static_cast<uint32_t>(inputBinding)));
                             }
+                            ++ioIndex;
                         }
 
                         return WalkResult::advance();
@@ -241,6 +315,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
             std::vector<BindingSlotRef> segmentInputBindings = {};
             if (segmentType == vgf::SegmentTypeEnum::COMPUTE) {
                 segmentWalkResult = segmentOp.walk([&](vgf::ShaderPlaceholderOp shaderPlaceholderOp) {
+                    size_t ioIndex = 0;
                     for (const auto &[inputBinding, inputDescriptorType, inputVkFormat, inputDescriptorSet, input] :
                          llvm::zip(shaderPlaceholderOp.getInputBindings(),
                                    shaderPlaceholderOp.getInputVkDescriptorTypes(),
@@ -251,12 +326,23 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                             if (it == mapOperandsAndBindingRef.end()) {
                                 // TODO: Revisit the need for conversion to ShapedType
                                 const ShapedType type = convertShapedType(input.getType());
+                                const auto samplerConfigAttr =
+                                    getSamplerConfig(shaderPlaceholderOp.getInputSamplerConfigsAttr(), ioIndex);
 
                                 auto resourceRef =
                                     std::make_shared<ResourceRef>(_VGFBuilder->getEncoder()->AddIntermediateResource(
                                         NameToDescriptorType(llvm::cast<StringAttr>(inputDescriptorType).str()),
                                         NameToFormatType(llvm::cast<StringAttr>(inputVkFormat).str()), type.getShape(),
                                         {}));
+
+                                if (samplerConfigAttr && !samplerConfigAttr.empty()) {
+                                    const auto samplerConfig = getSamplerConfigValues(
+                                        shaderPlaceholderOp.getInputSamplerConfigsAttr(), ioIndex);
+                                    _VGFBuilder->getEncoder()->AddSamplerConfig(
+                                        *resourceRef, samplerConfig.minFilter, samplerConfig.magFilter,
+                                        samplerConfig.addressModeU, samplerConfig.addressModeV,
+                                        samplerConfig.borderColor);
+                                }
 
                                 auto bindingSlotRef = std::make_shared<BindingSlotRef>(
                                     _VGFBuilder->getEncoder()->AddBindingSlot(bindingId++, *resourceRef));
@@ -274,8 +360,10 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                     getDescriptorSetBinding(input, static_cast<uint32_t>(inputBinding)));
                             }
                         }
+                        ++ioIndex;
                     }
 
+                    ioIndex = 0;
                     for (const auto &[outputBinding, outputDescriptorType, outputVkFormat, outputDescriptorSet,
                                       result] :
                          llvm::zip(shaderPlaceholderOp.getOutputBindings(),
@@ -287,12 +375,23 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                             if (it == mapOperandsAndBindingRef.end()) {
                                 // TODO: Revisit the need for conversion to ShapedType
                                 const ShapedType type = convertShapedType(result.getType());
+                                const auto samplerConfigAttr =
+                                    getSamplerConfig(shaderPlaceholderOp.getOutputSamplerConfigsAttr(), ioIndex);
 
                                 auto resourceRef =
                                     std::make_shared<ResourceRef>(_VGFBuilder->getEncoder()->AddIntermediateResource(
                                         NameToDescriptorType(llvm::cast<StringAttr>(outputDescriptorType).str()),
                                         NameToFormatType(llvm::cast<StringAttr>(outputVkFormat).str()), type.getShape(),
                                         {}));
+
+                                if (samplerConfigAttr && !samplerConfigAttr.empty()) {
+                                    const auto samplerConfig = getSamplerConfigValues(
+                                        shaderPlaceholderOp.getOutputSamplerConfigsAttr(), ioIndex);
+                                    _VGFBuilder->getEncoder()->AddSamplerConfig(
+                                        *resourceRef, samplerConfig.minFilter, samplerConfig.magFilter,
+                                        samplerConfig.addressModeU, samplerConfig.addressModeV,
+                                        samplerConfig.borderColor);
+                                }
 
                                 auto bindingSlotRef = std::make_shared<BindingSlotRef>(
                                     _VGFBuilder->getEncoder()->AddBindingSlot(bindingId++, *resourceRef));
@@ -310,6 +409,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                     getDescriptorSetBinding(result, static_cast<uint32_t>(outputBinding)));
                             }
                         }
+                        ++ioIndex;
                     }
                     return WalkResult::advance();
                 });
@@ -398,6 +498,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                 WalkResult segmentWalkResult;
                 if (segmentType == vgf::SegmentTypeEnum::COMPUTE) {
                     segmentWalkResult = segmentOp.walk([&](vgf::ShaderPlaceholderOp shaderPlaceholderOp) {
+                        size_t ioIndex = 0;
                         for (const auto &[outputBinding, outputDescriptorType, outputVkFormat, outputDescriptorSet,
                                           result] :
                              llvm::zip(shaderPlaceholderOp.getOutputBindings(),
@@ -408,12 +509,23 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                             if (result == operand &&
                                 mapOperandsAndBindingRef.find(result) == mapOperandsAndBindingRef.end()) {
                                 const ShapedType type = llvm::dyn_cast<ShapedType>(result.getType());
+                                const auto samplerConfigAttr =
+                                    getSamplerConfig(shaderPlaceholderOp.getOutputSamplerConfigsAttr(), ioIndex);
 
                                 auto resourceRef =
                                     std::make_shared<ResourceRef>(_VGFBuilder->getEncoder()->AddOutputResource(
                                         NameToDescriptorType(llvm::cast<StringAttr>(outputDescriptorType).str()),
                                         NameToFormatType(llvm::cast<StringAttr>(outputVkFormat).str()), type.getShape(),
                                         {}));
+
+                                if (samplerConfigAttr && !samplerConfigAttr.empty()) {
+                                    const auto samplerConfig = getSamplerConfigValues(
+                                        shaderPlaceholderOp.getOutputSamplerConfigsAttr(), ioIndex);
+                                    _VGFBuilder->getEncoder()->AddSamplerConfig(
+                                        *resourceRef, samplerConfig.minFilter, samplerConfig.magFilter,
+                                        samplerConfig.addressModeU, samplerConfig.addressModeV,
+                                        samplerConfig.borderColor);
+                                }
 
                                 auto bindingSlotRef = std::make_shared<BindingSlotRef>(
                                     _VGFBuilder->getEncoder()->AddBindingSlot(bindingId++, *resourceRef));
@@ -426,6 +538,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                     segmentId, outputDescriptorSet,
                                     getDescriptorSetBinding(result, static_cast<uint32_t>(outputBinding)));
                             }
+                            ++ioIndex;
                         }
 
                         return WalkResult::advance();
