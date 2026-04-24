@@ -1,6 +1,6 @@
 From: svc_sdk <svc_sdk@arm.com>
 Date: Thu Feb 19 00:00:00 2026
-Subject: llvm-changes-for-model-converter-16-04-2026
+Subject: llvm-changes-for-model-converter-24-04-2026
 
 diff --git a/mlir/include/mlir/Conversion/Passes.h b/mlir/include/mlir/Conversion/Passes.h
 index a54b98004c3b..499633994eb5 100644
@@ -138,33 +138,6 @@ index 000000000000..20fb9ef11a42
 +} // namespace mlir
 +
 +#endif // MLIR_CONVERSION_TOSATOSPIRV_TOSATOSPIRV_H
-diff --git a/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVBase.td b/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVBase.td
-index 297dde3a67b2..3eab5907d20f 100644
---- a/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVBase.td
-+++ b/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVBase.td
-@@ -1346,7 +1346,7 @@ def SPIRV_C_StorageTensorArrayNonUniformIndexingEXT     : I32EnumAttrCase<"Stora
-   ];
- }
- def SPIRV_C_GraphARM                                    : I32EnumAttrCase<"GraphARM", 4191> {
--  list<I32EnumAttrCase> implies = [SPIRV_C_TensorsARM];
-+  list<I32EnumAttrCase> implies = [SPIRV_C_TensorsARM, SPIRV_C_Shader, SPIRV_C_VulkanMemoryModel];
-   list<Availability> availability = [
-     Extension<[SPV_ARM_graph]>
-   ];
-diff --git a/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTosaTypes.td b/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTosaTypes.td
-index 5a610aaa45ce..a36872cb5e88 100644
---- a/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTosaTypes.td
-+++ b/mlir/include/mlir/Dialect/SPIRV/IR/SPIRVTosaTypes.td
-@@ -17,7 +17,8 @@ include "mlir/IR/CommonAttrConstraints.td"
- include "mlir/Dialect/SPIRV/IR/SPIRVBase.td"
- 
- def SPIRV_TosaInteger : AnyIntOfWidths<[8, 16, 32, 64]>;
--def SPIRV_TosaFloat : AnyTypeOf<[SPIRV_Float16, SPIRV_Float32, SPIRV_BFloat16KHR]>;
-+def SPIRV_TosaFloat : AnyTypeOf<[SPIRV_Float16, SPIRV_Float32, SPIRV_BFloat16KHR,
-+  SPIRV_Float8E4M3EXT, SPIRV_Float8E5M2EXT]>;
- def SPIRV_TosaNumerical : AnyTypeOf<[SPIRV_TosaInteger, SPIRV_TosaFloat]>;
- def SPIRV_TosaAny : AnyTypeOf<[SPIRV_TosaNumerical, SPIRV_Bool]>;
- 
 diff --git a/mlir/lib/Conversion/CMakeLists.txt b/mlir/lib/Conversion/CMakeLists.txt
 index e17988b12cad..2663b2c2a33c 100644
 --- a/mlir/lib/Conversion/CMakeLists.txt
@@ -2185,126 +2158,3 @@ index 000000000000..f48775f66f9d
 +std::unique_ptr<Pass> mlir::tosa::createTosaToSPIRV(bool analysis) {
 +  return std::make_unique<TosaToSPIRV>(analysis);
 +}
-diff --git a/mlir/lib/Dialect/SPIRV/IR/SPIRVTypes.cpp b/mlir/lib/Dialect/SPIRV/IR/SPIRVTypes.cpp
-index 0853c5aa59f9..7ab7c46ce594 100644
---- a/mlir/lib/Dialect/SPIRV/IR/SPIRVTypes.cpp
-+++ b/mlir/lib/Dialect/SPIRV/IR/SPIRVTypes.cpp
-@@ -541,6 +541,9 @@ bool ScalarType::classof(Type type) {
- }
- 
- bool ScalarType::isValid(FloatType type) {
-+  if (type.isF8E4M3FN() || type.isF8E5M2()) {
-+    return true;
-+  }
-   return llvm::is_contained({16u, 32u, 64u}, type.getWidth());
- }
- 
-@@ -549,12 +552,12 @@ bool ScalarType::isValid(IntegerType type) {
- }
- 
- void TypeExtensionVisitor::addConcrete(ScalarType type) {
--  if (isa<BFloat16Type>(type)) {
-+  if (type.isBF16()) {
-     static constexpr auto ext = Extension::SPV_KHR_bfloat16;
-     extensions.push_back(ext);
-   }
- 
--  if (isa<Float8E4M3FNType, Float8E5M2Type>(type)) {
-+  if (type.isF8E4M3FN() || type.isF8E5M2()) {
-     static constexpr auto ext = Extension::SPV_EXT_float8;
-     extensions.push_back(ext);
-   }
-@@ -657,7 +660,7 @@ void TypeCapabilityVisitor::addConcrete(ScalarType type) {
-     assert(isa<FloatType>(type));
-     switch (bitwidth) {
-     case 8: {
--      if (isa<Float8E4M3FNType, Float8E5M2Type>(type)) {
-+      if (type.isF8E4M3FN() || type.isF8E5M2()) {
-         static constexpr auto cap = Capability::Float8EXT;
-         capabilities.push_back(cap);
-       } else {
-@@ -666,7 +669,7 @@ void TypeCapabilityVisitor::addConcrete(ScalarType type) {
-       break;
-     }
-     case 16: {
--      if (isa<BFloat16Type>(type)) {
-+      if (type.isBF16()) {
-         static constexpr auto cap = Capability::BFloat16TypeKHR;
-         capabilities.push_back(cap);
-       } else {
-diff --git a/mlir/test/Conversion/FuncToSPIRV/types-to-spirv.mlir b/mlir/test/Conversion/FuncToSPIRV/types-to-spirv.mlir
-index 0c77c8833457..97d4e3354819 100644
---- a/mlir/test/Conversion/FuncToSPIRV/types-to-spirv.mlir
-+++ b/mlir/test/Conversion/FuncToSPIRV/types-to-spirv.mlir
-@@ -962,37 +962,31 @@ module attributes {
-   // CHECK-SAME: %arg3: i8
-   // CHECK-SAME: %arg4: i8
-   // CHECK-SAME: %arg5: i8
--  // CHECK-SAME: %arg6: i8
--  // CHECK-SAME: %arg7: i8
--  // CHECK-SAME: %arg8: vector<4xi8>
--  // CHECK-SAME: %arg9: !spirv.ptr<!spirv.struct<(!spirv.array<8 x i8, stride=1> [0])>, StorageBuffer>
--  // CHECK-SAME: %arg10: !spirv.array<4 x i8>
-+  // CHECK-SAME: %arg6: vector<4xi8>
-+  // CHECK-SAME: %arg7: !spirv.ptr<!spirv.struct<(!spirv.array<8 x i8, stride=1> [0])>, StorageBuffer>
-+  // CHECK-SAME: %arg8: !spirv.array<4 x i8>
-   // UNSUPPORTED_FLOAT-LABEL: func.func @float8_to_integer8
--  // UNSUPPORTED_FLOAT-SAME: (%arg0: f8E5M2
--  // UNSUPPORTED_FLOAT-SAME: %arg1: f8E4M3
--  // UNSUPPORTED_FLOAT-SAME: %arg2: f8E4M3FN
--  // UNSUPPORTED_FLOAT-SAME: %arg3: f8E5M2FNUZ
--  // UNSUPPORTED_FLOAT-SAME: %arg4: f8E4M3FNUZ
--  // UNSUPPORTED_FLOAT-SAME: %arg5: f8E4M3B11FNUZ
--  // UNSUPPORTED_FLOAT-SAME: %arg6: f8E3M4
--  // UNSUPPORTED_FLOAT-SAME: %arg7: f8E8M0FNU
--  // UNSUPPORTED_FLOAT-SAME: %arg8: vector<4xf8E4M3B11FNUZ>
--  // UNSUPPORTED_FLOAT-SAME: %arg9: memref<8xf8E4M3, #spirv.storage_class<StorageBuffer>>
--  // UNSUPPORTED_FLOAT-SAME: %arg10: tensor<4xf8E5M2>
-+  // UNSUPPORTED_FLOAT-SAME: (%arg0: f8E4M3
-+  // UNSUPPORTED_FLOAT-SAME: %arg1: f8E5M2FNUZ
-+  // UNSUPPORTED_FLOAT-SAME: %arg2: f8E4M3FNUZ
-+  // UNSUPPORTED_FLOAT-SAME: %arg3: f8E4M3B11FNUZ
-+  // UNSUPPORTED_FLOAT-SAME: %arg4: f8E3M4
-+  // UNSUPPORTED_FLOAT-SAME: %arg5: f8E8M0FNU
-+  // UNSUPPORTED_FLOAT-SAME: %arg6: vector<4xf8E4M3B11FNUZ>
-+  // UNSUPPORTED_FLOAT-SAME: %arg7: memref<8xf8E4M3, #spirv.storage_class<StorageBuffer>>
-+  // UNSUPPORTED_FLOAT-SAME: %arg8: tensor<4xf8E4M3>
-   // UNSUPPORTED_FLOAT-SAME: ) {
- 
-   func.func @float8_to_integer8(
--    %arg0: f8E5M2,                   // CHECK-NOT: f8E5M2
--    %arg1: f8E4M3,                   // CHECK-NOT: f8E4M3
--    %arg2: f8E4M3FN,                // CHECK-NOT: f8E4M3FN
--    %arg3: f8E5M2FNUZ,              // CHECK-NOT: f8E5M2FNUZ
--    %arg4: f8E4M3FNUZ,              // CHECK-NOT: f8E4M3FNUZ
--    %arg5: f8E4M3B11FNUZ,           // CHECK-NOT: f8E4M3B11FNUZ
--    %arg6: f8E3M4,                  // CHECK-NOT: f8E3M4
--    %arg7: f8E8M0FNU,               // CHECK-NOT: f8E8M0FNU
--    %arg8: vector<4xf8E4M3B11FNUZ>, // CHECK-NOT: vector<4xf8E4M3B11FNUZ>
--    %arg9: memref<8xf8E4M3, #spirv.storage_class<StorageBuffer>>, // CHECK-NOT: memref
--    %arg10: tensor<4xf8E5M2>        // CHECK-NOT: tensor
-+    %arg0: f8E4M3,                   // CHECK-NOT: f8E4M3
-+    %arg1: f8E5M2FNUZ,              // CHECK-NOT: f8E5M2FNUZ
-+    %arg2: f8E4M3FNUZ,              // CHECK-NOT: f8E4M3FNUZ
-+    %arg3: f8E4M3B11FNUZ,           // CHECK-NOT: f8E4M3B11FNUZ
-+    %arg4: f8E3M4,                  // CHECK-NOT: f8E3M4
-+    %arg5: f8E8M0FNU,               // CHECK-NOT: f8E8M0FNU
-+    %arg6: vector<4xf8E4M3B11FNUZ>, // CHECK-NOT: vector<4xf8E4M3B11FNUZ>
-+    %arg7: memref<8xf8E4M3, #spirv.storage_class<StorageBuffer>>, // CHECK-NOT: memref
-+    %arg8: tensor<4xf8E4M3>        // CHECK-NOT: tensor
-   ) {
-     // CHECK: spirv.Return
-     return
-diff --git a/mlir/test/Dialect/SPIRV/Transforms/vce-deduction.mlir b/mlir/test/Dialect/SPIRV/Transforms/vce-deduction.mlir
-index 3b78c2303e6e..b19c1f1dc814 100644
---- a/mlir/test/Dialect/SPIRV/Transforms/vce-deduction.mlir
-+++ b/mlir/test/Dialect/SPIRV/Transforms/vce-deduction.mlir
-@@ -232,7 +232,7 @@ spirv.module Logical GLSL450 attributes {
-   }
- }
- 
--// CHECK: requires #spirv.vce<v1.5, [GraphARM, Int8, TensorsARM, Float16, VulkanMemoryModel], [SPV_ARM_graph, SPV_ARM_tensors, SPV_KHR_vulkan_memory_model]>
-+// CHECK: requires #spirv.vce<v1.5, [GraphARM, Int8, TensorsARM, Float16, VulkanMemoryModel, Shader, Matrix], [SPV_ARM_graph, SPV_ARM_tensors, SPV_KHR_vulkan_memory_model]>
- spirv.module Logical Vulkan attributes {
-   spirv.target_env = #spirv.target_env<
-     #spirv.vce<v1.5, [VulkanMemoryModel, GraphARM, TensorsARM, Float16], [SPV_ARM_tensors, SPV_ARM_graph]>,
