@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2022-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2022-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
@@ -19,6 +19,15 @@ def SerializeVGFPass : Pass<"serialize-vgf", "mlir::vgf::SequenceOp"> {
 def VGFConstantsPass : Pass<"vgf-constants", "mlir::ModuleOp"> {
   let summary = "Serialize TOSA Constants to VGF";
   let description = [{Serialize TOSA MLIR constants to VGF.}];
+}
+
+def AssignGraphARMInterfaceVarABIPass : Pass<"assign-grapharm-interface-var-abi", "mlir::vgf::SequenceOp"> {
+  let summary = "Assign GraphARM ABI carrier attrs to graph segment signatures";
+  let description = [{
+    Computes the sequence-wide binding numbering currently used by VGF serialization
+    and annotates graph segment func.func arguments/results with
+    spv.grapharm.interface_var_abi so tosa-to-spirv can preserve the final ABI.
+  }];
 }
 
 def TosaShapedVerificationPass : Pass<"tosa-shape-verif", "func::FuncOp"> {

@@ -46,34 +46,6 @@ std::optional<ShaderType> toShaderType(const StringRef language) {
     return std::nullopt;
 }
 
-void setGlobalVarOpBindingAndDescriptorSet(spirv::GraphARMOp opGraph, Value operand, uint32_t bindingId) {
-    auto *runSegmentOp = opGraph->getParentOp()->getParentOp()->getNextNode();
-    if (auto moduleOp = llvm::dyn_cast<spirv::ModuleOp>(opGraph->getParentOp())) {
-
-        SmallVector<Value> rangeOperandsAndResults = ValueRange(runSegmentOp->getOperands());
-        rangeOperandsAndResults.append(runSegmentOp->getResults().begin(), runSegmentOp->getResults().end());
-
-        auto *it = std::find(rangeOperandsAndResults.begin(), rangeOperandsAndResults.end(), operand);
-        if (it == rangeOperandsAndResults.end()) {
-            return;
-        }
-        auto operandInterfaceId = std::distance(rangeOperandsAndResults.begin(), it);
-
-        auto graphEntryPointOp = *moduleOp.getBody()->getOps<spirv::GraphEntryPointARMOp>().begin();
-        for (auto globalVarOp : moduleOp.getBody()->getOps<spirv::GlobalVariableOp>()) {
-            if (globalVarOp.getNameAttr().getValue() ==
-                llvm::cast<FlatSymbolRefAttr>(
-                    graphEntryPointOp.getInterface()[static_cast<unsigned>(operandInterfaceId)])
-                    .getValue()) {
-                globalVarOp.setBinding(bindingId);
-                // TODO: DescriptorSet values to be handled correctly, currently they are set to 0
-                globalVarOp.setDescriptorSet(0);
-                return;
-            }
-        }
-    }
-}
-
 class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
   public:
     SerializeVGFPass() : SerializeVGFPass(std::make_shared<VGFBuilder>(), "binary.vgf", {}) {}
@@ -505,19 +477,6 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                 return segmentWalkResult;
             });
         }
-
-        // Resolve Bindings and DescriptorSets in SPIR-V Modules
-        // TODO: This can perhaps be done in a better way
-        sequenceOp.walk([&](vgf::SegmentOp segmentOp) {
-            if (segmentOp.getSegmentType() != vgf::SegmentTypeEnum::GRAPH) {
-                return;
-            }
-            segmentOp.walk([&](spirv::GraphARMOp opGraph) {
-                for (const auto &[operand, bindingSlotRef] : mapOperandsAndBindingRef) {
-                    setGlobalVarOpBindingAndDescriptorSet(opGraph, operand, bindingSlotRef->reference);
-                }
-            });
-        });
 
         uint32_t computeSegmentId = 0;
         uint32_t graphSegmentId = 0;
