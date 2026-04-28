@@ -119,6 +119,7 @@ add_public_tablegen_target(MLIRVGFAttributesIncGen)
 
 set(CONVERTER_PASS_LIB_SOURCES
     "src/conversion/check_sparsity.cpp"
+    "src/conversion/assign_grapharm_interface_var_abi.cpp"
     "src/conversion/dense_resource_inliner.cpp"
     "src/conversion/model_partition_marking.cpp"
     "src/conversion/model_partitioning.cpp"

@@ -115,6 +115,7 @@ void Compiler::SetPassManager() {
 
         _pm.addPass(createCheckConstantSparsityPass());
         _pm.addPass(createVGFConstantsPass(builder));
+        _pm.nest<vgf::SequenceOp>().addPass(createAssignGraphARMInterfaceVarABIPass());
         _pm.addPass(mlir::tosa::createTosaToSPIRV(_options.analysis));
 
         {

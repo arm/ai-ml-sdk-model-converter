@@ -1,6 +1,6 @@
 From: svc_sdk <svc_sdk@arm.com>
 Date: Thu Feb 19 00:00:00 2026
-Subject: llvm-changes-for-model-converter-24-04-2026
+Subject: llvm-changes-for-model-converter-27-04-2026
 
 diff --git a/mlir/include/mlir/Conversion/Passes.h b/mlir/include/mlir/Conversion/Passes.h
 index a54b98004c3b..499633994eb5 100644
@@ -396,7 +396,7 @@ new file mode 100644
 index 000000000000..3b26a077a0df
 --- /dev/null
 +++ b/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRV.cpp
-@@ -0,0 +1,136 @@
+@@ -0,0 +1,170 @@
 +//===- TosaToSPIRV.cpp - Tosa to SPIR-V Patterns --------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -432,9 +432,47 @@ index 000000000000..3b26a077a0df
 +
 +namespace {
 +
++constexpr StringLiteral graphARMInterfaceVarABIAttrName =
++    "spv.grapharm.interface_var_abi";
++
 +struct FuncGraphConvert final : public TosaOpConversionPattern<func::FuncOp> {
 +  using TosaOpConversionPattern<func::FuncOp>::TosaOpConversionPattern;
 +
++private:
++  void setInterfaceVarABIAttr(spirv::GraphARMOp graphOp, MLIRContext *context,
++                              unsigned index, bool isResult,
++                              uint32_t defaultDescriptorSet,
++                              uint32_t defaultBinding) const {
++    auto abiInfo =
++        isResult ? graphOp.getResultAttrOfType<spirv::InterfaceVarABIAttr>(
++                       index, graphARMInterfaceVarABIAttrName)
++                 : graphOp.getArgAttrOfType<spirv::InterfaceVarABIAttr>(
++                       index, graphARMInterfaceVarABIAttrName);
++
++    if (!abiInfo) {
++      abiInfo = isResult
++                    ? graphOp.getResultAttrOfType<spirv::InterfaceVarABIAttr>(
++                          index, spirv::getInterfaceVarABIAttrName())
++                    : graphOp.getArgAttrOfType<spirv::InterfaceVarABIAttr>(
++                          index, spirv::getInterfaceVarABIAttrName());
++    }
++
++    if (!abiInfo) {
++      abiInfo = spirv::InterfaceVarABIAttr::get(
++          defaultDescriptorSet, defaultBinding, std::nullopt, context);
++    }
++
++    if (isResult) {
++      graphOp.setResultAttr(index, spirv::getInterfaceVarABIAttrName(),
++                            abiInfo);
++      graphOp.removeResultAttr(index, graphARMInterfaceVarABIAttrName);
++    } else {
++      graphOp.setArgAttr(index, spirv::getInterfaceVarABIAttrName(), abiInfo);
++      graphOp.removeArgAttr(index, graphARMInterfaceVarABIAttrName);
++    }
++  }
++
++public:
 +  LogicalResult
 +  matchAndRewrite(func::FuncOp funcOp, func::FuncOpAdaptor adaptor,
 +                  ConversionPatternRewriter &rewriter) const override {
@@ -490,20 +528,16 @@ index 000000000000..3b26a077a0df
 +        descriptorSet = static_cast<uint32_t>(descriptorSetAttr.getUInt());
 +      }
 +
-+      StringRef varABIAttrName = spirv::getInterfaceVarABIAttrName();
 +      unsigned inputs = ftype.getNumInputs();
 +      unsigned outputs = ftype.getNumResults();
++ 
 +      for (auto argIndex : llvm::seq<unsigned>(0, inputs)) {
-+        uint32_t binding = argIndex;
-+        auto abiInfo = spirv::InterfaceVarABIAttr::get(descriptorSet, binding,
-+                                                       std::nullopt, context);
-+        graphOp.setArgAttr(argIndex, varABIAttrName, abiInfo);
++        setInterfaceVarABIAttr(graphOp, context, argIndex, false, descriptorSet,
++                               argIndex);
 +      }
 +      for (auto resIndex : llvm::seq<unsigned>(0, outputs)) {
-+        uint32_t binding = resIndex + inputs;
-+        auto abiInfo = spirv::InterfaceVarABIAttr::get(descriptorSet, binding,
-+                                                       std::nullopt, context);
-+        graphOp.setResultAttr(resIndex, varABIAttrName, abiInfo);
++        setInterfaceVarABIAttr(graphOp, context, resIndex, true, descriptorSet,
++                               resIndex + inputs);
 +      }
 +    }
 +
