@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
+#include "include/custom_op_domains.hpp"
 #include "include/passes.hpp"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -55,6 +56,10 @@ struct TosaCustomOpRewriter : public OpConversionPattern<tosa::CustomOp> {
 
     LogicalResult matchAndRewrite(tosa::CustomOp customOp, OpAdaptor adaptor,
                                   ConversionPatternRewriter &rewriter) const override {
+        if (!isVulkanCustomShaderOp(customOp)) {
+            return failure();
+        }
+
         json map;
         try {
             map = json::parse(adaptor.getImplementationAttrs().str());
@@ -402,7 +407,8 @@ class ModelPartitioningPass : public impl::ModelPartitioningPassBase<ModelPartit
                 const FunctionType segmentFunctionType =
                     builder.getFunctionType(ValueRange(inputs).getTypes(), ValueRange(results).getTypes());
 
-                bool isComputeSegment = partitionOps.size() == 1 && llvm::isa<tosa::CustomOp>(partitionOps[0]);
+                bool isComputeSegment = partitionOps.size() == 1 && llvm::isa<tosa::CustomOp>(partitionOps[0]) &&
+                                        isVulkanCustomShaderOp(llvm::cast<tosa::CustomOp>(partitionOps[0]));
                 const auto segmentType = isComputeSegment ? vgf::SegmentTypeEnum::COMPUTE : vgf::SegmentTypeEnum::GRAPH;
 
                 auto segmentOp = vgf::SegmentOp::create(builder, funcOp.getLoc(), segmentName, segmentType,
@@ -479,7 +485,7 @@ class ModelPartitioningPass : public impl::ModelPartitioningPassBase<ModelPartit
             [](func::FuncOp op) { return !llvm::isa<ModuleOp>(op->getParentOp()); });
         target.addDynamicallyLegalOp<func::ReturnOp>(
             [](func::ReturnOp op) { return !llvm::isa<ModuleOp>(op->getParentOp()->getParentOp()); });
-        target.addIllegalOp<tosa::CustomOp>();
+        target.addDynamicallyLegalOp<tosa::CustomOp>([](tosa::CustomOp op) { return !isVulkanCustomShaderOp(op); });
         target.addLegalDialect<vgf::VGFDialect, func::FuncDialect>();
         RewritePatternSet patterns(context);
         patterns.add<FuncOpRewriter, ReturnOpRewriter>(context);
