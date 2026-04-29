@@ -19,6 +19,11 @@
 - Refreshed pre-commit dependencies and corrected developer-facing docs/tooling
   paths.
 
+### Bug Fixes
+
+- Fixed an LLVM patch bug in the converter toolchain.
+- Fixed the README `tooling-requirements` path typo.
+
 ## Version 0.8.0 – *Toolchain Refresh & Packaging Expansion*
 
 ### Converter & Toolchain
@@ -42,6 +47,13 @@
 
 - Added Darwin targets for AArch64 to the pip packaging matrix.
 - Refreshed SBOM data and adopted usage of `REUSE.toml`.
+
+### Bug Fixes
+
+- Fixed missing package version initialization and bad package naming in pip
+  builds.
+- Fixed SDK-root `--install` packaging failures and pip package exit-code
+  propagation.
 
 ### Supported Platforms
 
