@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
+#include "include/custom_op_domains.hpp"
 #include "include/passes.hpp"
 
 #include <algorithm>
@@ -38,7 +39,8 @@ class ModelPartitionMarkingPass : public impl::ModelPartitionMarkingPassBase<Mod
             op->setAttr("graph_partition_leaf_node", BoolAttr::get(op->getContext(), false));
 
             int64_t partitionId{-1};
-            if (llvm::isa<mlir::tosa::CustomOp>(op)) {
+            if (auto customOp = llvm::dyn_cast<mlir::tosa::CustomOp>(op);
+                customOp && isVulkanCustomShaderOp(customOp)) {
                 partitionId = highestPartitionId + 1;
                 op->setAttr("graph_partition_leaf_node", BoolAttr::get(op->getContext(), true));
                 for (auto operand : op->getOperands()) {
@@ -52,7 +54,8 @@ class ModelPartitionMarkingPass : public impl::ModelPartitionMarkingPassBase<Mod
                 for (auto operand : op->getOperands()) {
                     if (Operation *input = operand.getDefiningOp()) {
                         int64_t parentPartitionId = input->getAttrOfType<IntegerAttr>("graph_partition_id").getInt();
-                        if (llvm::isa<mlir::tosa::CustomOp>(input)) {
+                        if (auto parentCustomOp = llvm::dyn_cast<mlir::tosa::CustomOp>(input);
+                            parentCustomOp && isVulkanCustomShaderOp(parentCustomOp)) {
                             parentPartitionId = std::max(highestPartitionId, parentPartitionId + 1);
                         }
                         partitionId = std::max(partitionId, parentPartitionId);
