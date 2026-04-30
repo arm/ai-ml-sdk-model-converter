@@ -37,6 +37,7 @@ endif()
 
 option(MODEL_CONVERTER_ENABLE_CCACHE "Enable CCACHE support" OFF)
 option(MODEL_CONVERTER_BUILD_DOCS "Build documentation" OFF)
+option(MODEL_CONVERTER_BUILD_TESTS "Build Model Converter tests" OFF)
 option(MODEL_CONVERTER_ENABLE_COVERAGE "Enable coverage build" OFF)
 option(MODEL_CONVERTER_ENABLE_LTO "Enable Link Time Optimization when CMAKE_BUILD_TYPE=Release" ON)
 set(MODEL_CONVERTER_LOG_TRACE_MASK "" CACHE STRING "Log trace enable mask")
@@ -206,8 +207,10 @@ if(ML_SDK_BUILD_DOCS OR MODEL_CONVERTER_BUILD_DOCS)
 endif()
 unset(MODEL_CONVERTER_BUILD_DOCS CACHE)
 
-# pytest tests depend on vgf_dump
-add_custom_target(model-converter-tests ALL DEPENDS VGF::vgf_dump)
+if(MODEL_CONVERTER_BUILD_TESTS)
+    # pytest tests depend on vgf_dump
+    add_custom_target(model-converter-tests ALL DEPENDS VGF::vgf_dump)
+endif()
 
 ###############################################################################
 # Packaging
@@ -224,16 +227,21 @@ endif()
 ###############################################################################
 # MLIR Optimizer
 ###############################################################################
-add_llvm_executable(model-converter-opt src/opt.cpp)
+if(MODEL_CONVERTER_BUILD_TESTS)
+    add_llvm_executable(model-converter-opt src/opt.cpp)
 
-target_include_directories(model-converter-opt PRIVATE src)
-target_include_directories(model-converter-opt SYSTEM PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+    target_include_directories(model-converter-opt PRIVATE src)
+    target_include_directories(model-converter-opt SYSTEM PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
-target_link_libraries(model-converter-opt PRIVATE
-    MLIROptLib
-    model-converter-passes-lib)
+    target_link_libraries(model-converter-opt PRIVATE
+        MLIROptLib
+        model-converter-passes-lib)
 
-add_dependencies(model-converter-opt model-converter-passes-lib)
+    add_dependencies(model-converter-opt model-converter-passes-lib)
 
-llvm_update_compile_flags(model-converter-opt)
-mlir_check_all_link_libraries(model-converter-opt)
+    llvm_update_compile_flags(model-converter-opt)
+    mlir_check_all_link_libraries(model-converter-opt)
+
+    add_subdirectory(test/lit)
+endif()
+unset(MODEL_CONVERTER_BUILD_TESTS CACHE)
