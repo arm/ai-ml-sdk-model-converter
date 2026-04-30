@@ -208,8 +208,7 @@ endif()
 unset(MODEL_CONVERTER_BUILD_DOCS CACHE)
 
 if(MODEL_CONVERTER_BUILD_TESTS)
-    # pytest tests depend on vgf_dump
-    add_custom_target(model-converter-tests ALL DEPENDS VGF::vgf_dump)
+    add_custom_target(model-converter-tests ALL DEPENDS vgfpy)
 endif()
 
 ###############################################################################

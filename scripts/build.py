@@ -49,6 +49,7 @@ class Builder:
         self.flatbuffers_path = args.flatbuffers_path
         self.tosa_tools_path = args.tosa_tools_path
         self.argparse_path = args.argparse_path
+        self.pybind11_path = args.pybind11_path
         self.doc = args.doc
         self.lint = args.lint
         self.enable_sanitizers = args.enable_sanitizers
@@ -178,6 +179,9 @@ class Builder:
 
         if self.argparse_path:
             cmake_setup_cmd.append(f"-DARGPARSE_PATH={self.argparse_path}")
+
+        if self.pybind11_path:
+            cmake_setup_cmd.append(f"-DPYBIND11_PATH={self.pybind11_path}")
 
         if self.lint:
             cmake_setup_cmd.append("-DCMAKE_EXPORT_COMPILE_COMMANDS=ON")
@@ -430,6 +434,11 @@ def parse_arguments():
         "--tosa-tools-path",
         help="Path to the TOSA Tools repo",
         default=f"{DEPENDENCY_DIR / 'tosa-tools'}",
+    )
+    parser.add_argument(
+        "--pybind11-path",
+        help="Path to pybind11 repo",
+        default=f"{DEPENDENCY_DIR / 'pybind11'}",
     )
     parser.add_argument(
         "--doc",

@@ -6,6 +6,7 @@
 import os
 import pathlib
 import platform
+import sys
 
 import pytest
 
@@ -41,19 +42,16 @@ def exe_path(build_path, exe_name):
 
 
 @pytest.fixture
-def vgf_dump_exe_path(request):
-    model_converter_build_path = request.config.getoption("--build-dir")
-    vgf_build_path = os.path.join(model_converter_build_path, "vgf-lib", "vgf_dump")
-    return exe_path(vgf_build_path, "vgf_dump")
-
-
-@pytest.fixture
 def model_converter_exe_path(request):
     model_converter_build_path = request.config.getoption("--build-dir")
     return exe_path(model_converter_build_path, "model-converter")
 
 
 def pytest_configure(config):
+    model_converter_build_path = config.getoption("--build-dir")
+    vgf_pylib_path = pathlib.Path(model_converter_build_path) / "vgf-lib" / "src"
+    sys.path.append(str(vgf_pylib_path))
+
     if config.getoption("--sanitizers") and platform.system() == "Windows":
         asan_dll_path = os.getenv("ASAN_DLL_PATH")
         if asan_dll_path is None or asan_dll_path == "":
