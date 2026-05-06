@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# SPDX-FileCopyrightText: Copyright 2023-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+# SPDX-FileCopyrightText: Copyright 2023-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 # SPDX-License-Identifier: Apache-2.0
 #
 import os
@@ -51,12 +51,6 @@ def vgf_dump_exe_path(request):
 def model_converter_exe_path(request):
     model_converter_build_path = request.config.getoption("--build-dir")
     return exe_path(model_converter_build_path, "model-converter")
-
-
-@pytest.fixture
-def opt_exe_path(request):
-    model_converter_build_path = request.config.getoption("--build-dir")
-    return exe_path(model_converter_build_path, "model-converter-opt")
 
 
 def pytest_configure(config):

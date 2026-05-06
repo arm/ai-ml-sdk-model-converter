@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 #
-# SPDX-FileCopyrightText: Copyright 2022-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+# SPDX-FileCopyrightText: Copyright 2022-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 import argparse
@@ -183,6 +183,8 @@ class Builder:
             cmake_setup_cmd.append("-DCMAKE_EXPORT_COMPILE_COMMANDS=ON")
         if self.doc:
             cmake_setup_cmd.append("-DMODEL_CONVERTER_BUILD_DOCS=ON")
+        if self.run_tests:
+            cmake_setup_cmd.append("-DMODEL_CONVERTER_BUILD_TESTS=ON")
 
         if self.enable_sanitizers:
             if self.target_platform != "host":
@@ -297,6 +299,19 @@ class Builder:
                 if self.enable_sanitizers:
                     pytest_cmd.append("--sanitizers")
                 subprocess.run(pytest_cmd, cwd=MODEL_CONVERTER_DIR, check=True)
+
+                lit_cmd = [
+                    "cmake",
+                    "--build",
+                    self.build_dir,
+                    "--target",
+                    "check-model-converter-lit",
+                    "-j",
+                    str(self.threads),
+                    "--config",
+                    self.build_type,
+                ]
+                subprocess.run(lit_cmd, check=True)
 
             if self.package_tgz:
                 self.generate_cmake_package("TGZ")
