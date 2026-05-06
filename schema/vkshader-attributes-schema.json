@@ -4,6 +4,76 @@
   "title": "Vulkan Shader in TOSA Custom Operation Attributes",
   "type": "object",
   "description": "Schema describing attributes for embedding a Vulkan shader inside a TOSA custom operation. This includes entry point definition, workgroup configuration, shader source or binary (SPIR-V), and Vulkan resource binding metadata.",
+  "$defs": {
+    "sampler_config": {
+      "type": "object",
+      "description": "Optional sampler configuration for a sampled image resource. If present, all sampler fields are required.",
+      "properties": {
+        "min_filter": {
+          "type": "string",
+          "enum": [
+            "VK_FILTER_NEAREST",
+            "VK_FILTER_LINEAR",
+            "VK_FILTER_CUBIC_IMG"
+          ],
+          "description": "Sampler minification filter."
+        },
+        "mag_filter": {
+          "type": "string",
+          "enum": [
+            "VK_FILTER_NEAREST",
+            "VK_FILTER_LINEAR",
+            "VK_FILTER_CUBIC_IMG"
+          ],
+          "description": "Sampler magnification filter."
+        },
+        "address_mode_u": {
+          "type": "string",
+          "enum": [
+            "VK_SAMPLER_ADDRESS_MODE_REPEAT",
+            "VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT",
+            "VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE",
+            "VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER",
+            "VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE"
+          ],
+          "description": "Sampler address mode in the U dimension."
+        },
+        "address_mode_v": {
+          "type": "string",
+          "enum": [
+            "VK_SAMPLER_ADDRESS_MODE_REPEAT",
+            "VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT",
+            "VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE",
+            "VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER",
+            "VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE"
+          ],
+          "description": "Sampler address mode in the V dimension."
+        },
+        "border_color": {
+          "type": "string",
+          "enum": [
+            "VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK",
+            "VK_BORDER_COLOR_INT_TRANSPARENT_BLACK",
+            "VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK",
+            "VK_BORDER_COLOR_INT_OPAQUE_BLACK",
+            "VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE",
+            "VK_BORDER_COLOR_INT_OPAQUE_WHITE",
+            "VK_BORDER_COLOR_FLOAT_CUSTOM_EXT",
+            "VK_BORDER_COLOR_INT_CUSTOM_EXT"
+          ],
+          "description": "Sampler border color."
+        }
+      },
+      "required": [
+        "min_filter",
+        "mag_filter",
+        "address_mode_u",
+        "address_mode_v",
+        "border_color"
+      ],
+      "additionalProperties": false
+    }
+  },
   "properties": {
     "entry_point": {
       "type": "string",
@@ -95,6 +165,9 @@
       "type": "integer",
       "minimum": 0,
       "description": "Descriptor set index of the indexed input/output."
+    },
+    "^(input|output)_(0|[1-9]\\d*)_sampler$": {
+      "$ref": "#/$defs/sampler_config"
     }
   },
   "required": [
