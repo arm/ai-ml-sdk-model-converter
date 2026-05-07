@@ -1,43 +1,45 @@
 From: svc_sdk <svc_sdk@arm.com>
 Date: Thu Feb 19 00:00:00 2026
-Subject: llvm-changes-for-model-converter-27-04-2026
+Subject: llvm-changes-for-model-converter-05-05-2026
 
 diff --git a/mlir/include/mlir/Conversion/Passes.h b/mlir/include/mlir/Conversion/Passes.h
-index a54b98004c3b..499633994eb5 100644
+index a54b98004c3b..07b5fc6e4f80 100644
 --- a/mlir/include/mlir/Conversion/Passes.h
 +++ b/mlir/include/mlir/Conversion/Passes.h
 @@ -76,6 +76,8 @@
  #include "mlir/Conversion/TosaToLinalg/TosaToLinalg.h"
  #include "mlir/Conversion/TosaToMLProgram/TosaToMLProgram.h"
  #include "mlir/Conversion/TosaToSCF/TosaToSCF.h"
-+#include "mlir/Conversion/TosaToSPIRV/TosaToSPIRV.h"
-+#include "mlir/Conversion/TosaToSPIRV/ConvertTosaConstants.h"
++#include "mlir/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosa.h"
++#include "mlir/Conversion/TosaToSPIRVTosa/ConvertTosaConstants.h"
  #include "mlir/Conversion/TosaToTensor/TosaToTensor.h"
  #include "mlir/Conversion/UBToLLVM/UBToLLVM.h"
  #include "mlir/Conversion/UBToSPIRV/UBToSPIRV.h"
 diff --git a/mlir/include/mlir/Conversion/Passes.td b/mlir/include/mlir/Conversion/Passes.td
-index d401b56c7602..17fe3c66709c 100644
+index d401b56c7602..f36a055f518c 100644
 --- a/mlir/include/mlir/Conversion/Passes.td
 +++ b/mlir/include/mlir/Conversion/Passes.td
-@@ -1410,6 +1410,38 @@ def TosaToSCFPass : Pass<"tosa-to-scf"> {
+@@ -1410,6 +1410,40 @@ def TosaToSCFPass : Pass<"tosa-to-scf"> {
    }];
  }
- 
+
 +//===----------------------------------------------------------------------===//
-+// TosaToSPIRV
++// TosaToSPIRVTosa
 +//===----------------------------------------------------------------------===//
 +
-+def TosaToSPIRV : Pass<"tosa-to-spirv"> {
-+  let summary = "Lower TOSA to the SPIR-V dialect";
++def TosaToSPIRVTosa : Pass<"tosa-to-spirv-tosa"> {
++  let summary = "Lower TOSA IR to SPIR-V Graph/TOSA operations";
 +  let dependentDialects = [
 +    "spirv::SPIRVDialect",
 +  ];
 +  let description = [{
-+    Pass that converts TOSA operations to the equivalent operations using the
-+    operations in the SPIR-V dialect.
++    Converts TOSA programs to the SPIR-V Graph/TOSA representation by
++    wrapping converted functions in `spirv.module` and `spirv.ARM.Graph`
++    operations, lowering supported TOSA ops to `spirv.Tosa.*`, and rewriting
++    TOSA tensor and shape types to the corresponding SPIR-V ARM tensor types.
 +  }];
 +
-+  let constructor = "tosa::createTosaToSPIRV()";
++  let constructor = "tosa::createTosaToSPIRVTosa()";
 +}
 +
 +//===----------------------------------------------------------------------===//
@@ -58,13 +60,13 @@ index d401b56c7602..17fe3c66709c 100644
  //===----------------------------------------------------------------------===//
  // TosaToTensor
  //===----------------------------------------------------------------------===//
-diff --git a/mlir/include/mlir/Conversion/TosaToSPIRV/ConvertTosaConstants.h b/mlir/include/mlir/Conversion/TosaToSPIRV/ConvertTosaConstants.h
+diff --git a/mlir/include/mlir/Conversion/TosaToSPIRVTosa/ConvertTosaConstants.h b/mlir/include/mlir/Conversion/TosaToSPIRVTosa/ConvertTosaConstants.h
 new file mode 100644
-index 000000000000..e2a62789c51b
+index 000000000000..be2838333f9b
 --- /dev/null
-+++ b/mlir/include/mlir/Conversion/TosaToSPIRV/ConvertTosaConstants.h
++++ b/mlir/include/mlir/Conversion/TosaToSPIRVTosa/ConvertTosaConstants.h
 @@ -0,0 +1,32 @@
-+//===-- TosaToSPIRV.h - TOSA to SPIR-V patterns -----------------*- C++ -*-===//
++//===-- ConvertTosaConstants.h - TOSA to SPIR-V graph constants --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 +// See https://llvm.org/LICENSE.txt for license information.
@@ -72,12 +74,12 @@ index 000000000000..e2a62789c51b
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// Pass to Convert Tosa Constants to SPIR-V graph constants.
++// Pass to convert TOSA constants to SPIR-V graph constants.
 +//
 +//===----------------------------------------------------------------------===//
 +
-+#ifndef MLIR_CONVERSION_TOSATOSPIRV_CONVERTTOSACONSTANTS_H
-+#define MLIR_CONVERSION_TOSATOSPIRV_CONVERTTOSACONSTANTS_H
++#ifndef MLIR_CONVERSION_TOSATOSPIRVTOSA_CONVERTTOSACONSTANTS_H
++#define MLIR_CONVERSION_TOSATOSPIRVTOSA_CONVERTTOSACONSTANTS_H
 +
 +#include "mlir/Dialect/Func/IR/FuncOps.h"
 +#include "mlir/Pass/Pass.h"
@@ -95,14 +97,14 @@ index 000000000000..e2a62789c51b
 +} // namespace tosa
 +} // namespace mlir
 +
-+#endif // MLIR_CONVERSION_TOSATOSPIRV_CONVERTTOSACONSTANTS_H
-diff --git a/mlir/include/mlir/Conversion/TosaToSPIRV/TosaToSPIRV.h b/mlir/include/mlir/Conversion/TosaToSPIRV/TosaToSPIRV.h
++#endif // MLIR_CONVERSION_TOSATOSPIRVTOSA_CONVERTTOSACONSTANTS_H
+diff --git a/mlir/include/mlir/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosa.h b/mlir/include/mlir/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosa.h
 new file mode 100644
-index 000000000000..20fb9ef11a42
+index 000000000000..dede68df0392
 --- /dev/null
-+++ b/mlir/include/mlir/Conversion/TosaToSPIRV/TosaToSPIRV.h
-@@ -0,0 +1,36 @@
-+//===-- TosaToSPIRV.h - TOSA to SPIR-V patterns -----------------*- C++ -*-===//
++++ b/mlir/include/mlir/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosa.h
+@@ -0,0 +1,37 @@
++//===-- TosaToSPIRVTosa.h - TOSA to SPIR-V Graph/TOSA patterns --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 +// See https://llvm.org/LICENSE.txt for license information.
@@ -110,56 +112,57 @@ index 000000000000..20fb9ef11a42
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// Provides patterns to convert Tosa dialect to SPIR-V dialect.
++// Provides pass and patterns to lower TOSA IR to SPIR-V Graph/TOSA
++// operations.
 +//
 +//===----------------------------------------------------------------------===//
 +
-+#ifndef MLIR_CONVERSION_TOSATOSPIRV_TOSATOSPIRV_H
-+#define MLIR_CONVERSION_TOSATOSPIRV_TOSATOSPIRV_H
++#ifndef MLIR_CONVERSION_TOSATOSPIRVTOSA_TOSATOSPIRVTOSA_H
++#define MLIR_CONVERSION_TOSATOSPIRVTOSA_TOSATOSPIRVTOSA_H
 +
 +#include "mlir/Dialect/SPIRV/Transforms/SPIRVConversion.h"
 +#include "mlir/Pass/Pass.h"
 +
 +namespace mlir {
 +
-+#define GEN_PASS_DECL_TOSATOSPIRV
++#define GEN_PASS_DECL_TOSATOSPIRVTOSA
 +#include "mlir/Conversion/Passes.h.inc"
 +
 +namespace tosa {
 +
-+std::unique_ptr<Pass> createTosaToSPIRV(bool analysis = false);
++std::unique_ptr<Pass> createTosaToSPIRVTosa(bool analysis = false);
 +
-+void populateTosaToSPIRVConversionPatterns(SPIRVTypeConverter &typeConverter,
-+                                           RewritePatternSet &patterns);
-+void populateTosaToSPIRVOpsConversionPatterns(SPIRVTypeConverter &typeConverter,
-+                                              RewritePatternSet &patterns);
++void populateTosaToSPIRVTosaConversionPatterns(
++    SPIRVTypeConverter &typeConverter, RewritePatternSet &patterns);
++void populateTosaToSPIRVTosaOpsConversionPatterns(
++    SPIRVTypeConverter &typeConverter, RewritePatternSet &patterns);
 +
 +} // namespace tosa
 +} // namespace mlir
 +
-+#endif // MLIR_CONVERSION_TOSATOSPIRV_TOSATOSPIRV_H
++#endif // MLIR_CONVERSION_TOSATOSPIRVTOSA_TOSATOSPIRVTOSA_H
 diff --git a/mlir/lib/Conversion/CMakeLists.txt b/mlir/lib/Conversion/CMakeLists.txt
-index e17988b12cad..2663b2c2a33c 100644
+index e17988b12cad..f5e0bcf613e5 100644
 --- a/mlir/lib/Conversion/CMakeLists.txt
 +++ b/mlir/lib/Conversion/CMakeLists.txt
 @@ -69,6 +69,7 @@ add_subdirectory(TosaToArith)
  add_subdirectory(TosaToLinalg)
  add_subdirectory(TosaToMLProgram)
  add_subdirectory(TosaToSCF)
-+add_subdirectory(TosaToSPIRV)
++add_subdirectory(TosaToSPIRVTosa)
  add_subdirectory(TosaToTensor)
  add_subdirectory(UBToLLVM)
  add_subdirectory(UBToSPIRV)
-diff --git a/mlir/lib/Conversion/TosaToSPIRV/CMakeLists.txt b/mlir/lib/Conversion/TosaToSPIRV/CMakeLists.txt
+diff --git a/mlir/lib/Conversion/TosaToSPIRVTosa/CMakeLists.txt b/mlir/lib/Conversion/TosaToSPIRVTosa/CMakeLists.txt
 new file mode 100644
-index 000000000000..75b534ff8973
+index 000000000000..e971c97a001b
 --- /dev/null
-+++ b/mlir/lib/Conversion/TosaToSPIRV/CMakeLists.txt
++++ b/mlir/lib/Conversion/TosaToSPIRVTosa/CMakeLists.txt
 @@ -0,0 +1,23 @@
-+add_mlir_conversion_library(MLIRTosaToSPIRV
-+  TosaToSPIRV.cpp
-+  TosaToSPIRVOps.cpp
-+  TosaToSPIRVPass.cpp
++add_mlir_conversion_library(MLIRTosaToSPIRVTosa
++  TosaToSPIRVTosa.cpp
++  TosaToSPIRVTosaOps.cpp
++  TosaToSPIRVTosaPass.cpp
 +  ConvertTosaConstants.cpp
 +  # FIXME: Avoid linking a share lib by compiling in the single cpp file needed
 +  ${MLIR_MAIN_SRC_DIR}/lib/ExecutionEngine/Float16bits.cpp
@@ -179,13 +182,13 @@ index 000000000000..75b534ff8973
 +  MLIRTosaTransforms
 +  MLIRSupport
 +)
-diff --git a/mlir/lib/Conversion/TosaToSPIRV/ConvertTosaConstants.cpp b/mlir/lib/Conversion/TosaToSPIRV/ConvertTosaConstants.cpp
+diff --git a/mlir/lib/Conversion/TosaToSPIRVTosa/ConvertTosaConstants.cpp b/mlir/lib/Conversion/TosaToSPIRVTosa/ConvertTosaConstants.cpp
 new file mode 100644
-index 000000000000..b7498adf7fe9
+index 000000000000..690771d3dd6e
 --- /dev/null
-+++ b/mlir/lib/Conversion/TosaToSPIRV/ConvertTosaConstants.cpp
-@@ -0,0 +1,206 @@
-+//===- ConvertTosaConstants.cpp - Tosa constant to SPIR-V constant pass ---===//
++++ b/mlir/lib/Conversion/TosaToSPIRVTosa/ConvertTosaConstants.cpp
+@@ -0,0 +1,209 @@
++//===- ConvertTosaConstants.cpp - TOSA to SPIR-V graph constant pass ------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 +// See https://llvm.org/LICENSE.txt for license information.
@@ -193,7 +196,7 @@ index 000000000000..b7498adf7fe9
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// This file implements pass to convert Tosa dialect constants to SPIRV dialect
++// This file implements a pass to convert TOSA constants to SPIR-V graph
 +// constants.
 +//
 +//===----------------------------------------------------------------------===//
@@ -213,19 +216,13 @@ index 000000000000..b7498adf7fe9
 +#include "mlir/Conversion/Passes.h.inc"
 +
 +namespace tosa {
++namespace {
 +
 +static constexpr uint32_t SPIRV_CONSTANT_MAX_SIZE_FOR_TOSA_CONST = 16;
 +static constexpr uint32_t SPIRV_CONSTANT_MAX_SIZE_FOR_TOSA_CONST_SHAPE = 32;
 +
 +static constexpr llvm::StringLiteral graphConstAttrName =
 +    "spirv_graph_constant_id";
-+
-+std::optional<uint32_t> getGraphIdForConst(Operation *op) {
-+  if (auto attr = op->getAttrOfType<IntegerAttr>(graphConstAttrName)) {
-+    return static_cast<uint32_t>(attr.getInt());
-+  }
-+  return std::nullopt;
-+}
 +
 +void setGraphIdForConst(Operation *op, uint32_t id) {
 +  const Type tI32 = IntegerType::get(op->getContext(), 32);
@@ -385,19 +382,28 @@ index 000000000000..b7498adf7fe9
 +  return success();
 +}
 +
++} // namespace
++
++std::optional<uint32_t> getGraphIdForConst(Operation *op) {
++  if (auto attr = op->getAttrOfType<IntegerAttr>(graphConstAttrName)) {
++    return static_cast<uint32_t>(attr.getInt());
++  }
++  return std::nullopt;
++}
++
 +std::unique_ptr<Pass> createConvertTosaConstantsPass() {
 +  return std::make_unique<ConvertTosaConstantsPass>();
 +}
 +
 +} // namespace tosa
 +} // namespace mlir
-diff --git a/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRV.cpp b/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRV.cpp
+diff --git a/mlir/lib/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosa.cpp b/mlir/lib/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosa.cpp
 new file mode 100644
-index 000000000000..3b26a077a0df
+index 000000000000..b43a50389cf5
 --- /dev/null
-+++ b/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRV.cpp
-@@ -0,0 +1,170 @@
-+//===- TosaToSPIRV.cpp - Tosa to SPIR-V Patterns --------------------------===//
++++ b/mlir/lib/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosa.cpp
+@@ -0,0 +1,168 @@
++//===- TosaToSPIRVTosa.cpp - TOSA to SPIR-V Graph/TOSA patterns -----------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 +// See https://llvm.org/LICENSE.txt for license information.
@@ -405,11 +411,11 @@ index 000000000000..3b26a077a0df
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// This file implements patterns to convert Tosa dialect to SPIRV dialect.
++// This file implements patterns to convert TOSA IR to SPIR-V Graph/TOSA.
 +//
 +//===----------------------------------------------------------------------===//
 +
-+#include "mlir/Conversion/TosaToSPIRV/TosaToSPIRV.h"
++#include "mlir/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosa.h"
 +#include "mlir/Dialect/Func/IR/FuncOps.h"
 +#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 +#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
@@ -419,17 +425,12 @@ index 000000000000..3b26a077a0df
 +#include "llvm/ADT/ArrayRef.h"
 +#include "llvm/Support/FormatVariadic.h"
 +
-+#include "TosaToSPIRVBasePattern.h"
++#include "TosaToSPIRVTosaBasePattern.h"
++
++#define DEBUG_TYPE "tosa-to-spirv-tosa-pattern"
 +
 +namespace mlir {
-+#define GEN_PASS_DEF_CONVERTTOSATOSPIRV
-+#include "mlir/Conversion/Passes.h.inc"
-+} // namespace mlir
-+
-+#define DEBUG_TYPE "tosa-to-spirv-pattern"
-+using namespace mlir;
-+using namespace tosa;
-+
++namespace tosa {
 +namespace {
 +
 +constexpr StringLiteral graphARMInterfaceVarABIAttrName =
@@ -530,7 +531,7 @@ index 000000000000..3b26a077a0df
 +
 +      unsigned inputs = ftype.getNumInputs();
 +      unsigned outputs = ftype.getNumResults();
-+ 
++
 +      for (auto argIndex : llvm::seq<unsigned>(0, inputs)) {
 +        setInterfaceVarABIAttr(graphOp, context, argIndex, false, descriptorSet,
 +                               argIndex);
@@ -562,18 +563,21 @@ index 000000000000..3b26a077a0df
 +
 +} // namespace
 +
-+void mlir::tosa::populateTosaToSPIRVConversionPatterns(
++void populateTosaToSPIRVTosaConversionPatterns(
 +    SPIRVTypeConverter &typeConverter, RewritePatternSet &patterns) {
 +  patterns.add<FuncGraphConvert, ReturnGraphOutputConvert>(
 +      typeConverter, patterns.getContext());
 +}
-diff --git a/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVBasePattern.h b/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVBasePattern.h
++
++} // namespace tosa
++} // namespace mlir
+diff --git a/mlir/lib/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosaBasePattern.h b/mlir/lib/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosaBasePattern.h
 new file mode 100644
-index 000000000000..57444441e38b
+index 000000000000..e5a9a05a697e
 --- /dev/null
-+++ b/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVBasePattern.h
-@@ -0,0 +1,139 @@
-+//===-- TosaToSPIRVBasePattern.h - TOSA to SPIR-V patterns ------*- C++ -*-===//
++++ b/mlir/lib/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosaBasePattern.h
+@@ -0,0 +1,141 @@
++//===-- TosaToSPIRVTosaBasePattern.h - TOSA to SPIR-V Graph/TOSA patterns --*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 +// See https://llvm.org/LICENSE.txt for license information.
@@ -581,14 +585,14 @@ index 000000000000..57444441e38b
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// Provides base pattern to convert Tosa dialect to SPIR-V dialect.
++// Provides base patterns to convert TOSA IR to SPIR-V Graph/TOSA.
 +//
 +//===----------------------------------------------------------------------===//
 +
-+#ifndef MLIR_CONVERSION_TOSATOSPIRV_TOSATOSPIRVBASEPATTERN_H
-+#define MLIR_CONVERSION_TOSATOSPIRV_TOSATOSPIRVBASEPATTERN_H
++#ifndef MLIR_CONVERSION_TOSATOSPIRVTOSA_TOSATOSPIRVTOSABASEPATTERN_H
++#define MLIR_CONVERSION_TOSATOSPIRVTOSA_TOSATOSPIRVTOSABASEPATTERN_H
 +
-+#include "mlir/Conversion/TosaToSPIRV/TosaToSPIRV.h"
++#include "mlir/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosa.h"
 +#include "mlir/Dialect/SPIRV/IR/SPIRVEnums.h"
 +#include "mlir/Dialect/Tosa/IR/TosaOps.h"
 +#include "mlir/ExecutionEngine/Float16bits.h"
@@ -596,6 +600,7 @@ index 000000000000..57444441e38b
 +#include "mlir/Transforms/DialectConversion.h"
 +
 +namespace mlir {
++namespace tosa {
 +
 +static constexpr unsigned MAX_CONTACT_OP_INPUTS = 64;
 +
@@ -709,16 +714,17 @@ index 000000000000..57444441e38b
 +  }
 +};
 +
++} // namespace tosa
 +} // namespace mlir
 +
-+#endif // MLIR_CONVERSION_TOSATOSPIRV_TOSATOSPIRVBASEPATTERN_H
-diff --git a/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVOps.cpp b/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVOps.cpp
++#endif // MLIR_CONVERSION_TOSATOSPIRVTOSA_TOSATOSPIRVTOSABASEPATTERN_H
+diff --git a/mlir/lib/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosaOps.cpp b/mlir/lib/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosaOps.cpp
 new file mode 100644
-index 000000000000..b6fe4f78fece
+index 000000000000..c95ec7a0f55f
 --- /dev/null
-+++ b/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVOps.cpp
-@@ -0,0 +1,1287 @@
-+//===- TosaToSPIRVOps.cpp - Tosa to SPIR-V Patterns -----------------------===//
++++ b/mlir/lib/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosaOps.cpp
+@@ -0,0 +1,1285 @@
++//===- TosaToSPIRVTosaOps.cpp - TOSA to SPIR-V Graph/TOSA patterns --------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 +// See https://llvm.org/LICENSE.txt for license information.
@@ -726,12 +732,12 @@ index 000000000000..b6fe4f78fece
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// This file implements patterns to convert Tosa dialect to SPIRV dialect.
++// This file implements patterns to convert TOSA IR to SPIR-V Graph/TOSA.
 +//
 +//===----------------------------------------------------------------------===//
 +
-+#include "mlir/Conversion/TosaToSPIRV/ConvertTosaConstants.h"
-+#include "mlir/Conversion/TosaToSPIRV/TosaToSPIRV.h"
++#include "mlir/Conversion/TosaToSPIRVTosa/ConvertTosaConstants.h"
++#include "mlir/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosa.h"
 +#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 +#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 +#include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
@@ -741,17 +747,12 @@ index 000000000000..b6fe4f78fece
 +#include "llvm/ADT/ArrayRef.h"
 +#include "llvm/Support/FormatVariadic.h"
 +
-+#include "TosaToSPIRVBasePattern.h"
++#include "TosaToSPIRVTosaBasePattern.h"
++
++#define DEBUG_TYPE "tosa-to-spirv-tosa-ops-pattern"
 +
 +namespace mlir {
-+#define GEN_PASS_DEF_CONVERTTOSATOSPIRV
-+#include "mlir/Conversion/Passes.h.inc"
-+} // namespace mlir
-+
-+#define DEBUG_TYPE "tosa-to-spirv-ops-pattern"
-+using namespace mlir;
-+using namespace tosa;
-+
++namespace tosa {
 +namespace {
 +
 +DenseIntElementsAttr getI32TensorArmAttr(ArrayRef<int32_t> values,
@@ -1978,7 +1979,7 @@ index 000000000000..b6fe4f78fece
 +
 +} // namespace
 +
-+void mlir::tosa::populateTosaToSPIRVOpsConversionPatterns(
++void populateTosaToSPIRVTosaOpsConversionPatterns(
 +    SPIRVTypeConverter &typeConverter, RewritePatternSet &patterns) {
 +  patterns.add<
 +      TosaArgMaxConvert, TosaAvgPool2DConvert, TosaConv2DConvert,
@@ -2005,13 +2006,16 @@ index 000000000000..b6fe4f78fece
 +      TosaIdentityConvert, TosaConstShapeConvert>(typeConverter,
 +                                                  patterns.getContext());
 +}
-diff --git a/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVPass.cpp b/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVPass.cpp
++
++} // namespace tosa
++} // namespace mlir
+diff --git a/mlir/lib/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosaPass.cpp b/mlir/lib/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosaPass.cpp
 new file mode 100644
-index 000000000000..f48775f66f9d
+index 000000000000..4d26f0301cee
 --- /dev/null
-+++ b/mlir/lib/Conversion/TosaToSPIRV/TosaToSPIRVPass.cpp
-@@ -0,0 +1,181 @@
-+//===- TosaToSPIRVPass.cpp - Lowering Tosa to SPIR-V Dialect --------------===//
++++ b/mlir/lib/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosaPass.cpp
+@@ -0,0 +1,183 @@
++//===- TosaToSPIRVTosaPass.cpp - Lower TOSA to SPIR-V Graph/TOSA ----------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 +// See https://llvm.org/LICENSE.txt for license information.
@@ -2019,11 +2023,11 @@ index 000000000000..f48775f66f9d
 +//
 +//===----------------------------------------------------------------------===//
 +//
-+// This transformation pass legalizes Tosa operations to the SPIR-V dialect.
++// This pass lowers TOSA IR to the SPIR-V Graph/TOSA representation.
 +//
 +//===----------------------------------------------------------------------===//
 +
-+#include "mlir/Conversion/TosaToSPIRV/TosaToSPIRV.h"
++#include "mlir/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosa.h"
 +
 +#include "mlir/Dialect/Func/IR/FuncOps.h"
 +#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
@@ -2036,13 +2040,12 @@ index 000000000000..f48775f66f9d
 +#include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 +
 +namespace mlir {
-+#define GEN_PASS_DEF_TOSATOSPIRV
++#define GEN_PASS_DEF_TOSATOSPIRVTOSA
 +#include "mlir/Conversion/Passes.h.inc"
 +} // namespace mlir
 +
-+using namespace mlir;
-+using namespace tosa;
-+
++namespace mlir {
++namespace tosa {
 +namespace {
 +
 +spirv::VerCapExtAttr getVerCapExtAttr(MLIRContext *context) {
@@ -2073,9 +2076,9 @@ index 000000000000..f48775f66f9d
 +      context);
 +}
 +
-+struct TosaToSPIRV : public impl::TosaToSPIRVBase<TosaToSPIRV> {
++struct TosaToSPIRVTosa : public impl::TosaToSPIRVTosaBase<TosaToSPIRVTosa> {
 +public:
-+  TosaToSPIRV(bool analysis = false) : analysis(analysis) {}
++  TosaToSPIRVTosa(bool analysis = false) : analysis(analysis) {}
 +
 +  void runOnOperation() override {
 +    MLIRContext *context = &getContext();
@@ -2107,8 +2110,8 @@ index 000000000000..f48775f66f9d
 +      return this->convertShapeType(shapeType);
 +    });
 +
-+    populateTosaToSPIRVConversionPatterns(typeConverter, patterns);
-+    populateTosaToSPIRVOpsConversionPatterns(typeConverter, patterns);
++    populateTosaToSPIRVTosaConversionPatterns(typeConverter, patterns);
++    populateTosaToSPIRVTosaOpsConversionPatterns(typeConverter, patterns);
 +
 +    auto targetEnvAttrName = spirv::getTargetEnvAttrName();
 +    auto symbolTableOp = SymbolTable::getNearestSymbolTable(op);
@@ -2189,6 +2192,9 @@ index 000000000000..f48775f66f9d
 +};
 +} // namespace
 +
-+std::unique_ptr<Pass> mlir::tosa::createTosaToSPIRV(bool analysis) {
-+  return std::make_unique<TosaToSPIRV>(analysis);
++std::unique_ptr<Pass> createTosaToSPIRVTosa(bool analysis) {
++  return std::make_unique<TosaToSPIRVTosa>(analysis);
 +}
++
++} // namespace tosa
++} // namespace mlir

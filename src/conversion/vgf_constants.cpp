@@ -4,7 +4,7 @@
  */
 
 #include "include/passes.hpp"
-#include "mlir/Conversion/TosaToSPIRV/ConvertTosaConstants.h"
+#include "mlir/Conversion/TosaToSPIRVTosa/ConvertTosaConstants.h"
 #include "mlir/Target/SPIRV/Serialization.h"
 #include "utils.hpp"
 #include "vgf_builder.hpp"

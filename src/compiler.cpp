@@ -5,8 +5,8 @@
 
 #include "compiler.hpp"
 #include "include/passes.hpp"
-#include "mlir/Conversion/TosaToSPIRV/ConvertTosaConstants.h"
-#include "mlir/Conversion/TosaToSPIRV/TosaToSPIRV.h"
+#include "mlir/Conversion/TosaToSPIRVTosa/ConvertTosaConstants.h"
+#include "mlir/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosa.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/Transforms/Passes.h"
 #include "mlir/Dialect/Tosa/Transforms/Passes.h"
@@ -116,7 +116,7 @@ void Compiler::SetPassManager() {
         _pm.addPass(createCheckConstantSparsityPass());
         _pm.addPass(createVGFConstantsPass(builder));
         _pm.nest<vgf::SequenceOp>().addPass(createAssignGraphARMInterfaceVarABIPass());
-        _pm.addPass(mlir::tosa::createTosaToSPIRV(_options.analysis));
+        _pm.addPass(mlir::tosa::createTosaToSPIRVTosa(_options.analysis));
 
         {
             // SPIRV Module Passes
