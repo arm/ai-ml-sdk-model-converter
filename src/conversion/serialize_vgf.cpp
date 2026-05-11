@@ -169,11 +169,25 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
 
         DenseMap<Value, std::shared_ptr<BindingSlotRef>> mapOperandsAndBindingRef;
         DenseMap<Value, std::shared_ptr<ResourceRef>> mapOperandsAndResourceRef;
+        DenseMap<Value, uint32_t> mapOperandsAndBindingIndex;
+        DenseMap<Value, DescriptorType> mapOperandsAndDescriptorType;
+        DenseMap<Value, AliasGroupId> mapOperandsAndAliasGroupId;
+        DenseMap<Value, std::map<uint32_t, std::shared_ptr<ResourceRef>>> mapOperandsAndAliasedResourceRef;
         DenseMap<Value, std::map<uint32_t, BindingSlotRef>> mapOperandsAndDescriptorBindingRef;
         std::map<SegmentId, std::vector<BindingSlotRef>> mapSegmentInputBindings = {};
         std::map<SegmentId, std::vector<BindingSlotRef>> mapSegmentOutputBindings = {};
         std::map<SegmentId, std::map<uint32_t, std::vector<BindingSlotRef>>> mapSegmentDescriptorSetBindings = {};
         std::map<SegmentId, std::map<uint32_t, std::set<uint32_t>>> mapSegmentDescriptorSetBindingRefs = {};
+        AliasGroupId nextAliasGroupId = 0;
+
+        auto rememberOperandResource = [&](Value operand, DescriptorType descriptorType, uint32_t bindingIndex,
+                                           const std::shared_ptr<ResourceRef> &resourceRef,
+                                           const std::shared_ptr<BindingSlotRef> &bindingSlotRef) {
+            mapOperandsAndResourceRef[operand] = resourceRef;
+            mapOperandsAndBindingRef[operand] = bindingSlotRef;
+            mapOperandsAndBindingIndex[operand] = bindingIndex;
+            mapOperandsAndDescriptorType[operand] = descriptorType;
+        };
 
         auto addBindingToDescriptorSet = [&](const SegmentId segmentId, const int64_t descriptorSet,
                                              const BindingSlotRef bindingSlotRef) {
@@ -198,6 +212,59 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
             return descriptorBindingIt->second;
         };
 
+        auto getOrCreateAliasGroupId = [&](Value operand) -> AliasGroupId {
+            auto aliasGroupIt = mapOperandsAndAliasGroupId.find(operand);
+            if (aliasGroupIt == mapOperandsAndAliasGroupId.end()) {
+                assert(nextAliasGroupId != INVALID_ALIAS_GROUP_ID && "exhausted alias group ids");
+                auto resourceIt = mapOperandsAndResourceRef.find(operand);
+                assert(resourceIt != mapOperandsAndResourceRef.end());
+                const AliasGroupId aliasGroupId = nextAliasGroupId++;
+                _VGFBuilder->getEncoder()->SetAliasGroup(*(resourceIt->second), aliasGroupId);
+                aliasGroupIt = mapOperandsAndAliasGroupId.insert({operand, aliasGroupId}).first;
+            }
+            return aliasGroupIt->second;
+        };
+
+        auto getOrCreateAliasedResource = [&](Value operand, ResourceCategory category, DescriptorType descriptorType,
+                                              FormatType vkFormat,
+                                              const ShapedType type) -> std::shared_ptr<ResourceRef> {
+            auto &aliasedResources = mapOperandsAndAliasedResourceRef[operand];
+            const auto aliasKey = static_cast<uint32_t>(descriptorType);
+            auto aliasIt = aliasedResources.find(aliasKey);
+            if (aliasIt == aliasedResources.end()) {
+                const AliasGroupId aliasGroupId = getOrCreateAliasGroupId(operand);
+                switch (category) {
+                case ResourceCategory::INPUT:
+                    aliasIt = aliasedResources
+                                  .emplace(aliasKey,
+                                           std::make_shared<ResourceRef>(_VGFBuilder->getEncoder()->AddInputResource(
+                                               descriptorType, vkFormat, type.getShape(), {}, aliasGroupId)))
+                                  .first;
+                    break;
+                case ResourceCategory::OUTPUT:
+                    aliasIt = aliasedResources
+                                  .emplace(aliasKey,
+                                           std::make_shared<ResourceRef>(_VGFBuilder->getEncoder()->AddOutputResource(
+                                               descriptorType, vkFormat, type.getShape(), {}, aliasGroupId)))
+                                  .first;
+                    break;
+                case ResourceCategory::INTERMEDIATE:
+                    aliasIt =
+                        aliasedResources
+                            .emplace(aliasKey,
+                                     std::make_shared<ResourceRef>(_VGFBuilder->getEncoder()->AddIntermediateResource(
+                                         descriptorType, vkFormat, type.getShape(), {}, aliasGroupId)))
+                            .first;
+                    break;
+                case ResourceCategory::CONSTANT:
+                    assert(false && "aliased VGF resources must not be constants");
+                    return nullptr;
+                }
+            }
+            assert(aliasIt != aliasedResources.end() && "failed to create aliased VGF resource");
+            return aliasIt->second;
+        };
+
         // First: Resolve sequence input resources' bindings
         std::vector<BindingSlotRef> sequenceInputBindings = {};
         for (auto operand : sequenceOp.getArguments()) {
@@ -217,14 +284,16 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                        shaderPlaceholderOp.getInputDescriptorSets(), runSegmentOp->getOperands())) {
                             if (input == operand &&
                                 mapOperandsAndBindingRef.find(input) == mapOperandsAndBindingRef.end()) {
+                                const auto descriptorType =
+                                    NameToDescriptorType(llvm::cast<StringAttr>(inputDescriptorType).str());
                                 const ShapedType type = llvm::dyn_cast<ShapedType>(input.getType());
+                                const auto bindingIndex = operand.getArgNumber();
                                 const auto samplerConfigAttr =
                                     getSamplerConfig(shaderPlaceholderOp.getInputSamplerConfigsAttr(), ioIndex);
                                 auto resourceRef =
                                     std::make_shared<ResourceRef>(_VGFBuilder->getEncoder()->AddInputResource(
-                                        NameToDescriptorType(llvm::cast<StringAttr>(inputDescriptorType).str()),
-                                        NameToFormatType(llvm::cast<StringAttr>(inputVkFormat).str()), type.getShape(),
-                                        {}));
+                                        descriptorType, NameToFormatType(llvm::cast<StringAttr>(inputVkFormat).str()),
+                                        type.getShape(), {}));
 
                                 if (samplerConfigAttr && !samplerConfigAttr.empty()) {
                                     const auto samplerConfig = getSamplerConfigValues(
@@ -236,10 +305,10 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                 }
 
                                 auto bindingSlotRef = std::make_shared<BindingSlotRef>(
-                                    _VGFBuilder->getEncoder()->AddBindingSlot(operand.getArgNumber(), *resourceRef));
+                                    _VGFBuilder->getEncoder()->AddBindingSlot(bindingIndex, *resourceRef));
 
-                                mapOperandsAndResourceRef[input] = resourceRef;
-                                mapOperandsAndBindingRef[input] = bindingSlotRef;
+                                rememberOperandResource(input, descriptorType, bindingIndex, resourceRef,
+                                                        bindingSlotRef);
                                 sequenceInputBindings.push_back(*bindingSlotRef);
                                 mapSegmentInputBindings[segmentId].push_back(*bindingSlotRef);
                                 addBindingToDescriptorSet(
@@ -259,6 +328,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                     mapOperandsAndBindingRef.find(input) == mapOperandsAndBindingRef.end()) {
                                     VGFBuilder::VkFormat vkFormat;
                                     const ShapedType type = llvm::dyn_cast<ShapedType>(input.getType());
+                                    const auto bindingIndex = operand.getArgNumber();
 
                                     if (_VGFBuilder
                                             ->mlirTypeToVkFormat(
@@ -278,10 +348,10 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                         {});
 
                                     auto bindingSlotRef = std::make_shared<BindingSlotRef>(
-                                        _VGFBuilder->getEncoder()->AddBindingSlot(operand.getArgNumber(), resourceRef));
+                                        _VGFBuilder->getEncoder()->AddBindingSlot(bindingIndex, resourceRef));
 
-                                    mapOperandsAndResourceRef[input] = std::make_shared<ResourceRef>(resourceRef);
-                                    mapOperandsAndBindingRef[input] = bindingSlotRef;
+                                    rememberOperandResource(input, DESCRIPTOR_TYPE_TENSOR_ARM, bindingIndex,
+                                                            std::make_shared<ResourceRef>(resourceRef), bindingSlotRef);
                                     sequenceInputBindings.push_back(*bindingSlotRef);
                                     mapSegmentInputBindings[segmentId].push_back(*bindingSlotRef);
                                 }
@@ -323,17 +393,19 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                    shaderPlaceholderOp.getInputDescriptorSets(), runSegmentOp->getOperands())) {
                         if (!isSequenceInputOperand(input)) {
                             auto it = mapOperandsAndBindingRef.find(input);
+                            const auto descriptorType =
+                                NameToDescriptorType(llvm::cast<StringAttr>(inputDescriptorType).str());
                             if (it == mapOperandsAndBindingRef.end()) {
                                 // TODO: Revisit the need for conversion to ShapedType
                                 const ShapedType type = convertShapedType(input.getType());
+                                const auto bindingIndex = bindingId++;
                                 const auto samplerConfigAttr =
                                     getSamplerConfig(shaderPlaceholderOp.getInputSamplerConfigsAttr(), ioIndex);
 
                                 auto resourceRef =
                                     std::make_shared<ResourceRef>(_VGFBuilder->getEncoder()->AddIntermediateResource(
-                                        NameToDescriptorType(llvm::cast<StringAttr>(inputDescriptorType).str()),
-                                        NameToFormatType(llvm::cast<StringAttr>(inputVkFormat).str()), type.getShape(),
-                                        {}));
+                                        descriptorType, NameToFormatType(llvm::cast<StringAttr>(inputVkFormat).str()),
+                                        type.getShape(), {}));
 
                                 if (samplerConfigAttr && !samplerConfigAttr.empty()) {
                                     const auto samplerConfig = getSamplerConfigValues(
@@ -345,19 +417,39 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                 }
 
                                 auto bindingSlotRef = std::make_shared<BindingSlotRef>(
-                                    _VGFBuilder->getEncoder()->AddBindingSlot(bindingId++, *resourceRef));
+                                    _VGFBuilder->getEncoder()->AddBindingSlot(bindingIndex, *resourceRef));
 
-                                mapOperandsAndResourceRef[input] = resourceRef;
-                                mapOperandsAndBindingRef[input] = bindingSlotRef;
+                                rememberOperandResource(input, descriptorType, bindingIndex, resourceRef,
+                                                        bindingSlotRef);
                                 mapSegmentInputBindings[segmentId].push_back(*bindingSlotRef);
                                 addBindingToDescriptorSet(
                                     segmentId, inputDescriptorSet,
                                     getDescriptorSetBinding(input, static_cast<uint32_t>(inputBinding)));
                             } else {
-                                mapSegmentInputBindings[segmentId].push_back(*(it->second));
-                                addBindingToDescriptorSet(
-                                    segmentId, inputDescriptorSet,
-                                    getDescriptorSetBinding(input, static_cast<uint32_t>(inputBinding)));
+                                auto descriptorTypeIt = mapOperandsAndDescriptorType.find(input);
+                                auto bindingIndexIt = mapOperandsAndBindingIndex.find(input);
+                                assert(descriptorTypeIt != mapOperandsAndDescriptorType.end());
+                                assert(bindingIndexIt != mapOperandsAndBindingIndex.end());
+                                if (descriptorTypeIt->second != descriptorType) {
+                                    // Reuse the same logical value binding, but expose the storage through a second
+                                    // MRT entry so runtimes can see the buffer-vs-tensor view change.
+                                    const ShapedType type = convertShapedType(input.getType());
+                                    auto aliasResourceRef = getOrCreateAliasedResource(
+                                        input, ResourceCategory::INTERMEDIATE, descriptorType,
+                                        NameToFormatType(llvm::cast<StringAttr>(inputVkFormat).str()), type);
+                                    auto aliasBindingSlotRef = _VGFBuilder->getEncoder()->AddBindingSlot(
+                                        bindingIndexIt->second, *aliasResourceRef);
+                                    mapSegmentInputBindings[segmentId].push_back(aliasBindingSlotRef);
+                                    addBindingToDescriptorSet(
+                                        segmentId, inputDescriptorSet,
+                                        _VGFBuilder->getEncoder()->AddBindingSlot(static_cast<uint32_t>(inputBinding),
+                                                                                  *aliasResourceRef));
+                                } else {
+                                    mapSegmentInputBindings[segmentId].push_back(*(it->second));
+                                    addBindingToDescriptorSet(
+                                        segmentId, inputDescriptorSet,
+                                        getDescriptorSetBinding(input, static_cast<uint32_t>(inputBinding)));
+                                }
                             }
                         }
                         ++ioIndex;
@@ -372,17 +464,19 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                    shaderPlaceholderOp.getOutputDescriptorSets(), runSegmentOp->getResults())) {
                         if (!isSequenceOutputOperand(result)) {
                             auto it = mapOperandsAndBindingRef.find(result);
+                            const auto descriptorType =
+                                NameToDescriptorType(llvm::cast<StringAttr>(outputDescriptorType).str());
                             if (it == mapOperandsAndBindingRef.end()) {
                                 // TODO: Revisit the need for conversion to ShapedType
                                 const ShapedType type = convertShapedType(result.getType());
+                                const auto bindingIndex = bindingId++;
                                 const auto samplerConfigAttr =
                                     getSamplerConfig(shaderPlaceholderOp.getOutputSamplerConfigsAttr(), ioIndex);
 
                                 auto resourceRef =
                                     std::make_shared<ResourceRef>(_VGFBuilder->getEncoder()->AddIntermediateResource(
-                                        NameToDescriptorType(llvm::cast<StringAttr>(outputDescriptorType).str()),
-                                        NameToFormatType(llvm::cast<StringAttr>(outputVkFormat).str()), type.getShape(),
-                                        {}));
+                                        descriptorType, NameToFormatType(llvm::cast<StringAttr>(outputVkFormat).str()),
+                                        type.getShape(), {}));
 
                                 if (samplerConfigAttr && !samplerConfigAttr.empty()) {
                                     const auto samplerConfig = getSamplerConfigValues(
@@ -394,10 +488,10 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                 }
 
                                 auto bindingSlotRef = std::make_shared<BindingSlotRef>(
-                                    _VGFBuilder->getEncoder()->AddBindingSlot(bindingId++, *resourceRef));
+                                    _VGFBuilder->getEncoder()->AddBindingSlot(bindingIndex, *resourceRef));
 
-                                mapOperandsAndResourceRef[result] = resourceRef;
-                                mapOperandsAndBindingRef[result] = bindingSlotRef;
+                                rememberOperandResource(result, descriptorType, bindingIndex, resourceRef,
+                                                        bindingSlotRef);
                                 mapSegmentOutputBindings[segmentId].push_back(*bindingSlotRef);
                                 addBindingToDescriptorSet(
                                     segmentId, outputDescriptorSet,
@@ -434,11 +528,12 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                         DESCRIPTOR_TYPE_TENSOR_ARM, static_cast<FormatType>(vkFormat), type.getShape(),
                                         {});
 
+                                    const auto bindingIndex = bindingId++;
                                     auto bindingSlotRef = std::make_shared<BindingSlotRef>(
-                                        _VGFBuilder->getEncoder()->AddBindingSlot(bindingId++, resourceRef));
+                                        _VGFBuilder->getEncoder()->AddBindingSlot(bindingIndex, resourceRef));
 
-                                    mapOperandsAndResourceRef[input] = std::make_shared<ResourceRef>(resourceRef);
-                                    mapOperandsAndBindingRef[input] = bindingSlotRef;
+                                    rememberOperandResource(input, DESCRIPTOR_TYPE_TENSOR_ARM, bindingIndex,
+                                                            std::make_shared<ResourceRef>(resourceRef), bindingSlotRef);
                                     mapSegmentInputBindings[segmentId].push_back(*bindingSlotRef);
                                 } else {
                                     mapSegmentInputBindings[segmentId].push_back(*(it->second));
@@ -465,11 +560,12 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                             DESCRIPTOR_TYPE_TENSOR_ARM, static_cast<FormatType>(vkFormat),
                                             type.getShape(), {}));
 
+                                    const auto bindingIndex = bindingId++;
                                     auto bindingSlotRef = std::make_shared<BindingSlotRef>(
-                                        _VGFBuilder->getEncoder()->AddBindingSlot(bindingId++, *resourceRef));
+                                        _VGFBuilder->getEncoder()->AddBindingSlot(bindingIndex, *resourceRef));
 
-                                    mapOperandsAndResourceRef[result] = resourceRef;
-                                    mapOperandsAndBindingRef[result] = bindingSlotRef;
+                                    rememberOperandResource(result, DESCRIPTOR_TYPE_TENSOR_ARM, bindingIndex,
+                                                            resourceRef, bindingSlotRef);
                                     mapSegmentOutputBindings[segmentId].push_back(*bindingSlotRef);
                                 } else {
                                     mapSegmentOutputBindings[segmentId].push_back(*(it->second));
@@ -508,15 +604,17 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
 
                             if (result == operand &&
                                 mapOperandsAndBindingRef.find(result) == mapOperandsAndBindingRef.end()) {
+                                const auto descriptorType =
+                                    NameToDescriptorType(llvm::cast<StringAttr>(outputDescriptorType).str());
                                 const ShapedType type = llvm::dyn_cast<ShapedType>(result.getType());
+                                const auto bindingIndex = bindingId++;
                                 const auto samplerConfigAttr =
                                     getSamplerConfig(shaderPlaceholderOp.getOutputSamplerConfigsAttr(), ioIndex);
 
                                 auto resourceRef =
                                     std::make_shared<ResourceRef>(_VGFBuilder->getEncoder()->AddOutputResource(
-                                        NameToDescriptorType(llvm::cast<StringAttr>(outputDescriptorType).str()),
-                                        NameToFormatType(llvm::cast<StringAttr>(outputVkFormat).str()), type.getShape(),
-                                        {}));
+                                        descriptorType, NameToFormatType(llvm::cast<StringAttr>(outputVkFormat).str()),
+                                        type.getShape(), {}));
 
                                 if (samplerConfigAttr && !samplerConfigAttr.empty()) {
                                     const auto samplerConfig = getSamplerConfigValues(
@@ -528,10 +626,10 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                 }
 
                                 auto bindingSlotRef = std::make_shared<BindingSlotRef>(
-                                    _VGFBuilder->getEncoder()->AddBindingSlot(bindingId++, *resourceRef));
+                                    _VGFBuilder->getEncoder()->AddBindingSlot(bindingIndex, *resourceRef));
 
-                                mapOperandsAndResourceRef[result] = resourceRef;
-                                mapOperandsAndBindingRef[result] = bindingSlotRef;
+                                rememberOperandResource(result, descriptorType, bindingIndex, resourceRef,
+                                                        bindingSlotRef);
                                 sequenceOutputBindings.push_back(*bindingSlotRef);
                                 mapSegmentOutputBindings[segmentId].push_back(*bindingSlotRef);
                                 addBindingToDescriptorSet(
@@ -569,11 +667,12 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                         DESCRIPTOR_TYPE_TENSOR_ARM, static_cast<FormatType>(vkFormat), type.getShape(),
                                         {});
 
+                                    const auto bindingIndex = bindingId++;
                                     auto bindingSlotRef = std::make_shared<BindingSlotRef>(
-                                        _VGFBuilder->getEncoder()->AddBindingSlot(bindingId++, resourceRef));
+                                        _VGFBuilder->getEncoder()->AddBindingSlot(bindingIndex, resourceRef));
 
-                                    mapOperandsAndResourceRef[result] = std::make_shared<ResourceRef>(resourceRef);
-                                    mapOperandsAndBindingRef[result] = bindingSlotRef;
+                                    rememberOperandResource(result, DESCRIPTOR_TYPE_TENSOR_ARM, bindingIndex,
+                                                            std::make_shared<ResourceRef>(resourceRef), bindingSlotRef);
                                     sequenceOutputBindings.push_back(*bindingSlotRef);
                                     mapSegmentOutputBindings[segmentId].push_back(*bindingSlotRef);
                                 }

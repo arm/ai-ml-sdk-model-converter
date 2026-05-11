@@ -13,6 +13,8 @@ from vgf_decoder import VK_FORMAT_R32G32B32A32_SFLOAT
 
 VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER = 1
 VK_DESCRIPTOR_TYPE_STORAGE_IMAGE = 3
+VK_DESCRIPTOR_TYPE_STORAGE_BUFFER = 7
+VK_DESCRIPTOR_TYPE_TENSOR_ARM = 1000460000
 
 SHADER_CASES = [
     {
@@ -80,11 +82,19 @@ def custom_shader_attrs(
     output_bindings,
     input_descriptor_sets=None,
     output_descriptor_sets=None,
+    input_vk_descriptor_types=None,
+    output_vk_descriptor_types=None,
     tensor_type="TENSOR",
     extra_attrs=None,
 ):
     input_descriptor_sets = input_descriptor_sets or [0] * len(input_bindings)
     output_descriptor_sets = output_descriptor_sets or [0] * len(output_bindings)
+    input_vk_descriptor_types = input_vk_descriptor_types or [
+        "VK_DESCRIPTOR_TYPE_TENSOR_ARM"
+    ] * len(input_bindings)
+    output_vk_descriptor_types = output_vk_descriptor_types or [
+        "VK_DESCRIPTOR_TYPE_TENSOR_ARM"
+    ] * len(output_bindings)
     implementation_attrs = {
         "entry_point": "main",
         "is_vkshader": True,
@@ -98,7 +108,7 @@ def custom_shader_attrs(
         ]
         implementation_attrs[f"input_{index}_type"] = tensor_type
         implementation_attrs[f"input_{index}_vkdescriptortype"] = (
-            "VK_DESCRIPTOR_TYPE_TENSOR_ARM"
+            input_vk_descriptor_types[index]
         )
         implementation_attrs[f"input_{index}_vkformat"] = vk_format
 
@@ -109,7 +119,7 @@ def custom_shader_attrs(
         ]
         implementation_attrs[f"output_{index}_type"] = tensor_type
         implementation_attrs[f"output_{index}_vkdescriptortype"] = (
-            "VK_DESCRIPTOR_TYPE_TENSOR_ARM"
+            output_vk_descriptor_types[index]
         )
         implementation_attrs[f"output_{index}_vkformat"] = vk_format
 
@@ -168,12 +178,16 @@ def custom_op(
     shader_case,
     vk_format,
     workgroup_sizes,
+    input_vk_descriptor_types=None,
+    output_vk_descriptor_types=None,
 ):
     implementation_attrs = custom_shader_attrs(
         vk_format=vk_format,
         workgroup_sizes=workgroup_sizes,
         input_bindings=[0, 1],
         output_bindings=[2],
+        input_vk_descriptor_types=input_vk_descriptor_types,
+        output_vk_descriptor_types=output_vk_descriptor_types,
         extra_attrs=shader_case["attrs"],
     )
     operands = ", ".join(operands)
@@ -250,6 +264,48 @@ def consecutive_custom_mlir(first_shader_case, second_shader_case):
         second_shader_case,
         "VK_FORMAT_R32_SFLOAT",
         [8, 8, 16],
+    )
+
+    return f"""
+module {{
+  func.func @main(%arg0: tensor<1x16x16x16xf32> {{tf_saved_model.index_path = ["input_0"]}}, %arg1: tensor<1x16x16x16xf32> {{tf_saved_model.index_path = ["input_1"]}}, %arg2: tensor<1x16x16x16xf32> {{tf_saved_model.index_path = ["input_2"]}}) -> (tensor<1x16x16x16xf32> {{tf_saved_model.index_path = ["output_0"]}}) attributes {{tf.entry_function = {{inputs = "input_0,input_1,input_2", outputs = "output_0"}}, tf_saved_model.exported_names = ["serving_default"]}} {{
+{first_custom}
+{second_custom}
+    return %1 : tensor<1x16x16x16xf32>
+  }}
+}}
+"""
+
+
+def descriptor_type_aliasing_mlir(
+    first_output_descriptor_type, second_input_descriptor_type
+):
+    tensor_type = "tensor<1x16x16x16xf32>"
+    shader_case = SHADER_CASES[0]
+    first_custom = custom_op(
+        "%0",
+        ["%arg0", "%arg1"],
+        [tensor_type, tensor_type],
+        tensor_type,
+        "test_descriptor_type_aliasing_shader_0",
+        shader_case,
+        "VK_FORMAT_R32_SFLOAT",
+        [16, 16, 16],
+        output_vk_descriptor_types=[first_output_descriptor_type],
+    )
+    second_custom = custom_op(
+        "%1",
+        ["%0", "%arg2"],
+        [tensor_type, tensor_type],
+        tensor_type,
+        "test_descriptor_type_aliasing_shader_1",
+        shader_case,
+        "VK_FORMAT_R32_SFLOAT",
+        [8, 8, 16],
+        input_vk_descriptor_types=[
+            second_input_descriptor_type,
+            "VK_DESCRIPTOR_TYPE_TENSOR_ARM",
+        ],
     )
 
     return f"""
@@ -409,6 +465,82 @@ def test_consecutive_custom_shader_modules(
         assert vgf.sequence.getSegmentType(1) == vgfpy.ModuleType.Compute
         assert vgf.sequence.getSegmentName(1) == "compute_segment_1"
         assert list(vgf.sequence.getSegmentDispatchShape(1)) == [8, 8, 16]
+
+
+def test_descriptor_type_change_creates_alias_group_for_intermediate(
+    model_converter_exe_path,
+):
+    with converted_mlir(
+        model_converter_exe_path,
+        descriptor_type_aliasing_mlir(
+            "VK_DESCRIPTOR_TYPE_TENSOR_ARM",
+            "VK_DESCRIPTOR_TYPE_STORAGE_BUFFER",
+        ),
+    ) as vgf:
+        assert vgf.resources.size() == 6
+        assert vgf.resources.getCategory(3) == vgfpy.ResourceCategory.Intermediate
+        assert vgf.resources.getDescriptorType(3) == VK_DESCRIPTOR_TYPE_TENSOR_ARM
+        assert vgf.resources.getCategory(4) == vgfpy.ResourceCategory.Intermediate
+        assert vgf.resources.getDescriptorType(4) == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
+
+        shared_alias_group = vgf.resources.getAliasGroupId(3)
+        assert shared_alias_group is not None
+        assert vgf.resources.getAliasGroupId(4) == shared_alias_group
+
+        assert vgf.resources.getAliasGroupId(0) is None
+        assert vgf.resources.getAliasGroupId(1) is None
+        assert vgf.resources.getAliasGroupId(2) is None
+        assert vgf.resources.getAliasGroupId(5) is None
+
+        first_outputs = vgf.sequence.getSegmentOutputBindingSlotsHandle(0)
+        assert vgf.sequence.getBindingsSize(first_outputs) == 1
+        assert vgf.sequence.getBindingSlotBinding(first_outputs, 0) == 3
+        assert vgf.sequence.getBindingSlotMrtIndex(first_outputs, 0) == 3
+
+        second_inputs = vgf.sequence.getSegmentInputBindingSlotsHandle(1)
+        assert vgf.sequence.getBindingsSize(second_inputs) == 2
+        second_input_bindings = sorted(
+            (
+                vgf.sequence.getBindingSlotBinding(second_inputs, binding_index),
+                vgf.sequence.getBindingSlotMrtIndex(second_inputs, binding_index),
+            )
+            for binding_index in range(vgf.sequence.getBindingsSize(second_inputs))
+        )
+        assert second_input_bindings == [(2, 2), (3, 4)]
+
+
+def test_descriptor_type_match_does_not_create_alias_group(
+    model_converter_exe_path,
+):
+    with converted_mlir(
+        model_converter_exe_path,
+        descriptor_type_aliasing_mlir(
+            "VK_DESCRIPTOR_TYPE_TENSOR_ARM",
+            "VK_DESCRIPTOR_TYPE_TENSOR_ARM",
+        ),
+    ) as vgf:
+        assert vgf.resources.size() == 5
+        assert vgf.resources.getCategory(3) == vgfpy.ResourceCategory.Intermediate
+        assert vgf.resources.getDescriptorType(3) == VK_DESCRIPTOR_TYPE_TENSOR_ARM
+
+        for resource_index in range(vgf.resources.size()):
+            assert vgf.resources.getAliasGroupId(resource_index) is None
+
+        first_outputs = vgf.sequence.getSegmentOutputBindingSlotsHandle(0)
+        assert vgf.sequence.getBindingsSize(first_outputs) == 1
+        assert vgf.sequence.getBindingSlotBinding(first_outputs, 0) == 3
+        assert vgf.sequence.getBindingSlotMrtIndex(first_outputs, 0) == 3
+
+        second_inputs = vgf.sequence.getSegmentInputBindingSlotsHandle(1)
+        assert vgf.sequence.getBindingsSize(second_inputs) == 2
+        second_input_bindings = sorted(
+            (
+                vgf.sequence.getBindingSlotBinding(second_inputs, binding_index),
+                vgf.sequence.getBindingSlotMrtIndex(second_inputs, binding_index),
+            )
+            for binding_index in range(vgf.sequence.getBindingsSize(second_inputs))
+        )
+        assert second_input_bindings == [(2, 2), (3, 3)]
 
 
 def test_custom_graph_custom_segments(model_converter_exe_path):
