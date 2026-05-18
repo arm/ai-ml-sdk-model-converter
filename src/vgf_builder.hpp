@@ -90,8 +90,8 @@ class VGFBuilder {
     }
 
   private:
-    std::shared_ptr<mlsdk::vgflib::Encoder> _encoder = {};
-    std::vector<mlsdk::vgflib::ConstantRef> _constantRefs = {};
+    std::shared_ptr<mlsdk::vgflib::Encoder> _encoder;
+    std::vector<mlsdk::vgflib::ConstantRef> _constantRefs;
 };
 
 } // namespace mlsdk::model_converter
