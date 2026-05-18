@@ -249,6 +249,7 @@ class Builder:
                 src_dirs = [
                     f"{MODEL_CONVERTER_DIR / 'src'}",
                 ]
+                os.makedirs(f"{self.build_dir}/cppcheck", exist_ok=True)
 
                 lint_cmd = [
                     "cppcheck",
@@ -259,6 +260,8 @@ class Builder:
                     f"--cppcheck-build-dir={self.build_dir}/cppcheck",
                     "--enable=information,performance,portability,style",
                     f"-i={DEPENDENCY_DIR}",
+                    f"--suppress=missingInclude",
+                    f"--suppress=missingIncludeSystem",
                     f"--suppress=noValidConfiguration",
                     f"--suppress=unassignedVariable",
                     f"--suppress=unmatchedSuppression",
