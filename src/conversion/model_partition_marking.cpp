@@ -13,13 +13,23 @@ namespace mlir::model_converter_passes {
 #include "passes.hpp.inc"
 namespace {
 
+enum class PartitionKind { Graph, Compute };
+
+int64_t assignStandaloneGraphPartition(const int64_t highestPartitionId, const PartitionKind highestPartitionKind) {
+    if (highestPartitionId < 0) {
+        return 0;
+    }
+    return highestPartitionKind == PartitionKind::Compute ? highestPartitionId + 1 : highestPartitionId;
+}
+
 class ModelPartitionMarkingPass : public impl::ModelPartitionMarkingPassBase<ModelPartitionMarkingPass> {
   public:
     void runOnOperation() override {
         mlir::ModuleOp moduleOp = getOperation();
         const Type tI32 = IntegerType::get(moduleOp.getContext(), 32);
         int64_t highestPartitionId{-1};
-        moduleOp.walk([&tI32, &highestPartitionId](Operation *op) {
+        PartitionKind highestPartitionKind = PartitionKind::Graph;
+        moduleOp.walk([&tI32, &highestPartitionId, &highestPartitionKind](Operation *op) {
             if (llvm::isa<mlir::ModuleOp>(op) || llvm::isa<mlir::func::FuncOp>(op)) {
                 return;
             }
@@ -38,9 +48,11 @@ class ModelPartitionMarkingPass : public impl::ModelPartitionMarkingPassBase<Mod
 
             op->setAttr("graph_partition_leaf_node", BoolAttr::get(op->getContext(), false));
 
+            PartitionKind partitionKind = PartitionKind::Graph;
             int64_t partitionId{-1};
             if (auto customOp = llvm::dyn_cast<mlir::tosa::CustomOp>(op);
                 customOp && isVulkanCustomShaderOp(customOp)) {
+                partitionKind = PartitionKind::Compute;
                 partitionId = highestPartitionId + 1;
                 op->setAttr("graph_partition_leaf_node", BoolAttr::get(op->getContext(), true));
                 for (auto operand : op->getOperands()) {
@@ -65,7 +77,10 @@ class ModelPartitionMarkingPass : public impl::ModelPartitionMarkingPassBase<Mod
                     }
                 }
                 if (partitionId < 0) {
-                    partitionId = std::max(highestPartitionId, int64_t(0));
+                    // Graph ops without any defining producer in the current sequence stay in a graph-owned
+                    // partition. If the most recent partition is compute, start a new graph partition so the
+                    // Vulkan custom segment remains single-op.
+                    partitionId = assignStandaloneGraphPartition(highestPartitionId, highestPartitionKind);
                 }
 
                 // set leaf node flags on the op inputs if needed
@@ -82,7 +97,12 @@ class ModelPartitionMarkingPass : public impl::ModelPartitionMarkingPassBase<Mod
                 }
             }
 
-            highestPartitionId = std::max(highestPartitionId, partitionId);
+            if (partitionId > highestPartitionId) {
+                highestPartitionId = partitionId;
+                highestPartitionKind = partitionKind;
+            } else if (partitionId == highestPartitionId && partitionKind == PartitionKind::Graph) {
+                highestPartitionKind = PartitionKind::Graph;
+            }
             op->setAttr("graph_partition_id", IntegerAttr::get(tI32, partitionId));
         });
     }
