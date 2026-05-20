@@ -6,6 +6,7 @@
 #include "include/passes.hpp"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
+#include "mlir/Dialect/Tosa/Transforms/Passes.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
 
 using namespace mlir;
@@ -25,6 +26,7 @@ int main(int argc, char **argv) {
     registerSerializeVGFPass();
     registerTypeNarrowingPass();
     registerVGFConstantsPass();
+    tosa::registerTosaPasses();
 
     return asMainReturnCode(MlirOptMain(argc, argv, "ML SDK Model Converter MLIR optimizer driver\n", registry));
 }
