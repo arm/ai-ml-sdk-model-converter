@@ -61,19 +61,17 @@ class ModelPartitionMarkingPass : public impl::ModelPartitionMarkingPassBase<Mod
                     }
                 }
             } else {
-                bool setLeafFlags = false;
+                SmallVector<Operation *> inputs;
                 // compute the partition id for the current op
                 for (auto operand : op->getOperands()) {
                     if (Operation *input = operand.getDefiningOp()) {
+                        inputs.push_back(input);
                         int64_t parentPartitionId = input->getAttrOfType<IntegerAttr>("graph_partition_id").getInt();
                         if (auto parentCustomOp = llvm::dyn_cast<mlir::tosa::CustomOp>(input);
                             parentCustomOp && isVulkanCustomShaderOp(parentCustomOp)) {
                             parentPartitionId = std::max(highestPartitionId, parentPartitionId + 1);
                         }
                         partitionId = std::max(partitionId, parentPartitionId);
-                        if (parentPartitionId < partitionId) {
-                            setLeafFlags = true;
-                        }
                     }
                 }
                 if (partitionId < 0) {
@@ -83,16 +81,12 @@ class ModelPartitionMarkingPass : public impl::ModelPartitionMarkingPassBase<Mod
                     partitionId = assignStandaloneGraphPartition(highestPartitionId, highestPartitionKind);
                 }
 
-                // set leaf node flags on the op inputs if needed
-                if (setLeafFlags) {
-                    for (auto operand : op->getOperands()) {
-                        if (Operation *input = operand.getDefiningOp()) {
-                            int64_t parentPartitionId =
-                                input->getAttrOfType<IntegerAttr>("graph_partition_id").getInt();
-                            if (parentPartitionId < partitionId) {
-                                input->setAttr("graph_partition_leaf_node", BoolAttr::get(op->getContext(), true));
-                            }
-                        }
+                // Set leaf node flags after the current op's final partition is known. This keeps cross-partition
+                // operand detection independent of operand order.
+                for (Operation *input : inputs) {
+                    int64_t parentPartitionId = input->getAttrOfType<IntegerAttr>("graph_partition_id").getInt();
+                    if (parentPartitionId < partitionId) {
+                        input->setAttr("graph_partition_leaf_node", BoolAttr::get(op->getContext(), true));
                     }
                 }
             }
