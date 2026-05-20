@@ -101,8 +101,7 @@ class TosaShapedVerificationPass : public impl::TosaShapedVerificationPassBase<T
         }
 
         if (!dynamicOps.empty()) {
-            llvm::errs() << "Dynamic shapes found in the graph, "
-                         << "but none of the inputs were dynamic:\n";
+            llvm::errs() << "Dynamic shapes found in the graph, but none of the inputs were dynamic:\n";
             constexpr size_t showNum = 25;
             constexpr size_t maxChar = 300;
             for (size_t i = 0; i < dynamicOps.size() && i < showNum; i++) {
