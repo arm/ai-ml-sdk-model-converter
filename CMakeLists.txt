@@ -124,6 +124,7 @@ set(CONVERTER_PASS_LIB_SOURCES
     "src/conversion/dense_resource_inliner.cpp"
     "src/conversion/model_partition_marking.cpp"
     "src/conversion/model_partitioning.cpp"
+    "src/conversion/resource_planner.cpp"
     "src/conversion/serialize_vgf.cpp"
     "src/conversion/signless_integer_marking.cpp"
     "src/conversion/type_narrowing.cpp"
