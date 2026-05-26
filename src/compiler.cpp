@@ -13,6 +13,7 @@
 #include "mlir/Transforms/Passes.h"
 #include "vgf-dialect/VGFDialect.h"
 #include "vgf_builder.hpp"
+#include "llvm/Support/ErrorHandling.h"
 
 #include "include/DeserializationPasses.h" // from @tosa_tools/mlir_translator
 #include "include/SerializationPasses.h"   // from @tosa_tools/mlir_translator
@@ -20,15 +21,24 @@
 #include <filesystem>
 #include <iostream>
 
-extern llvm::cl::opt<std::string> tosa_flatbuffer_filename;
-extern llvm::cl::opt<std::string> tosa_flatbuffer_schema;
-
 using namespace mlir::model_converter_passes;
 
 namespace mlsdk::model_converter {
 
 namespace {
 bool isTosaFlatbuffer(const std::string &input) { return std::filesystem::path(input).extension() == ".tosa"; }
+
+std::unique_ptr<Pass> createConfiguredTosaSerializeJSONPass(const std::string &filename, const std::string &schema) {
+    auto pass = mlir::tosa::createTosaSerializeJSONPass();
+    std::string passOptions = "tosa-flatbuffer-filename=" + filename + " tosa-flatbuffer-schema=" + schema;
+    if (failed(pass->initializeOptions(passOptions, [](const Twine &message) {
+            llvm::errs() << message << "\n";
+            return failure();
+        }))) {
+        llvm::report_fatal_error("Failed to configure TOSA JSON serialization pass");
+    }
+    return pass;
+}
 } // namespace
 
 Compiler::Compiler(const Options &options)
@@ -87,13 +97,10 @@ void Compiler::SetPassManager() {
     }
 
     if (_options.tosa_serialize) {
-        tosa_flatbuffer_filename = _options.filename_output;
         if (_options.tosa_fb_schema.empty()) {
-            _pm.addPass(mlir::tosa::createTosaSerializePass());
+            _pm.addPass(mlir::tosa::createTosaSerializePass(_options.filename_output));
         } else {
-            tosa_flatbuffer_schema = _options.tosa_fb_schema;
-            OpPassManager &funcNestedPM = _pm.nest<func::FuncOp>();
-            funcNestedPM.addPass(mlir::tosa::createTosaSerializeJSONPass());
+            _pm.addPass(createConfiguredTosaSerializeJSONPass(_options.filename_output, _options.tosa_fb_schema));
         }
     } else {
         // Create VGF output

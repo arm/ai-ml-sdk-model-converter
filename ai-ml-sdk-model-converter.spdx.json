@@ -496,7 +496,7 @@
             "licenseConcluded": "(Apache-2.0 WITH LLVM-exception AND Apache-2.0)",
             "licenseDeclared": "(Apache-2.0 WITH LLVM-exception AND Apache-2.0)",
             "copyrightText": "Copyright (c) ARM Limited.",
-            "versionInfo": "v2026.02",
+            "versionInfo": "v2026.05.0",
             "supplier": "Organization: tosa (https://gitlab.arm.com/tosa)",
             "licenseInfoFromFiles": [
                 "NOASSERTION"
@@ -505,88 +505,9 @@
                 {
                     "referenceCategory": "PACKAGE-MANAGER",
                     "referenceType": "purl",
-                    "referenceLocator": "pkg:generic/tosa-tools@v2026.02"
+                    "referenceLocator": "pkg:generic/tosa-tools@v2026.05.0"
                 }
             ]
-        },
-        {
-            "SPDXID": "SPDXRef-package-6c6c020b-60a1-4a7d-9042-a300bf02b6bf",
-            "downloadLocation": "NOASSERTION",
-            "externalRefs": [
-                {
-                    "referenceCategory": "OTHER",
-                    "referenceLocator": "6c6c020b-60a1-4a7d-9042-a300bf02b6bf",
-                    "referenceType": "BlackDuck-ComponentVersion"
-                },
-                {
-                    "referenceCategory": "OTHER",
-                    "referenceLocator": "deb692c6-4848-4b98-a831-d11499e81b8d",
-                    "referenceType": "BlackDuck-Component"
-                }
-            ],
-            "filesAnalyzed": false,
-            "licenseConcluded": "MIT",
-            "licenseDeclared": "MIT",
-            "name": "cxxopts",
-            "originator": "Organization: cxxopts",
-            "supplier": "Organization: cxxopts",
-            "versionInfo": "v3.3.1"
-        },
-        {
-            "SPDXID": "SPDXRef-package-f43b9468-5687-4e83-b9eb-78fe8a316bed",
-            "downloadLocation": "NOASSERTION",
-            "externalRefs": [
-                {
-                    "referenceCategory": "OTHER",
-                    "referenceLocator": "f43b9468-5687-4e83-b9eb-78fe8a316bed",
-                    "referenceType": "BlackDuck-ComponentVersion"
-                },
-                {
-                    "referenceCategory": "OTHER",
-                    "referenceLocator": "7c5a054b-e18e-417e-82db-c917254653d4",
-                    "referenceType": "BlackDuck-Component"
-                }
-            ],
-            "filesAnalyzed": false,
-            "licenseConcluded": "MIT",
-            "licenseDeclared": "MIT",
-            "name": "doctest testing framework",
-            "originator": "Organization: doctest testing framework",
-            "supplier": "Organization: doctest testing framework",
-            "versionInfo": "v2.4.12"
-        },
-        {
-            "SPDXID": "SPDXRef-package-eb39c089-c8a3-4d30-8772-786c90af9e78",
-            "downloadLocation": "NOASSERTION",
-            "externalRefs": [
-                {
-                    "referenceCategory": "OTHER",
-                    "referenceLocator": "343c994c-4330-488f-8aa3-303cdd1e0f6c",
-                    "referenceType": "BlackDuck-Component"
-                },
-                {
-                    "referenceCategory": "PACKAGE-MANAGER",
-                    "referenceLocator": "pkg:gitlab/libeigen/eigen@3.4.1",
-                    "referenceType": "purl"
-                },
-                {
-                    "referenceCategory": "OTHER",
-                    "referenceLocator": "c30b1627-ad6c-49c5-b503-23e417771d9b",
-                    "referenceType": "BlackDuck-ComponentOrigin"
-                },
-                {
-                    "referenceCategory": "OTHER",
-                    "referenceLocator": "eb39c089-c8a3-4d30-8772-786c90af9e78",
-                    "referenceType": "BlackDuck-ComponentVersion"
-                }
-            ],
-            "filesAnalyzed": false,
-            "licenseConcluded": "MPL-2.0",
-            "licenseDeclared": "MPL-2.0",
-            "name": "Eigen",
-            "originator": "Organization: libeigen",
-            "supplier": "Organization: libeigen",
-            "versionInfo": "3.4.1"
         },
         {
             "SPDXID": "SPDXRef-package-18e36ba3-5553-495c-afa3-ef67a7b417c1",
@@ -824,17 +745,12 @@
         {
             "spdxElementId": "SPDXRef-package-5c74f3d9-f969-4f70-a58b-c1988e3c164d",
             "relationshipType": "DEPENDS_ON",
-            "relatedSpdxElement": "SPDXRef-package-6c6c020b-60a1-4a7d-9042-a300bf02b6bf"
+            "relatedSpdxElement": "SPDXRef-package-10f5ab36-ffd4-49fe-b59a-a10d0f0c5a7b"
         },
         {
             "spdxElementId": "SPDXRef-package-5c74f3d9-f969-4f70-a58b-c1988e3c164d",
             "relationshipType": "DEPENDS_ON",
-            "relatedSpdxElement": "SPDXRef-package-f43b9468-5687-4e83-b9eb-78fe8a316bed"
-        },
-        {
-            "spdxElementId": "SPDXRef-package-5c74f3d9-f969-4f70-a58b-c1988e3c164d",
-            "relationshipType": "DEPENDS_ON",
-            "relatedSpdxElement": "SPDXRef-package-eb39c089-c8a3-4d30-8772-786c90af9e78"
+            "relatedSpdxElement": "SPDXRef-package-e7bd2fb4-8b81-4400-99f1-390dbab23846"
         }
     ]
 }
