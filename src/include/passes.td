@@ -56,6 +56,11 @@ def ModelPartitioningPass : Pass<"model-partitioning", "mlir::ModuleOp"> {
   let description = [{
     Split the model in several modules one per partition following the marking done by the ModelPartitionMarkingPass.
   }];
+  let dependentDialects = [
+    "func::FuncDialect",
+    "tosa::TosaDialect",
+    "vgf::VGFDialect"
+  ];
   let options = [
       Option<"analysis", "analysis", "bool", "false","Analysis">
   ];

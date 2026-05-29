@@ -107,18 +107,15 @@ void Compiler::SetPassManager() {
         std::shared_ptr<VGFBuilder> builder = std::make_shared<class VGFBuilder>();
 
         _pm.nest<func::FuncOp>().addPass(createSignlessIntegerMarkingPass());
-        _pm.addPass(createModelPartitionMarkingPass());
-        _pm.addPass(createModelPartitioningPass({_options.analysis}));
-
         {
-            OpPassManager &sequenceNestedPM = _pm.nest<vgf::SequenceOp>();
-            OpPassManager &segmentNestedPM = sequenceNestedPM.nest<vgf::SegmentOp>();
-            OpPassManager &funcNestedPM = segmentNestedPM.nest<func::FuncOp>();
-
-            // NOTE: constant folding should be executed before the convert constants pass
+            OpPassManager &funcNestedPM = _pm.nest<func::FuncOp>();
+            // Run constant folding before assigning graph constant IDs so fold-created constants get stable,
+            // sequence-wide IDs before partitioning clones them into graph segments.
             funcNestedPM.addPass(mlir::tosa::createTosaLayerwiseConstantFoldPass());
             funcNestedPM.addPass(mlir::tosa::createConvertTosaConstantsPass());
         }
+        _pm.addPass(createModelPartitionMarkingPass());
+        _pm.addPass(createModelPartitioningPass({_options.analysis}));
 
         _pm.addPass(createCheckConstantSparsityPass());
         _pm.addPass(createVGFConstantsPass(builder));

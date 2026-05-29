@@ -7,6 +7,11 @@
 
 #include <vgf/encoder.hpp>
 
+#include <algorithm>
+#include <cstdint>
+#include <iterator>
+#include <vector>
+
 namespace mlsdk::model_converter {
 
 class VGFBuilder {
@@ -15,6 +20,14 @@ class VGFBuilder {
     VGFBuilder() : _encoder(mlsdk::vgflib::CreateEncoder(0)) {}
     std::shared_ptr<mlsdk::vgflib::Encoder> getEncoder() const { return _encoder; }
     const std::vector<mlsdk::vgflib::ConstantRef> &getConstantRefs() const { return _constantRefs; }
+
+    std::vector<mlsdk::vgflib::ConstantRef> getConstantRefs(const std::vector<uint32_t> &ids) const {
+        std::vector<mlsdk::vgflib::ConstantRef> refs;
+        refs.reserve(ids.size());
+        std::transform(ids.begin(), ids.end(), std::back_inserter(refs),
+                       [this](uint32_t id) { return _constantRefs[id]; });
+        return refs;
+    }
 
     void AddConstantRef(mlsdk::vgflib::ConstantRef constRef) { _constantRefs.emplace_back(constRef); }
 

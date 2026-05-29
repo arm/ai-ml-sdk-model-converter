@@ -10,7 +10,7 @@
 #include "vgf_builder.hpp"
 
 #include <fstream>
-#include <set>
+#include <map>
 
 using namespace mlsdk::vgflib;
 
@@ -47,47 +47,48 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
             }
             return false;
         };
-        return constOp.getType().getElementType().isSignlessInteger() &&
+        return constOp.getType().getElementType().isSignlessInteger() && !constOp->use_empty() &&
                llvm::all_of(constOp->getUsers(), onlyRescaleOpsWithUnsignedInput);
     }
 
     mlir::LogicalResult serializeConstants(mlir::ModuleOp moduleOp) {
 
-        std::set<uint32_t> processedGraphConstants;
-        WalkResult walkResult = moduleOp.walk([this, &processedGraphConstants](Operation *op) {
+        std::map<uint32_t, tosa::ConstOp> constantsById;
+        moduleOp.walk([&constantsById](Operation *op) {
             if (auto constOp = llvm::dyn_cast<tosa::ConstOp>(op)) {
                 const auto id = tosa::getGraphIdForConst(constOp);
                 if (id.has_value()) {
-                    if (processedGraphConstants.insert(id.value()).second) {
-                        const ShapedType type = convertShapedType(constOp.getResult().getType());
-                        VGFBuilder::VkFormat vkFormat;
-                        if (_VGFBuilder
-                                ->mlirTypeToVkFormat(type.getElementType(), vkFormat, checkIfUnsignedRequired(constOp))
-                                .failed()) {
-                            llvm::errs() << "Unsupported type for tosa.const op at " << op->getLoc() << "\n";
-                            return WalkResult::interrupt();
-                        }
-
-                        auto format = static_cast<FormatType>(vkFormat);
-                        ResourceRef resourceRef =
-                            _VGFBuilder->getEncoder()->AddConstantResource(format, type.getShape(), {});
-
-                        int64_t sparsityDimension = -1;
-                        auto attr = op->getAttrOfType<IntegerAttr>("constant_2_4_sparse_on_dimension");
-                        if (attr != nullptr) {
-                            sparsityDimension = attr.getInt();
-                        }
-
-                        auto attrVal = llvm::dyn_cast<DenseTypedElementsAttr>(constOp.getValuesAttr());
-                        serializeConstantData(attrVal, resourceRef, sparsityDimension);
-                    }
+                    constantsById.try_emplace(id.value(), constOp);
                 }
             }
-            return WalkResult::advance();
         });
 
-        if (walkResult.wasInterrupted()) {
-            return mlir::failure();
+        uint32_t expectedId = 0;
+        for (auto &[id, constOp] : constantsById) {
+            if (id != expectedId) {
+                return constOp.emitError("missing TOSA graph constant id ")
+                       << expectedId << "; VGF constants must be serialized in global graph constant id order";
+            }
+
+            const ShapedType type = convertShapedType(constOp.getResult().getType());
+            VGFBuilder::VkFormat vkFormat;
+            if (_VGFBuilder->mlirTypeToVkFormat(type.getElementType(), vkFormat, checkIfUnsignedRequired(constOp))
+                    .failed()) {
+                return constOp.emitError("unsupported type for tosa.const op: ") << type.getElementType();
+            }
+
+            auto format = static_cast<FormatType>(vkFormat);
+            ResourceRef resourceRef = _VGFBuilder->getEncoder()->AddConstantResource(format, type.getShape(), {});
+
+            int64_t sparsityDimension = -1;
+            auto attr = constOp->getAttrOfType<IntegerAttr>("constant_2_4_sparse_on_dimension");
+            if (attr != nullptr) {
+                sparsityDimension = attr.getInt();
+            }
+
+            auto attrVal = llvm::dyn_cast<DenseTypedElementsAttr>(constOp.getValuesAttr());
+            serializeConstantData(attrVal, resourceRef, sparsityDimension);
+            ++expectedId;
         }
 
         return mlir::success();

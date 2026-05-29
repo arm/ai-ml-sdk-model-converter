@@ -365,20 +365,68 @@ void insertPartitionResultInMap(const int64_t id, Value value, DenseMap<int64_t,
     map[id].insert(position, value);
 }
 
-SmallVector<Value> collectInputs(const SmallVector<Operation *> &ops) {
-    DenseSet<Operation *> knownOps(ops.begin(), ops.end());
-    DenseSet<Value> seenInputs;
+bool isCompileTimeTosaConstant(Operation *op) { return llvm::isa_and_nonnull<tosa::ConstOp, tosa::ConstShapeOp>(op); }
+
+bool isVulkanCustomShaderOperation(Operation *op) {
+    auto customOp = llvm::dyn_cast_or_null<tosa::CustomOp>(op);
+    return customOp && isVulkanCustomShaderOp(customOp);
+}
+
+bool hasNonRematerializableExternalUse(Operation *op, int64_t partitionId) {
+    for (Operation *user : op->getUsers()) {
+        if (llvm::isa<func::ReturnOp>(user) || isVulkanCustomShaderOperation(user)) {
+            return true;
+        }
+
+        auto userPartitionAttr = user->getAttrOfType<IntegerAttr>("graph_partition_id");
+        if (!userPartitionAttr || userPartitionAttr.getInt() == partitionId) {
+            continue;
+        }
+    }
+    return false;
+}
+
+struct PartitionDependencies {
     SmallVector<Value> inputs;
+    SmallVector<Value> compileTimeConstantsToClone;
+};
+
+PartitionDependencies collectPartitionDependencies(const SmallVector<Operation *> &ops,
+                                                   bool rematerializeCompileTimeConstants) {
+    DenseSet<Operation *> knownOps(ops.begin(), ops.end());
+    DenseSet<Value> seenRuntimeInputs;
+    DenseSet<Value> seenConstantsToClone;
+    PartitionDependencies dependencies;
     for (Operation *op : ops) {
         for (auto operand : op->getOperands()) {
             Operation *defOp = operand.getDefiningOp();
-            if (!knownOps.contains(defOp) && seenInputs.insert(operand).second) {
-                inputs.push_back(operand);
+            if (knownOps.contains(defOp)) {
+                continue;
+            }
+
+            if (rematerializeCompileTimeConstants && isCompileTimeTosaConstant(defOp)) {
+                if (seenConstantsToClone.insert(operand).second) {
+                    dependencies.compileTimeConstantsToClone.push_back(operand);
+                }
+                continue;
+            }
+
+            if (seenRuntimeInputs.insert(operand).second) {
+                dependencies.inputs.push_back(operand);
             }
         }
     }
 
-    return inputs;
+    return dependencies;
+}
+
+void cloneCompileTimeConstants(OpBuilder &builder, const SmallVector<Value> &constantsToClone, IRMapping &mapping) {
+    for (Value operand : constantsToClone) {
+        Operation *defOp = operand.getDefiningOp();
+        Operation *clonedConst = builder.clone(*defOp, mapping);
+        clonedConst->removeAttr("delete");
+        mapping.map(operand, clonedConst->getResult(0));
+    }
 }
 
 void deleteOldOps(ModuleOp moduleOp) {
@@ -419,6 +467,9 @@ class ModelPartitioningPass : public impl::ModelPartitioningPassBase<ModelPartit
             auto leafAttr = op->getAttrOfType<BoolAttr>("graph_partition_leaf_node");
             if (leafAttr.getValue()) {
                 for (Value value : op->getResults()) {
+                    if (isCompileTimeTosaConstant(op) && !hasNonRematerializableExternalUse(op, partitionId)) {
+                        continue;
+                    }
                     insertPartitionResultInMap(partitionId, value, partitionIdToResults);
                 }
             }
@@ -434,23 +485,22 @@ class ModelPartitioningPass : public impl::ModelPartitioningPassBase<ModelPartit
             for (int64_t partitionId = 0; partitionId <= highestPartitionId; ++partitionId) {
                 SmallVector<Operation *> partitionOps = partitionIdToOp[partitionId];
 
-                SmallVector<Value> inputs;
+                bool isComputeSegment = partitionOps.size() == 1 && isVulkanCustomShaderOperation(partitionOps[0]);
+                const auto segmentType = isComputeSegment ? vgf::SegmentTypeEnum::COMPUTE : vgf::SegmentTypeEnum::GRAPH;
+
+                PartitionDependencies dependencies;
                 // This ensures that unused arguments are passed through when there is one segment(partition)
                 if (highestPartitionId == 0) {
                     auto args = funcOp.getArguments();
-                    std::copy(args.begin(), args.end(), std::back_inserter(inputs));
+                    std::copy(args.begin(), args.end(), std::back_inserter(dependencies.inputs));
                 } else {
-                    inputs = collectInputs(partitionOps);
+                    dependencies = collectPartitionDependencies(partitionOps, !isComputeSegment);
                 }
                 SmallVector<Value> results = partitionIdToResults[partitionId];
 
                 const std::string segmentName = "graph_partition_" + std::to_string(partitionId);
                 const FunctionType segmentFunctionType =
-                    builder.getFunctionType(ValueRange(inputs).getTypes(), ValueRange(results).getTypes());
-
-                bool isComputeSegment = partitionOps.size() == 1 && llvm::isa<tosa::CustomOp>(partitionOps[0]) &&
-                                        isVulkanCustomShaderOp(llvm::cast<tosa::CustomOp>(partitionOps[0]));
-                const auto segmentType = isComputeSegment ? vgf::SegmentTypeEnum::COMPUTE : vgf::SegmentTypeEnum::GRAPH;
+                    builder.getFunctionType(ValueRange(dependencies.inputs).getTypes(), ValueRange(results).getTypes());
 
                 auto segmentOp = vgf::SegmentOp::create(builder, funcOp.getLoc(), segmentName, segmentType,
                                                         segmentFunctionType, nullptr, nullptr);
@@ -462,7 +512,7 @@ class ModelPartitioningPass : public impl::ModelPartitioningPassBase<ModelPartit
 
                     if (isComputeSegment) {
                         IRMapping segmentMapping;
-                        for (auto [input, segmentOpArg] : llvm::zip(inputs, segmentOp.getArguments())) {
+                        for (auto [input, segmentOpArg] : llvm::zip(dependencies.inputs, segmentOp.getArguments())) {
                             segmentMapping.map(input, segmentOpArg);
                         }
 
@@ -486,10 +536,11 @@ class ModelPartitioningPass : public impl::ModelPartitioningPassBase<ModelPartit
                             Block *funcBlock = newFuncOp.addEntryBlock();
                             builder.setInsertionPoint(funcBlock, funcBlock->end());
                             IRMapping funcMapping;
-                            for (auto [input, newFunOpArg] : llvm::zip(inputs, newFuncOp.getArguments())) {
+                            for (auto [input, newFunOpArg] : llvm::zip(dependencies.inputs, newFuncOp.getArguments())) {
                                 funcMapping.map(input, newFunOpArg);
                             }
 
+                            cloneCompileTimeConstants(builder, dependencies.compileTimeConstantsToClone, funcMapping);
                             for (Operation *op : partitionOps) {
                                 builder.clone(*op, funcMapping);
                                 op->setAttr("delete", BoolAttr::get(context, true));
@@ -504,7 +555,7 @@ class ModelPartitioningPass : public impl::ModelPartitioningPassBase<ModelPartit
                 }
 
                 llvm::SmallVector<Value, 4> runInputs;
-                std::transform(inputs.begin(), inputs.end(), std::back_inserter(runInputs),
+                std::transform(dependencies.inputs.begin(), dependencies.inputs.end(), std::back_inserter(runInputs),
                                [&](Value value) { return externalMapping.lookupOrDefault(value); });
                 auto segmentRunOp = vgf::SegmentRunOp::create(builder, segmentOp.getLoc(), segmentOp.getResultTypes(),
                                                               SymbolRefAttr::get(segmentOp), ValueRange(runInputs));
