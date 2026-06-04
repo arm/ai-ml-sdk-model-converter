@@ -87,6 +87,18 @@ def add_mlir():
     )
 
 
+def direct_passthrough_mlir():
+    return main_mlir(
+        arguments='%arg0: tensor<49x38x55xi16> {tf_saved_model.index_path = ["input_0"]}',
+        result='(tensor<49x38x55xi16> {tf_saved_model.index_path = ["output_0"]})',
+        entry_inputs="tosa_deserialized_input_0:0",
+        entry_outputs="tosa_deserialized_output_0:0",
+        exported_name="tosa_deserialized",
+        body="",
+        return_value="%arg0 : tensor<49x38x55xi16>",
+    )
+
+
 def conv2d_mlir():
     body = """
     %0 = "tosa.const"() {values = dense<0> : tensor<16xi32>} : () -> tensor<16xi32>
@@ -211,6 +223,29 @@ def inlined_higher_rank_constant_mlir():
                 "constants": [],
             },
             id="add",
+        ),
+        pytest.param(
+            direct_passthrough_mlir(),
+            {
+                "resources": [
+                    (
+                        vgfpy.ResourceCategory.Input,
+                        VK_FORMAT_R16_SINT,
+                        [49, 38, 55],
+                    ),
+                    (
+                        vgfpy.ResourceCategory.Output,
+                        VK_FORMAT_R16_SINT,
+                        [49, 38, 55],
+                    ),
+                ],
+                "segment_inputs": [(0, 0)],
+                "segment_outputs": [(1, 1)],
+                "model_inputs": [(0, 0, "tosa_deserialized_input_0:0")],
+                "model_outputs": [(1, 1, "tosa_deserialized_output_0:0")],
+                "constants": [],
+            },
+            id="direct-passthrough",
         ),
         pytest.param(
             conv2d_mlir(),

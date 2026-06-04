@@ -482,21 +482,34 @@ class ModelPartitioningPass : public impl::ModelPartitioningPassBase<ModelPartit
             builder.setInsertionPoint(oldTerminator);
 
             IRMapping externalMapping;
-            for (int64_t partitionId = 0; partitionId <= highestPartitionId; ++partitionId) {
+            const bool createPassthroughSegment = highestPartitionId < 0;
+            const int64_t lastPartitionId = createPassthroughSegment ? 0 : highestPartitionId;
+            if (createPassthroughSegment) {
+                DenseSet<Value> seenResults;
+                for (Value operand : oldTerminator->getOperands()) {
+                    if (seenResults.insert(operand).second) {
+                        partitionIdToResults[0].push_back(operand);
+                    }
+                }
+            }
+
+            for (int64_t partitionId = 0; partitionId <= lastPartitionId; ++partitionId) {
                 SmallVector<Operation *> partitionOps = partitionIdToOp[partitionId];
 
                 bool isComputeSegment = partitionOps.size() == 1 && isVulkanCustomShaderOperation(partitionOps[0]);
                 const auto segmentType = isComputeSegment ? vgf::SegmentTypeEnum::COMPUTE : vgf::SegmentTypeEnum::GRAPH;
 
                 PartitionDependencies dependencies;
-                // This ensures that unused arguments are passed through when there is one segment(partition)
-                if (highestPartitionId == 0) {
+                SmallVector<Value> results = partitionIdToResults[partitionId];
+                if (createPassthroughSegment) {
+                    dependencies.inputs = results;
+                } else if (highestPartitionId == 0) {
+                    // This ensures that unused arguments are passed through when there is one segment(partition)
                     auto args = funcOp.getArguments();
                     std::copy(args.begin(), args.end(), std::back_inserter(dependencies.inputs));
                 } else {
                     dependencies = collectPartitionDependencies(partitionOps, !isComputeSegment);
                 }
-                SmallVector<Value> results = partitionIdToResults[partitionId];
 
                 const std::string segmentName = "graph_partition_" + std::to_string(partitionId);
                 const FunctionType segmentFunctionType =
