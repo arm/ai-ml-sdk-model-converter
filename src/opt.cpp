@@ -8,6 +8,7 @@
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Dialect/Tosa/Transforms/Passes.h"
 #include "mlir/Tools/mlir-opt/MlirOptMain.h"
+#include "vgf-dialect/VGFDialect.h"
 
 using namespace mlir;
 using namespace mlir::model_converter_passes;

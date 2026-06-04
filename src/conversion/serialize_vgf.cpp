@@ -5,6 +5,7 @@
 
 #include "conversion/resource_planner.hpp"
 #include "include/passes.hpp"
+#include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Target/SPIRV/Serialization.h"
 #include "utils.hpp"
 #include "vgf/encoder.hpp"
@@ -58,6 +59,16 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
     }
 
   private:
+    std::vector<ConstantRef> getSegmentConstantRefs(spirv::ModuleOp spirvModuleOp) const {
+        std::vector<uint32_t> ids;
+        spirvModuleOp.walk([&](spirv::GraphConstantARMOp graphConstantOp) {
+            ids.push_back(static_cast<uint32_t>(graphConstantOp.getGraphConstantId()));
+        });
+        std::sort(ids.begin(), ids.end());
+        ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
+        return _VGFBuilder->getConstantRefs(ids);
+    }
+
     mlir::LogicalResult serializeModule(mlir::vgf::SequenceOp &sequenceOp) {
 
         // Fetch input/output names if available
@@ -163,7 +174,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
 
                     _VGFBuilder->getEncoder()->AddSegmentInfo(
                         computeModuleRef, "compute_segment_" + std::to_string(computeSegmentId++), descriptorSetInfos,
-                        segmentInputBindings, segmentOutputBindings, _VGFBuilder->getConstantRefs(), dispatchShape);
+                        segmentInputBindings, segmentOutputBindings, {}, dispatchShape);
 
                     return WalkResult::advance();
                 });
@@ -194,10 +205,11 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
 
                         const DescriptorSetInfoRef descSetInfo =
                             _VGFBuilder->getEncoder()->AddDescriptorSetInfo(segmentAllBindings);
+                        const auto segmentConstants = getSegmentConstantRefs(spirvModuleOp);
 
                         _VGFBuilder->getEncoder()->AddSegmentInfo(
                             graphModuleRef, "graph_segment_" + std::to_string(graphSegmentId++), {descSetInfo},
-                            segmentInputBindings, segmentOutputBindings, _VGFBuilder->getConstantRefs());
+                            segmentInputBindings, segmentOutputBindings, segmentConstants);
 
                         return WalkResult::advance();
                     });
