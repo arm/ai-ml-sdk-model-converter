@@ -7,6 +7,7 @@
 #include "include/passes.hpp"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "model_partition_attrs.hpp"
 #include "vgf-dialect/VGFDialect.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Base64.h"
@@ -14,9 +15,9 @@
 
 #include <nlohmann/json.hpp>
 
-#include <cstring>
+#include <algorithm>
 #include <optional>
-#include <queue>
+#include <utility>
 #include <vector>
 
 namespace mlir::model_converter_passes {
@@ -337,41 +338,38 @@ struct TosaCustomOpRewriter : public OpConversionPattern<tosa::CustomOp> {
     }
 };
 
-void insertPartitionOpInMap(const int64_t id, Operation *op, DenseMap<int64_t, SmallVector<Operation *>> &map) {
-    if (!map.contains(id)) {
-        map[id] = SmallVector<Operation *>();
+int64_t getSequenceOutputIndex(Value value) {
+    auto result = llvm::dyn_cast<OpResult>(value);
+    if (!result) {
+        return -1;
     }
-    map[id].push_back(op);
+
+    auto attr = result.getDefiningOp()->getAttrOfType<DenseI64ArrayAttr>(graphPartitionSequenceOutputIndicesAttrName);
+    if (!attr || result.getResultNumber() >= attr.size()) {
+        return -1;
+    }
+
+    return attr[result.getResultNumber()];
 }
 
 bool comparePartitionResultIndex(const Value &a, const Value &b) {
-    int64_t aIdx = 0;
-    int64_t bIdx = 0;
-
-    if (auto attr = a.getDefiningOp()->getAttrOfType<IntegerAttr>("graph_partition_sequence_output_index")) {
-        aIdx = attr.getInt();
-    }
-    if (auto attr = b.getDefiningOp()->getAttrOfType<IntegerAttr>("graph_partition_sequence_output_index")) {
-        bIdx = attr.getInt();
+    int64_t aIdx = getSequenceOutputIndex(a);
+    int64_t bIdx = getSequenceOutputIndex(b);
+    if (aIdx >= 0 && bIdx >= 0) {
+        return aIdx < bIdx;
     }
 
-    if (aIdx == bIdx) {
-        auto aResult = llvm::dyn_cast<OpResult>(a);
-        auto bResult = llvm::dyn_cast<OpResult>(b);
-        if (aResult && bResult && a.getDefiningOp() == b.getDefiningOp()) {
-            return aResult.getResultNumber() < bResult.getResultNumber();
-        }
+    if (aIdx != bIdx) {
+        return aIdx >= 0 && bIdx < 0;
     }
 
-    return aIdx < bIdx;
-}
-
-void insertPartitionResultInMap(const int64_t id, Value value, DenseMap<int64_t, SmallVector<Value>> &map) {
-    if (!map.contains(id)) {
-        map[id] = SmallVector<Value>();
+    auto aResult = llvm::dyn_cast<OpResult>(a);
+    auto bResult = llvm::dyn_cast<OpResult>(b);
+    if (aResult && bResult && a.getDefiningOp() == b.getDefiningOp()) {
+        return aResult.getResultNumber() < bResult.getResultNumber();
     }
-    auto *position = std::lower_bound(map[id].begin(), map[id].end(), value, comparePartitionResultIndex);
-    map[id].insert(position, value);
+
+    return false;
 }
 
 bool isCompileTimeTosaConstant(Operation *op) { return llvm::isa_and_nonnull<tosa::ConstOp, tosa::ConstShapeOp>(op); }
@@ -381,50 +379,188 @@ bool isVulkanCustomShaderOperation(Operation *op) {
     return customOp && isVulkanCustomShaderOp(customOp);
 }
 
-bool hasNonRematerializableExternalUse(Operation *op, int64_t partitionId) {
-    for (Operation *user : op->getUsers()) {
-        if (llvm::isa<func::ReturnOp>(user) || isVulkanCustomShaderOperation(user)) {
-            return true;
-        }
-
-        auto userPartitionAttr = user->getAttrOfType<IntegerAttr>("graph_partition_id");
-        if (!userPartitionAttr || userPartitionAttr.getInt() == partitionId) {
-            continue;
-        }
-    }
-    return false;
-}
-
-bool isPartitionResult(Operation *op, ArrayRef<Value> results) {
-    return llvm::any_of(op->getResults(), [&](Value result) { return llvm::is_contained(results, result); });
-}
-bool hasUseInPartition(Operation *op, int64_t partitionId) {
-    for (Value result : op->getResults()) {
-        for (Operation *user : result.getUsers()) {
-            auto userPartitionAttr = user->getAttrOfType<IntegerAttr>("graph_partition_id");
-            if (userPartitionAttr && userPartitionAttr.getInt() == partitionId) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-
-bool shouldClonePartitionOp(Operation *op, int64_t partitionId, ArrayRef<Value> results) {
-    if (!isCompileTimeTosaConstant(op)) {
-        return true;
-    }
-
-    return isPartitionResult(op, results) || hasUseInPartition(op, partitionId);
-}
-
 struct PartitionDependencies {
     SmallVector<Value> inputs;
     SmallVector<Value> compileTimeConstantsToClone;
 };
 
-PartitionDependencies collectPartitionDependencies(const SmallVector<Operation *> &ops,
-                                                   bool rematerializeCompileTimeConstants) {
+struct PartitionState {
+    void addOp(int64_t partitionId, Operation *op) {
+        partitionIdToOps[partitionId].push_back(op);
+        highestPartitionId = std::max(highestPartitionId, partitionId);
+    }
+
+    void addResult(int64_t partitionId, Value value) { partitionIdToResults[partitionId].push_back(value); }
+
+    void setResults(int64_t partitionId, SmallVector<Value> results) {
+        partitionIdToResults[partitionId] = std::move(results);
+    }
+
+    SmallVector<Operation *> getOps(int64_t partitionId) const { return lookupValues(partitionIdToOps, partitionId); }
+
+    SmallVector<Value> getResults(int64_t partitionId) const { return lookupValues(partitionIdToResults, partitionId); }
+
+    bool hasPartitions() const { return highestPartitionId >= 0; }
+
+    bool hasSinglePartition() const { return highestPartitionId == 0; }
+
+    int64_t getLastPartitionId() const { return hasPartitions() ? highestPartitionId : 0; }
+
+    void sortResults() {
+        for (auto &entry : partitionIdToResults) {
+            std::stable_sort(entry.second.begin(), entry.second.end(), comparePartitionResultIndex);
+        }
+    }
+
+  private:
+    template <typename T>
+    static SmallVector<T> lookupValues(const DenseMap<int64_t, SmallVector<T>> &partitionValues, int64_t partitionId) {
+        auto valuesIt = partitionValues.find(partitionId);
+        if (valuesIt == partitionValues.end()) {
+            return {};
+        }
+        return valuesIt->second;
+    }
+
+    int64_t highestPartitionId = -1;
+    DenseMap<int64_t, SmallVector<Operation *>> partitionIdToOps;
+    DenseMap<int64_t, SmallVector<Value>> partitionIdToResults;
+};
+
+struct SegmentPlan {
+    int64_t partitionId;
+    SmallVector<Operation *> ops;
+    Operation *computeOp = nullptr;
+    vgf::SegmentTypeEnum type = vgf::SegmentTypeEnum::GRAPH;
+    SmallVector<Value> results;
+    PartitionDependencies dependencies;
+};
+
+struct FunctionPartitionPlan {
+    Operation *oldTerminator = nullptr;
+    SmallVector<SegmentPlan, 8> segments;
+};
+
+struct PlannedFunctionPartition {
+    func::FuncOp funcOp;
+    FunctionPartitionPlan plan;
+};
+
+class FunctionPartitionPlanner {
+  public:
+    explicit FunctionPartitionPlanner(func::FuncOp funcOp)
+        : funcOp(funcOp), oldTerminator(funcOp.getBody().front().getTerminator()) {}
+
+    FunctionPartitionPlan collect();
+
+  private:
+    void collectPartitionState();
+    SmallVector<SegmentPlan, 8> collectSegmentPlans();
+    SegmentPlan collectSegmentPlan(int64_t partitionId, bool isPassthroughSegment);
+    PartitionDependencies collectSegmentDependencies(const SegmentPlan &plan, bool isPassthroughSegment);
+    PartitionDependencies collectPartitionDependencies(ArrayRef<Operation *> ops,
+                                                       bool rematerializeCompileTimeConstants);
+    SmallVector<Value> collectPassthroughSegmentResults();
+    Operation *getComputeSegmentOp(ArrayRef<Operation *> partitionOps);
+    bool hasExternalPartitionUse(Value value, int64_t partitionId);
+    bool isPartitionResultValue(Operation *op, Value value, int64_t partitionId);
+    bool hasRuntimeUseOfCompileTimeConstant(Operation *op);
+
+    func::FuncOp funcOp;
+    Operation *oldTerminator;
+    PartitionState partitionState;
+};
+
+class FunctionPartitionEmitter {
+  public:
+    FunctionPartitionEmitter(OpBuilder &builder, func::FuncOp funcOp, Type segmentIdType)
+        : builder(builder), funcOp(funcOp), segmentIdType(segmentIdType) {}
+
+    void emit(const FunctionPartitionPlan &plan);
+
+  private:
+    struct CreatedSegment {
+        std::string name;
+        FunctionType functionType;
+        vgf::SegmentOp op;
+    };
+
+    void removePartitioningAttrs(Operation *op);
+    void markForDeletion(Operation *op);
+    Operation *cloneWithoutPartitioningAttrs(Operation *op, IRMapping &mapping);
+    Operation *clonePartitionOp(Operation *op, IRMapping &mapping);
+    void cloneCompileTimeConstants(const SmallVector<Value> &constantsToClone, IRMapping &mapping);
+    template <typename ArgumentsT>
+    static void mapValuesToArguments(ArrayRef<Value> values, ArgumentsT arguments, IRMapping &mapping);
+    static SmallVector<Value> lookupMappedValues(ArrayRef<Value> values, IRMapping &mapping);
+    CreatedSegment createSegment(const SegmentPlan &plan);
+    void createComputeSegmentBody(CreatedSegment &segment, const SegmentPlan &plan);
+    void createGraphSegmentBody(CreatedSegment &segment, const SegmentPlan &plan);
+    void createSegmentRun(CreatedSegment &segment, const SegmentPlan &plan);
+    void emitSegment(const SegmentPlan &plan);
+
+    OpBuilder &builder;
+    func::FuncOp funcOp;
+    Type segmentIdType;
+    IRMapping externalMapping;
+};
+
+void FunctionPartitionPlanner::collectPartitionState() {
+    partitionState = PartitionState();
+    for (Operation &op : funcOp.getBody().front().without_terminator()) {
+        auto partitionAttr = op.getAttrOfType<IntegerAttr>(graphPartitionIdAttrName);
+        int64_t partitionId = partitionAttr.getInt();
+        partitionState.addOp(partitionId, &op);
+
+        auto leafAttr = op.getAttrOfType<BoolAttr>(graphPartitionLeafNodeAttrName);
+        if (leafAttr.getValue()) {
+            for (Value value : op.getResults()) {
+                if (isPartitionResultValue(&op, value, partitionId)) {
+                    partitionState.addResult(partitionId, value);
+                }
+            }
+        }
+    }
+    partitionState.sortResults();
+}
+
+Operation *FunctionPartitionPlanner::getComputeSegmentOp(ArrayRef<Operation *> partitionOps) {
+    if (partitionOps.size() != 1 || !isVulkanCustomShaderOperation(partitionOps.front())) {
+        return nullptr;
+    }
+    return partitionOps.front();
+}
+
+bool FunctionPartitionPlanner::hasExternalPartitionUse(Value value, int64_t partitionId) {
+    for (Operation *user : value.getUsers()) {
+        if (llvm::isa<func::ReturnOp>(user)) {
+            return true;
+        }
+
+        auto userPartitionAttr = user->getAttrOfType<IntegerAttr>(graphPartitionIdAttrName);
+        if (userPartitionAttr && userPartitionAttr.getInt() != partitionId) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool FunctionPartitionPlanner::isPartitionResultValue(Operation *op, Value value, int64_t partitionId) {
+    if (isCompileTimeTosaConstant(op) && !hasRuntimeUseOfCompileTimeConstant(op)) {
+        return false;
+    }
+
+    return getSequenceOutputIndex(value) >= 0 || hasExternalPartitionUse(value, partitionId);
+}
+
+bool FunctionPartitionPlanner::hasRuntimeUseOfCompileTimeConstant(Operation *op) {
+    return llvm::any_of(op->getUsers(), [](Operation *user) {
+        return llvm::isa<func::ReturnOp>(user) || isVulkanCustomShaderOperation(user);
+    });
+}
+
+PartitionDependencies FunctionPartitionPlanner::collectPartitionDependencies(ArrayRef<Operation *> ops,
+                                                                             bool rematerializeCompileTimeConstants) {
     DenseSet<Operation *> knownOps(ops.begin(), ops.end());
     DenseSet<Value> seenRuntimeInputs;
     DenseSet<Value> seenConstantsToClone;
@@ -452,19 +588,114 @@ PartitionDependencies collectPartitionDependencies(const SmallVector<Operation *
     return dependencies;
 }
 
-void cloneCompileTimeConstants(OpBuilder &builder, const SmallVector<Value> &constantsToClone, IRMapping &mapping) {
+SmallVector<Value> FunctionPartitionPlanner::collectPassthroughSegmentResults() {
+    DenseSet<Value> seenResults;
+    SmallVector<Value> results;
+    for (Value operand : oldTerminator->getOperands()) {
+        if (seenResults.insert(operand).second) {
+            results.push_back(operand);
+        }
+    }
+    return results;
+}
+
+PartitionDependencies FunctionPartitionPlanner::collectSegmentDependencies(const SegmentPlan &plan,
+                                                                           bool isPassthroughSegment) {
+    PartitionDependencies dependencies;
+    if (isPassthroughSegment) {
+        dependencies.inputs.append(plan.results.begin(), plan.results.end());
+    } else if (partitionState.hasSinglePartition()) {
+        // This ensures that unused arguments are passed through when there is one segment(partition)
+        auto args = funcOp.getArguments();
+        std::copy(args.begin(), args.end(), std::back_inserter(dependencies.inputs));
+    } else {
+        dependencies = collectPartitionDependencies(plan.ops, plan.computeOp == nullptr);
+    }
+
+    return dependencies;
+}
+
+SegmentPlan FunctionPartitionPlanner::collectSegmentPlan(int64_t partitionId, bool isPassthroughSegment) {
+    SegmentPlan plan;
+    plan.partitionId = partitionId;
+    plan.ops = partitionState.getOps(partitionId);
+    plan.computeOp = getComputeSegmentOp(plan.ops);
+    plan.type = plan.computeOp ? vgf::SegmentTypeEnum::COMPUTE : vgf::SegmentTypeEnum::GRAPH;
+    plan.results = partitionState.getResults(partitionId);
+
+    plan.dependencies = collectSegmentDependencies(plan, isPassthroughSegment);
+    return plan;
+}
+
+SmallVector<SegmentPlan, 8> FunctionPartitionPlanner::collectSegmentPlans() {
+    const bool isPassthroughSegment = !partitionState.hasPartitions();
+    const int64_t lastPartitionId = partitionState.getLastPartitionId();
+    if (isPassthroughSegment) {
+        partitionState.setResults(0, collectPassthroughSegmentResults());
+    }
+
+    SmallVector<SegmentPlan, 8> segments;
+    for (int64_t partitionId = 0; partitionId <= lastPartitionId; ++partitionId) {
+        segments.push_back(collectSegmentPlan(partitionId, isPassthroughSegment));
+    }
+    return segments;
+}
+
+FunctionPartitionPlan FunctionPartitionPlanner::collect() {
+    FunctionPartitionPlan plan;
+    collectPartitionState();
+    plan.oldTerminator = oldTerminator;
+    plan.segments = collectSegmentPlans();
+    return plan;
+}
+
+void FunctionPartitionEmitter::removePartitioningAttrs(Operation *op) {
+    op->removeAttr(graphPartitionDeleteAttrName);
+    op->removeAttr(graphPartitionIdAttrName);
+    op->removeAttr(graphPartitionLeafNodeAttrName);
+    op->removeAttr(graphPartitionSequenceOutputIndicesAttrName);
+}
+
+void FunctionPartitionEmitter::markForDeletion(Operation *op) {
+    op->setAttr(graphPartitionDeleteAttrName, BoolAttr::get(builder.getContext(), true));
+}
+
+Operation *FunctionPartitionEmitter::cloneWithoutPartitioningAttrs(Operation *op, IRMapping &mapping) {
+    Operation *clonedOp = builder.clone(*op, mapping);
+    removePartitioningAttrs(clonedOp);
+    return clonedOp;
+}
+
+Operation *FunctionPartitionEmitter::clonePartitionOp(Operation *op, IRMapping &mapping) {
+    Operation *clonedOp = cloneWithoutPartitioningAttrs(op, mapping);
+    markForDeletion(op);
+    return clonedOp;
+}
+
+void FunctionPartitionEmitter::cloneCompileTimeConstants(const SmallVector<Value> &constantsToClone,
+                                                         IRMapping &mapping) {
     for (Value operand : constantsToClone) {
         Operation *defOp = operand.getDefiningOp();
-        Operation *clonedConst = builder.clone(*defOp, mapping);
-        clonedConst->removeAttr("delete");
+        Operation *clonedConst = cloneWithoutPartitioningAttrs(defOp, mapping);
         mapping.map(operand, clonedConst->getResult(0));
     }
+}
+
+template <typename ArgumentsT>
+void FunctionPartitionEmitter::mapValuesToArguments(ArrayRef<Value> values, ArgumentsT arguments, IRMapping &mapping) {
+    for (auto [value, argument] : llvm::zip(values, arguments)) {
+        mapping.map(value, argument);
+    }
+}
+
+SmallVector<Value> FunctionPartitionEmitter::lookupMappedValues(ArrayRef<Value> values, IRMapping &mapping) {
+    return llvm::map_to_vector(values, [&](Value value) { return mapping.lookupOrDefault(value); });
 }
 
 void deleteOldOps(ModuleOp moduleOp) {
     std::vector<Operation *> opsToDelete;
     moduleOp.walk([&](Operation *op) {
-        if (auto attr = op->getAttrOfType<BoolAttr>("delete")) {
+        if (auto attr = op->getAttrOfType<BoolAttr>(graphPartitionDeleteAttrName)) {
             if (attr.getValue()) {
                 opsToDelete.push_back(op);
             }
@@ -475,6 +706,141 @@ void deleteOldOps(ModuleOp moduleOp) {
     }
 }
 
+FunctionPartitionEmitter::CreatedSegment FunctionPartitionEmitter::createSegment(const SegmentPlan &plan) {
+    CreatedSegment segment;
+    segment.name = "graph_partition_" + std::to_string(plan.partitionId);
+    segment.functionType =
+        builder.getFunctionType(ValueRange(plan.dependencies.inputs).getTypes(), ValueRange(plan.results).getTypes());
+    segment.op = vgf::SegmentOp::create(builder, funcOp.getLoc(), segment.name, plan.type, segment.functionType,
+                                        nullptr, nullptr);
+    segment.op->setAttr("segment_id", IntegerAttr::get(segmentIdType, plan.partitionId));
+    return segment;
+}
+
+void FunctionPartitionEmitter::createComputeSegmentBody(CreatedSegment &segment, const SegmentPlan &plan) {
+    OpBuilder::InsertionGuard segmentGuard{builder};
+    Block *segmentBlock = segment.op.addEntryBlock();
+    builder.setInsertionPoint(segmentBlock, segmentBlock->end());
+
+    IRMapping segmentMapping;
+    mapValuesToArguments(plan.dependencies.inputs, segment.op.getArguments(), segmentMapping);
+
+    clonePartitionOp(plan.computeOp, segmentMapping);
+
+    SmallVector<Value> segmentResults = lookupMappedValues(plan.results, segmentMapping);
+    vgf::SegmentOutputOp::create(builder, segment.op.getLoc(), segmentResults);
+}
+
+void FunctionPartitionEmitter::createGraphSegmentBody(CreatedSegment &segment, const SegmentPlan &plan) {
+    OpBuilder::InsertionGuard segmentGuard{builder};
+    Block *segmentBlock = segment.op.addEntryBlock();
+    builder.setInsertionPoint(segmentBlock, segmentBlock->end());
+
+    auto newFuncOp = func::FuncOp::create(builder, funcOp.getLoc(), segment.name, segment.functionType);
+    newFuncOp->setAttr("segment_id", IntegerAttr::get(segmentIdType, plan.partitionId));
+
+    llvm::SmallVector<Value, 0> segmentResults;
+    vgf::SegmentOutputOp::create(builder, segment.op.getLoc(), segmentResults);
+
+    {
+        OpBuilder::InsertionGuard funcGuard{builder};
+        Block *funcBlock = newFuncOp.addEntryBlock();
+        builder.setInsertionPoint(funcBlock, funcBlock->end());
+        IRMapping funcMapping;
+        mapValuesToArguments(plan.dependencies.inputs, newFuncOp.getArguments(), funcMapping);
+
+        cloneCompileTimeConstants(plan.dependencies.compileTimeConstantsToClone, funcMapping);
+        for (Operation *op : plan.ops) {
+            clonePartitionOp(op, funcMapping);
+        }
+
+        SmallVector<Value> funcResults = lookupMappedValues(plan.results, funcMapping);
+        func::ReturnOp::create(builder, newFuncOp.getLoc(), funcResults);
+    }
+}
+
+void FunctionPartitionEmitter::createSegmentRun(CreatedSegment &segment, const SegmentPlan &plan) {
+    SmallVector<Value> runInputs = lookupMappedValues(plan.dependencies.inputs, externalMapping);
+    auto segmentRunOp = vgf::SegmentRunOp::create(builder, segment.op.getLoc(), segment.op.getResultTypes(),
+                                                  SymbolRefAttr::get(segment.op), ValueRange(runInputs));
+    segmentRunOp->setAttr("segment_id", IntegerAttr::get(segmentIdType, plan.partitionId));
+
+    for (auto [result, segmentRunOpArg] : llvm::zip(plan.results, segmentRunOp.getResults())) {
+        externalMapping.map(result, segmentRunOpArg);
+    }
+}
+
+void FunctionPartitionEmitter::emitSegment(const SegmentPlan &plan) {
+    CreatedSegment segment = createSegment(plan);
+
+    if (plan.computeOp) {
+        createComputeSegmentBody(segment, plan);
+    } else {
+        createGraphSegmentBody(segment, plan);
+    }
+    createSegmentRun(segment, plan);
+}
+
+void FunctionPartitionEmitter::emit(const FunctionPartitionPlan &plan) {
+    for (const SegmentPlan &segment : plan.segments) {
+        emitSegment(segment);
+    }
+
+    builder.clone(*plan.oldTerminator, externalMapping);
+    markForDeletion(plan.oldTerminator);
+}
+
+SmallVector<PlannedFunctionPartition, 8> collectFunctionPartitionPlans(ModuleOp moduleOp) {
+    SmallVector<PlannedFunctionPartition, 8> plannedFunctions;
+    for (func::FuncOp funcOp : moduleOp.getOps<func::FuncOp>()) {
+        PlannedFunctionPartition plannedFunction;
+        plannedFunction.funcOp = funcOp;
+        plannedFunction.plan = FunctionPartitionPlanner(funcOp).collect();
+        plannedFunctions.push_back(std::move(plannedFunction));
+    }
+    return plannedFunctions;
+}
+
+void emitFunctionPartitionPlans(ArrayRef<PlannedFunctionPartition> plannedFunctions, MLIRContext *context) {
+    OpBuilder builder(context);
+    const Type segmentIdType = IntegerType::get(context, 32, IntegerType::SignednessSemantics::Unsigned);
+
+    for (const PlannedFunctionPartition &plannedFunction : plannedFunctions) {
+        builder.setInsertionPoint(plannedFunction.plan.oldTerminator);
+        FunctionPartitionEmitter emitter(builder, plannedFunction.funcOp, segmentIdType);
+        emitter.emit(plannedFunction.plan);
+    }
+}
+
+void partitionModuleFunctions(ModuleOp moduleOp, MLIRContext *context) {
+    SmallVector<PlannedFunctionPartition, 8> plannedFunctions = collectFunctionPartitionPlans(moduleOp);
+    emitFunctionPartitionPlans(plannedFunctions, context);
+}
+
+LogicalResult convertPartitionedModule(ModuleOp moduleOp, MLIRContext *context, bool analysis) {
+    ConversionTarget target(*context);
+    target.addDynamicallyLegalOp<func::FuncOp>([](func::FuncOp op) { return !llvm::isa<ModuleOp>(op->getParentOp()); });
+    target.addDynamicallyLegalOp<func::ReturnOp>(
+        [](func::ReturnOp op) { return !llvm::isa<ModuleOp>(op->getParentOp()->getParentOp()); });
+    target.addDynamicallyLegalOp<tosa::CustomOp>([](tosa::CustomOp op) { return !isVulkanCustomShaderOp(op); });
+    target.addLegalDialect<vgf::VGFDialect, func::FuncDialect>();
+
+    RewritePatternSet patterns(context);
+    patterns.add<FuncOpRewriter, ReturnOpRewriter>(context);
+    patterns.add<TosaCustomOpRewriter>(context, analysis);
+    return applyPartialConversion(moduleOp, target, std::move(patterns));
+}
+
+bool hasFunctionDeclaration(ModuleOp moduleOp) {
+    for (func::FuncOp funcOp : moduleOp.getOps<func::FuncOp>()) {
+        if (funcOp.isDeclaration()) {
+            funcOp.emitError("model partitioning requires function definitions");
+            return true;
+        }
+    }
+    return false;
+}
+
 class ModelPartitioningPass : public impl::ModelPartitioningPassBase<ModelPartitioningPass> {
   public:
     using impl::ModelPartitioningPassBase<ModelPartitioningPass>::ModelPartitioningPassBase;
@@ -482,156 +848,15 @@ class ModelPartitioningPass : public impl::ModelPartitioningPassBase<ModelPartit
     void runOnOperation() override {
         mlir::ModuleOp moduleOp = getOperation();
         MLIRContext *context = &getContext();
-        int64_t highestPartitionId = -1;
 
-        DenseMap<int64_t, SmallVector<Operation *>> partitionIdToOp;
-        DenseMap<int64_t, SmallVector<Value>> partitionIdToResults;
-        moduleOp.walk([&](Operation *op) {
-            if (llvm::isa<mlir::ModuleOp>(op) || llvm::isa<mlir::func::FuncOp>(op) ||
-                llvm::isa<mlir::func::ReturnOp>(op)) {
-                return;
-            }
-            auto partitionAttr = op->getAttrOfType<IntegerAttr>("graph_partition_id");
-            int64_t partitionId = partitionAttr.getInt();
-            insertPartitionOpInMap(partitionId, op, partitionIdToOp);
-            highestPartitionId = std::max(highestPartitionId, partitionId);
+        if (hasFunctionDeclaration(moduleOp)) {
+            return signalPassFailure();
+        }
 
-            auto leafAttr = op->getAttrOfType<BoolAttr>("graph_partition_leaf_node");
-            if (leafAttr.getValue()) {
-                for (Value value : op->getResults()) {
-                    if (isCompileTimeTosaConstant(op) && !hasNonRematerializableExternalUse(op, partitionId)) {
-                        continue;
-                    }
-                    insertPartitionResultInMap(partitionId, value, partitionIdToResults);
-                }
-            }
-        });
-
-        moduleOp.walk([&](func::FuncOp funcOp) {
-            OpBuilder builder(context);
-            const Type tUI32 = IntegerType::get(context, 32, IntegerType::SignednessSemantics::Unsigned);
-            Operation *oldTerminator = funcOp.getBody().front().getTerminator();
-            builder.setInsertionPoint(oldTerminator);
-
-            IRMapping externalMapping;
-            const bool createPassthroughSegment = highestPartitionId < 0;
-            const int64_t lastPartitionId = createPassthroughSegment ? 0 : highestPartitionId;
-            if (createPassthroughSegment) {
-                DenseSet<Value> seenResults;
-                for (Value operand : oldTerminator->getOperands()) {
-                    if (seenResults.insert(operand).second) {
-                        partitionIdToResults[0].push_back(operand);
-                    }
-                }
-            }
-
-            for (int64_t partitionId = 0; partitionId <= lastPartitionId; ++partitionId) {
-                SmallVector<Operation *> partitionOps = partitionIdToOp[partitionId];
-
-                bool isComputeSegment = partitionOps.size() == 1 && isVulkanCustomShaderOperation(partitionOps[0]);
-                const auto segmentType = isComputeSegment ? vgf::SegmentTypeEnum::COMPUTE : vgf::SegmentTypeEnum::GRAPH;
-
-                PartitionDependencies dependencies;
-                SmallVector<Value> results = partitionIdToResults[partitionId];
-                if (createPassthroughSegment) {
-                    dependencies.inputs = results;
-                } else if (highestPartitionId == 0) {
-                    // This ensures that unused arguments are passed through when there is one segment(partition)
-                    auto args = funcOp.getArguments();
-                    std::copy(args.begin(), args.end(), std::back_inserter(dependencies.inputs));
-                } else {
-                    dependencies = collectPartitionDependencies(partitionOps, !isComputeSegment);
-                }
-
-                const std::string segmentName = "graph_partition_" + std::to_string(partitionId);
-                const FunctionType segmentFunctionType =
-                    builder.getFunctionType(ValueRange(dependencies.inputs).getTypes(), ValueRange(results).getTypes());
-
-                auto segmentOp = vgf::SegmentOp::create(builder, funcOp.getLoc(), segmentName, segmentType,
-                                                        segmentFunctionType, nullptr, nullptr);
-                segmentOp->setAttr("segment_id", IntegerAttr::get(tUI32, partitionId));
-                {
-                    OpBuilder::InsertionGuard segmentGuard{builder};
-                    Block *segmentBlock = segmentOp.addEntryBlock();
-                    builder.setInsertionPoint(segmentBlock, segmentBlock->end());
-
-                    if (isComputeSegment) {
-                        IRMapping segmentMapping;
-                        for (auto [input, segmentOpArg] : llvm::zip(dependencies.inputs, segmentOp.getArguments())) {
-                            segmentMapping.map(input, segmentOpArg);
-                        }
-
-                        builder.clone(*partitionOps[0], segmentMapping);
-                        partitionOps[0]->setAttr("delete", BoolAttr::get(context, true));
-
-                        llvm::SmallVector<Value, 4> segmentResults;
-                        std::transform(results.begin(), results.end(), std::back_inserter(segmentResults),
-                                       [&](Value value) { return segmentMapping.lookupOrDefault(value); });
-                        vgf::SegmentOutputOp::create(builder, segmentOp.getLoc(), segmentResults);
-                    } else {
-                        auto newFuncOp =
-                            func::FuncOp::create(builder, funcOp.getLoc(), segmentName, segmentFunctionType);
-                        newFuncOp->setAttr("segment_id", IntegerAttr::get(tUI32, partitionId));
-
-                        llvm::SmallVector<Value, 0> segmentResults;
-                        vgf::SegmentOutputOp::create(builder, segmentOp.getLoc(), segmentResults);
-
-                        {
-                            OpBuilder::InsertionGuard funcGuard{builder};
-                            Block *funcBlock = newFuncOp.addEntryBlock();
-                            builder.setInsertionPoint(funcBlock, funcBlock->end());
-                            IRMapping funcMapping;
-                            for (auto [input, newFunOpArg] : llvm::zip(dependencies.inputs, newFuncOp.getArguments())) {
-                                funcMapping.map(input, newFunOpArg);
-                            }
-
-                            cloneCompileTimeConstants(builder, dependencies.compileTimeConstantsToClone, funcMapping);
-                            for (Operation *op : partitionOps) {
-                                if (!shouldClonePartitionOp(op, partitionId, results)) {
-                                    op->setAttr("delete", BoolAttr::get(context, true));
-                                    continue;
-                                }
-                                builder.clone(*op, funcMapping);
-                                op->setAttr("delete", BoolAttr::get(context, true));
-                            }
-
-                            llvm::SmallVector<Value, 4> funcResults;
-                            std::transform(results.begin(), results.end(), std::back_inserter(funcResults),
-                                           [&](Value value) { return funcMapping.lookupOrDefault(value); });
-                            func::ReturnOp::create(builder, newFuncOp.getLoc(), funcResults);
-                        }
-                    }
-                }
-
-                llvm::SmallVector<Value, 4> runInputs;
-                std::transform(dependencies.inputs.begin(), dependencies.inputs.end(), std::back_inserter(runInputs),
-                               [&](Value value) { return externalMapping.lookupOrDefault(value); });
-                auto segmentRunOp = vgf::SegmentRunOp::create(builder, segmentOp.getLoc(), segmentOp.getResultTypes(),
-                                                              SymbolRefAttr::get(segmentOp), ValueRange(runInputs));
-                segmentRunOp->setAttr("segment_id", IntegerAttr::get(tUI32, partitionId));
-
-                for (auto [result, segmentRunOpArg] : llvm::zip(results, segmentRunOp.getResults())) {
-                    externalMapping.map(result, segmentRunOpArg);
-                }
-            }
-
-            builder.clone(*oldTerminator, externalMapping);
-            oldTerminator->setAttr("delete", BoolAttr::get(context, true));
-        });
-
+        partitionModuleFunctions(moduleOp, context);
         deleteOldOps(moduleOp);
 
-        ConversionTarget target(*context);
-        target.addDynamicallyLegalOp<func::FuncOp>(
-            [](func::FuncOp op) { return !llvm::isa<ModuleOp>(op->getParentOp()); });
-        target.addDynamicallyLegalOp<func::ReturnOp>(
-            [](func::ReturnOp op) { return !llvm::isa<ModuleOp>(op->getParentOp()->getParentOp()); });
-        target.addDynamicallyLegalOp<tosa::CustomOp>([](tosa::CustomOp op) { return !isVulkanCustomShaderOp(op); });
-        target.addLegalDialect<vgf::VGFDialect, func::FuncDialect>();
-        RewritePatternSet patterns(context);
-        patterns.add<FuncOpRewriter, ReturnOpRewriter>(context);
-        patterns.add<TosaCustomOpRewriter>(context, analysis);
-        if (applyPartialConversion(moduleOp, target, std::move(patterns)).failed()) {
+        if (convertPartitionedModule(moduleOp, context, analysis).failed()) {
             return signalPassFailure();
         }
     }
