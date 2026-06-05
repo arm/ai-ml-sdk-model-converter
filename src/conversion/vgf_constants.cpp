@@ -4,7 +4,7 @@
  */
 
 #include "include/passes.hpp"
-#include "mlir/Conversion/TosaToSPIRVTosa/ConvertTosaConstants.h"
+#include "mlir/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosa.h"
 #include "mlir/Target/SPIRV/Serialization.h"
 #include "utils.hpp"
 #include "vgf_builder.hpp"
@@ -56,9 +56,9 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
         std::map<uint32_t, tosa::ConstOp> constantsById;
         moduleOp.walk([&constantsById](Operation *op) {
             if (auto constOp = llvm::dyn_cast<tosa::ConstOp>(op)) {
-                const auto id = tosa::getGraphIdForConst(constOp);
-                if (id.has_value()) {
-                    constantsById.try_emplace(id.value(), constOp);
+                auto id = constOp->getAttrOfType<IntegerAttr>(tosa::graphARMGraphConstantIdAttrName);
+                if (id != nullptr) {
+                    constantsById.try_emplace(static_cast<uint32_t>(id.getInt()), constOp);
                 }
             }
         });

@@ -276,6 +276,8 @@ class Builder:
                     "-quiet",
                     f"-j{self.threads}",
                     f"-p{self.build_dir}",
+                    # The compile database may contain GCC-only warning flags.
+                    "-extra-arg=-Wno-unknown-warning-option",
                 ] + src_dirs
 
                 if self.clang_tidy_fix:

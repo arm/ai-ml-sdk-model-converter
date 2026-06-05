@@ -8,6 +8,7 @@
 #include "mlir/IR/IRMapping.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "vgf-dialect/VGFDialect.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Base64.h"
 #include "llvm/Support/Error.h"
 
@@ -386,6 +387,29 @@ bool hasNonRematerializableExternalUse(Operation *op, int64_t partitionId) {
     return false;
 }
 
+bool isPartitionResult(Operation *op, ArrayRef<Value> results) {
+    return llvm::any_of(op->getResults(), [&](Value result) { return llvm::is_contained(results, result); });
+}
+bool hasUseInPartition(Operation *op, int64_t partitionId) {
+    for (Value result : op->getResults()) {
+        for (Operation *user : result.getUsers()) {
+            auto userPartitionAttr = user->getAttrOfType<IntegerAttr>("graph_partition_id");
+            if (userPartitionAttr && userPartitionAttr.getInt() == partitionId) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool shouldClonePartitionOp(Operation *op, int64_t partitionId, ArrayRef<Value> results) {
+    if (!isCompileTimeTosaConstant(op)) {
+        return true;
+    }
+
+    return isPartitionResult(op, results) || hasUseInPartition(op, partitionId);
+}
+
 struct PartitionDependencies {
     SmallVector<Value> inputs;
     SmallVector<Value> compileTimeConstantsToClone;
@@ -555,6 +579,10 @@ class ModelPartitioningPass : public impl::ModelPartitioningPassBase<ModelPartit
 
                             cloneCompileTimeConstants(builder, dependencies.compileTimeConstantsToClone, funcMapping);
                             for (Operation *op : partitionOps) {
+                                if (!shouldClonePartitionOp(op, partitionId, results)) {
+                                    op->setAttr("delete", BoolAttr::get(context, true));
+                                    continue;
+                                }
                                 builder.clone(*op, funcMapping);
                                 op->setAttr("delete", BoolAttr::get(context, true));
                             }

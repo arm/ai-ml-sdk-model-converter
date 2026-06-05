@@ -235,6 +235,7 @@ if(MODEL_CONVERTER_BUILD_TESTS)
 
     target_link_libraries(model-converter-opt PRIVATE
         MLIROptLib
+        MLIRTosaTransforms
         model-converter-passes-lib)
 
     add_dependencies(model-converter-opt model-converter-passes-lib)
