@@ -15,11 +15,14 @@ namespace {
 
 enum class PartitionKind { Graph, Compute };
 
-int64_t assignStandaloneGraphPartition(const int64_t highestPartitionId, const PartitionKind highestPartitionKind) {
+int64_t assignGraphPartitionAfterCompute(const int64_t candidatePartitionId, const int64_t highestPartitionId,
+                                         const PartitionKind highestPartitionKind) {
     if (highestPartitionId < 0) {
-        return 0;
+        return std::max(candidatePartitionId, int64_t(0));
     }
-    return highestPartitionKind == PartitionKind::Compute ? highestPartitionId + 1 : highestPartitionId;
+    const int64_t nextComputeSafePartition =
+        highestPartitionKind == PartitionKind::Compute ? highestPartitionId + 1 : highestPartitionId;
+    return std::max(candidatePartitionId, nextComputeSafePartition);
 }
 
 class ModelPartitionMarkingPass : public impl::ModelPartitionMarkingPassBase<ModelPartitionMarkingPass> {
@@ -69,7 +72,8 @@ class ModelPartitionMarkingPass : public impl::ModelPartitionMarkingPassBase<Mod
                         int64_t parentPartitionId = input->getAttrOfType<IntegerAttr>("graph_partition_id").getInt();
                         if (auto parentCustomOp = llvm::dyn_cast<mlir::tosa::CustomOp>(input);
                             parentCustomOp && isVulkanCustomShaderOp(parentCustomOp)) {
-                            parentPartitionId = std::max(highestPartitionId, parentPartitionId + 1);
+                            parentPartitionId = assignGraphPartitionAfterCompute(
+                                parentPartitionId + 1, highestPartitionId, highestPartitionKind);
                         }
                         partitionId = std::max(partitionId, parentPartitionId);
                     }
@@ -78,7 +82,8 @@ class ModelPartitionMarkingPass : public impl::ModelPartitionMarkingPassBase<Mod
                     // Graph ops without any defining producer in the current sequence stay in a graph-owned
                     // partition. If the most recent partition is compute, start a new graph partition so the
                     // Vulkan custom segment remains single-op.
-                    partitionId = assignStandaloneGraphPartition(highestPartitionId, highestPartitionKind);
+                    partitionId =
+                        assignGraphPartitionAfterCompute(partitionId, highestPartitionId, highestPartitionKind);
                 }
 
                 // Set leaf node flags after the current op's final partition is known. This keeps cross-partition
