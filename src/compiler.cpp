@@ -5,7 +5,6 @@
 
 #include "compiler.hpp"
 #include "include/passes.hpp"
-#include "mlir/Conversion/TosaToSPIRVTosa/ConvertTosaConstants.h"
 #include "mlir/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosa.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/Transforms/Passes.h"
@@ -112,7 +111,7 @@ void Compiler::SetPassManager() {
             // Run constant folding before assigning graph constant IDs so fold-created constants get stable,
             // sequence-wide IDs before partitioning clones them into graph segments.
             funcNestedPM.addPass(mlir::tosa::createTosaLayerwiseConstantFoldPass());
-            funcNestedPM.addPass(mlir::tosa::createConvertTosaConstantsPass());
+            funcNestedPM.addPass(mlir::tosa::createTosaToSPIRVTosaMarkGraphConstants());
         }
         _pm.addPass(createModelPartitionMarkingPass());
         _pm.addPass(createModelPartitioningPass({_options.analysis}));
