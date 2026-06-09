@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2022-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2022-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
@@ -13,6 +13,7 @@
 #include "llvm/Support/SourceMgr.h"
 
 #include <string>
+#include <vector>
 
 using namespace mlir;
 using namespace mlir::model_converter_passes;
@@ -31,8 +32,8 @@ class Compiler {
         bool emit_debug_info = false;
         bool require_static_shape = false;
         bool analysis = false;
-        // Optimizations
         TypeNarrowingMode type_narrowing = TypeNarrowingMode::None;
+        std::vector<std::string> custom_op_domain_to_opcode;
     };
 
     explicit Compiler(const Options &options);

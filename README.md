@@ -180,6 +180,19 @@ To generate a TOSA flatbuffer file, run:
 ./build/model-converter --tosa-flatbuffer --input ${INPUT_TOSA} --output ${OUTPUT_TOSA_FB}
 ```
 
+To lower TOSA custom operations through the Arm.ExperimentalMLOperations CALL extended instruction, provide a domain to Opcode mapping:
+
+```bash
+./build/model-converter --input ${INPUT_TOSA} --output ${OUTPUT_VGF} \
+    --custom-op-domain-to-opcode com.example.accel:42
+```
+
+The `com.arm.bespoke` domain is reserved for Opcode 0 and must be enabled with `--enable-bespoke`:
+
+```bash
+./build/model-converter --input ${INPUT_TOSA} --output ${OUTPUT_VGF} --enable-bespoke
+```
+
 For more information, see the help output:
 
 ```bash

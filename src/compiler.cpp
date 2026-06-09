@@ -12,6 +12,7 @@
 #include "mlir/Transforms/Passes.h"
 #include "vgf-dialect/VGFDialect.h"
 #include "vgf_builder.hpp"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/ErrorHandling.h"
 
 #include "include/DeserializationPasses.h" // from @tosa_tools/mlir_translator
@@ -27,14 +28,33 @@ namespace mlsdk::model_converter {
 namespace {
 bool isTosaFlatbuffer(const std::string &input) { return std::filesystem::path(input).extension() == ".tosa"; }
 
+LogicalResult printPassOptionError(const Twine &message) {
+    llvm::errs() << message << "\n";
+    return failure();
+}
+
 std::unique_ptr<Pass> createConfiguredTosaSerializeJSONPass(const std::string &filename, const std::string &schema) {
     auto pass = mlir::tosa::createTosaSerializeJSONPass();
     std::string passOptions = "tosa-flatbuffer-filename=" + filename + " tosa-flatbuffer-schema=" + schema;
-    if (failed(pass->initializeOptions(passOptions, [](const Twine &message) {
-            llvm::errs() << message << "\n";
-            return failure();
-        }))) {
+    if (failed(pass->initializeOptions(passOptions, printPassOptionError))) {
         llvm::report_fatal_error("Failed to configure TOSA JSON serialization pass");
+    }
+    return pass;
+}
+std::unique_ptr<Pass> createConfiguredTosaToSPIRVTosaPass(bool analysis,
+                                                          const std::vector<std::string> &customOpDomainToOpcode) {
+    auto pass = mlir::tosa::createTosaToSPIRVTosa(analysis);
+    if (customOpDomainToOpcode.empty()) {
+        return pass;
+    }
+
+    std::string passOptions = "custom-op-domain-to-opcode=";
+    llvm::raw_string_ostream optionsStream(passOptions);
+    llvm::interleave(customOpDomainToOpcode, optionsStream, ",");
+    optionsStream.flush();
+
+    if (failed(pass->initializeOptions(passOptions, printPassOptionError))) {
+        llvm::report_fatal_error("Failed to configure TOSA to SPIR-V TOSA pass");
     }
     return pass;
 }
@@ -119,7 +139,7 @@ void Compiler::SetPassManager() {
         _pm.addPass(createCheckConstantSparsityPass());
         _pm.addPass(createVGFConstantsPass(builder));
         _pm.nest<vgf::SequenceOp>().addPass(createAssignGraphARMInterfaceVarABIPass());
-        _pm.addPass(mlir::tosa::createTosaToSPIRVTosa(_options.analysis));
+        _pm.addPass(createConfiguredTosaToSPIRVTosaPass(_options.analysis, _options.custom_op_domain_to_opcode));
 
         {
             // SPIRV Module Passes
