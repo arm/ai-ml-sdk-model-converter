@@ -1,5 +1,5 @@
 #
-# SPDX-FileCopyrightText: Copyright 2022-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+# SPDX-FileCopyrightText: Copyright 2022-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 
@@ -34,3 +34,5 @@ set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)    # Includes only in the target sys
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE BOTH)    # Package files (e.g., pkg-config) in target sysroot
 
 include(${CMAKE_CURRENT_LIST_DIR}/gnu_compiler_options.cmake)
+
+list(APPEND ML_SDK_MODEL_CONVERTER_COMPILE_OPTIONS -Wno-maybe-uninitialized)
