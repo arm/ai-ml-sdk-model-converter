@@ -7,6 +7,7 @@
 
 #include "include/type_narrowing.hpp"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/IR/SPIRVOps.h"
 #include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/Pass/Pass.h"

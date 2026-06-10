@@ -5,6 +5,7 @@
 
 #include "include/passes.hpp"
 
+#include "mlir/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosa.h"
 #include "llvm/ADT/STLExtras.h"
 
 namespace mlir::model_converter_passes {
@@ -12,7 +13,6 @@ namespace mlir::model_converter_passes {
 #include "passes.hpp.inc"
 namespace {
 
-constexpr StringLiteral graphARMInterfaceVarABIAttrName = "spv.grapharm.interface_var_abi";
 constexpr uint32_t graphARMDescriptorSet = 0;
 
 class AssignGraphARMInterfaceVarABIPass
@@ -132,12 +132,12 @@ class AssignGraphARMInterfaceVarABIPass
             }
 
             for (auto [argIndex, operand] : llvm::enumerate(runSegmentOp->getOperands())) {
-                funcOp.setArgAttr(static_cast<unsigned>(argIndex), graphARMInterfaceVarABIAttrName,
+                funcOp.setArgAttr(static_cast<unsigned>(argIndex), tosa::graphARMInterfaceVarABIAttrName,
                                   getInterfaceVarABIAttr(getBindingId(bindingIds, operand)));
             }
 
             for (auto [resultIndex, result] : llvm::enumerate(runSegmentOp->getResults())) {
-                funcOp.setResultAttr(static_cast<unsigned>(resultIndex), graphARMInterfaceVarABIAttrName,
+                funcOp.setResultAttr(static_cast<unsigned>(resultIndex), tosa::graphARMInterfaceVarABIAttrName,
                                      getInterfaceVarABIAttr(getBindingId(bindingIds, result)));
             }
 
