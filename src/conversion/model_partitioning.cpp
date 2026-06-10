@@ -355,6 +355,14 @@ bool comparePartitionResultIndex(const Value &a, const Value &b) {
         bIdx = attr.getInt();
     }
 
+    if (aIdx == bIdx) {
+        auto aResult = llvm::dyn_cast<OpResult>(a);
+        auto bResult = llvm::dyn_cast<OpResult>(b);
+        if (aResult && bResult && a.getDefiningOp() == b.getDefiningOp()) {
+            return aResult.getResultNumber() < bResult.getResultNumber();
+        }
+    }
+
     return aIdx < bIdx;
 }
 
