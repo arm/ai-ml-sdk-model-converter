@@ -40,7 +40,7 @@ class ModelPartitionMarkingPass : public impl::ModelPartitionMarkingPassBase<Mod
                 for (auto [index, operand] : llvm::enumerate(op->getOperands())) {
                     if (Operation *input = operand.getDefiningOp()) {
                         input->setAttr("graph_partition_leaf_node", BoolAttr::get(op->getContext(), true));
-                        if (!op->getAttrOfType<IntegerAttr>("graph_partition_sequence_output_index")) {
+                        if (!input->getAttrOfType<IntegerAttr>("graph_partition_sequence_output_index")) {
                             input->setAttr("graph_partition_sequence_output_index",
                                            IntegerAttr::get(tI32, static_cast<int64_t>(index)));
                         }
