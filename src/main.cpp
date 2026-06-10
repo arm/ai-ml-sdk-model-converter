@@ -1,9 +1,11 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2023-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2023-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 #include <argparse/argparse.hpp>
 #include <vgf/logging.hpp>
+
+#include "llvm/ADT/STLExtras.h"
 
 #include "compiler.hpp"
 #include "version.hpp"
@@ -13,6 +15,7 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <string_view>
 #include <vector>
 
 #ifdef _WIN32
@@ -25,6 +28,24 @@ using namespace mlsdk::model_converter;
 using namespace mlsdk::vgflib;
 
 namespace {
+
+constexpr std::string_view bespokeCustomOpDomain = "com.arm.bespoke";
+
+bool validateCustomOpDomainToOpcode(const std::vector<std::string> &mappings) {
+    auto reservedMapping = llvm::find_if(mappings, [](const std::string &mapping) {
+        const std::size_t delimiter = mapping.rfind(':');
+        return delimiter != std::string::npos &&
+               std::string_view(mapping).substr(0, delimiter) == bespokeCustomOpDomain;
+    });
+
+    if (reservedMapping == mappings.end()) {
+        return true;
+    }
+
+    llvm::errs() << "Bad custom op domain mapping: " << bespokeCustomOpDomain << " is reserved. "
+                 << "Use --enable-bespoke instead of --custom-op-domain-to-opcode " << *reservedMapping << "\n";
+    return false;
+}
 
 std::unique_ptr<argparse::ArgumentParser> createParser(int argc, const char *argv[]) {
     std::unique_ptr<argparse::ArgumentParser> parser = nullptr;
@@ -58,6 +79,15 @@ std::unique_ptr<argparse::ArgumentParser> createParser(int argc, const char *arg
             .implicit_value(true);
         parser->add_argument("--experimental-analysis")
             .help("Print analysis output (what operator lower and which errors out) for the input. [EXPERIMENTAL]")
+            .default_value(false)
+            .implicit_value(true);
+        parser->add_argument("--custom-op-domain-to-opcode")
+            .help("Map TOSA custom op domains to Arm.ExperimentalMLOperations CALL Opcode literal integers. Entries "
+                  "use <domain>:<opcode> and can be specified multiple times.")
+            .append()
+            .default_value(std::vector<std::string>{});
+        parser->add_argument("--enable-bespoke")
+            .help("Enable com.arm.bespoke custom op lowering as an Arm.ExperimentalMLOperations CALL with Opcode 0.")
             .default_value(false)
             .implicit_value(true);
         // Optimisation Options
@@ -117,6 +147,13 @@ int main(int argc, const char *argv[]) {
         options.emit_debug_info = parser->get<bool>("--emit-debug-info");
         options.require_static_shape = parser->get<bool>("--require-static-shape");
         options.analysis = parser->get<bool>("--experimental-analysis");
+        options.custom_op_domain_to_opcode = parser->get<std::vector<std::string>>("--custom-op-domain-to-opcode");
+        if (!validateCustomOpDomainToOpcode(options.custom_op_domain_to_opcode)) {
+            return -1;
+        }
+        if (parser->get<bool>("--enable-bespoke")) {
+            options.custom_op_domain_to_opcode.push_back(std::string(bespokeCustomOpDomain) + ":0");
+        }
         const std::string typeNarrowing = parser->get("--type-narrowing");
         if (typeNarrowing == "full") {
             options.type_narrowing = TypeNarrowingMode::Full;
