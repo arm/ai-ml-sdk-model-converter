@@ -26,8 +26,12 @@ def AssignGraphARMInterfaceVarABIPass : Pass<"assign-grapharm-interface-var-abi"
   let description = [{
     Computes the sequence-wide binding numbering currently used by VGF serialization
     and annotates graph segment func.func arguments/results with
-    spv.grapharm.interface_var_abi so tosa-to-spirv can preserve the final ABI.
+    grapharm.interface_var_abi so tosa-to-spirv can preserve the final ABI.
   }];
+  let dependentDialects = [
+    "func::FuncDialect",
+    "spirv::SPIRVDialect"
+  ];
 }
 
 def TosaShapedVerificationPass : Pass<"tosa-shape-verif", "func::FuncOp"> {
