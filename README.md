@@ -213,9 +213,6 @@ pip install ai-ml-sdk-model-converter
 
 - Usage of the `patches/llvm.patch` file is temporary until the required changes
   can be upstreamed to main LLVM Project
-- The emit-debug-info cli option does not produce debug symbols for the
-  SPV_ARM_graph and SPIR-V™ extended instructions for TOSA operators in the
-  generated SPIR-V™ module.
 
 ## License
 
