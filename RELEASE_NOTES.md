@@ -2,6 +2,32 @@
 
 ---
 
+## Version 0.10.0 – *Bespoke Ops, Partitioning & Toolchain Updates*
+
+### Converter & Toolchain
+
+- Added support for embedding Bespoke ops in graphs using the Arm® Experimental
+  ML Operations instruction set, including TOSA custom-op lowering.
+- Added data type narrowing passes, including i64-to-i32 narrowing.
+- Updated custom shader and VGF metadata handling, including structured JSON
+  parsing, sampler metadata, descriptor set preservation, and resource aliasing.
+- Preserved passthrough graphs, global graph constants, and compute-safe graph
+  partition assignments through lowering.
+- Updated to tosa-tools 2026.05.0 and refreshed the related LLVM patch
+  integration.
+
+### Build, Packaging & Developer Experience
+
+- Split binary and documentation build flows.
+- Simplified Model Converter tests and reduced the converter's LLVM dependency
+  surface.
+
+### Bug Fixes
+
+- Fixed partitioning and lowering issues around operand-order dependent leaf
+  marking, zero-input/non-shader custom ops, SPIR-V™ pass ordering, and GraphARM
+  interface binding assignment.
+
 ## Version 0.9.0 – *Datatype Support & Toolchain Rebase*
 
 ### Converter & Toolchain
