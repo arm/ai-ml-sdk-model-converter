@@ -11,6 +11,11 @@ name = "ai_ml_sdk_model_converter"
 description = "ML SDK Model Converter"
 readme = "README.md"
 dynamic = ["version"]
+license = { text = "Apache-2.0 WITH LLVM-exception" }
+authors = [
+    { name = "Arm Limited" }
+]
+requires-python = ">=3.8"
 
 [project.scripts]
 model_converter = "model_converter.cli:main"
