@@ -6,7 +6,7 @@
 set(TOSA_TOOLS_PATH "TOSA_TOOLS-NOTFOUND" CACHE PATH "Path to TOSA Tools")
 set(tosa_serialize_VERSION "unknown")
 
-if(EXISTS ${ML_SDK_VGF_LIB_PATH}/CMakeLists.txt)
+if(EXISTS ${TOSA_TOOLS_PATH}/CMakeLists.txt)
     mlsdk_get_git_revision(${TOSA_TOOLS_PATH} tosa_serialize_VERSION)
     if(NOT TARGET tosa_serialize)
         set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
