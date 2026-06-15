@@ -790,8 +790,8 @@ void FunctionPartitionEmitter::emit(const FunctionPartitionPlan &plan) {
     markForDeletion(plan.oldTerminator);
 }
 
-SmallVector<PlannedFunctionPartition, 8> collectFunctionPartitionPlans(ModuleOp moduleOp) {
-    SmallVector<PlannedFunctionPartition, 8> plannedFunctions;
+std::vector<PlannedFunctionPartition> collectFunctionPartitionPlans(ModuleOp moduleOp) {
+    std::vector<PlannedFunctionPartition> plannedFunctions;
     for (func::FuncOp funcOp : moduleOp.getOps<func::FuncOp>()) {
         PlannedFunctionPartition plannedFunction;
         plannedFunction.funcOp = funcOp;
@@ -813,7 +813,7 @@ void emitFunctionPartitionPlans(ArrayRef<PlannedFunctionPartition> plannedFuncti
 }
 
 void partitionModuleFunctions(ModuleOp moduleOp, MLIRContext *context) {
-    SmallVector<PlannedFunctionPartition, 8> plannedFunctions = collectFunctionPartitionPlans(moduleOp);
+    std::vector<PlannedFunctionPartition> plannedFunctions = collectFunctionPartitionPlans(moduleOp);
     emitFunctionPartitionPlans(plannedFunctions, context);
 }
 
