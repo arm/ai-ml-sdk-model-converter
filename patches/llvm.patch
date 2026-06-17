@@ -1,6 +1,6 @@
 From: svc_sdk <svc_sdk@arm.com>
 Date: Thu Feb 19 00:00:00 2026
-Subject: llvm-changes-for-model-converter-04-06-2026
+Subject: llvm-changes-for-model-converter-17-06-2026
 
 diff --git a/mlir/include/mlir/Conversion/Passes.td b/mlir/include/mlir/Conversion/Passes.td
 index c30dd3b07d02..c5eebb1fee97 100644
@@ -432,20 +432,19 @@ index 000000000000..5876f7339c33
 +  }
 +}
 
-From 1f189c7516f04c8ad7d5eebbd4d9fe981c25423f Mon Sep 17 00:00:00 2001
-From: Davide Grohmann <davide.grohmann@arm.com>
-Date: Mon, 1 Jun 2026 13:47:17 +0200
-Subject: [PATCH] [mlir][spirv] Add TOSA to SPIR-V conversion analysis mode
-
-Restore the optional analysis mode for the TOSA to SPIR-V TOSA pass as
-a separate change.
-
-When enabled through the C++ pass factory, run applyAnalysisConversion
-before the real conversion and print the TOSA operations that are
-legalizable by the pass.
-
-Change-Id: I8c402f42f293b4e111e32aeae86f72e903c36b2b
-Signed-off-by: Davide Grohmann <davide.grohmann@arm.com>
+diff --git a/mlir/lib/Dialect/Tosa/Transforms/TosaConvertIntegerTypeToSignless.cpp b/mlir/lib/Dialect/Tosa/Transforms/TosaConvertIntegerTypeToSignless.cpp
+index 8f931d2f0f9e..80c953052bed 100644
+--- a/mlir/lib/Dialect/Tosa/Transforms/TosaConvertIntegerTypeToSignless.cpp
++++ b/mlir/lib/Dialect/Tosa/Transforms/TosaConvertIntegerTypeToSignless.cpp
+@@ -119,7 +119,7 @@ class ConvertTosaConstWithIntegerTensorType
+ 
+     ElementsAttr newAttr = oldAttr;
+     if (auto denseAttr = llvm::dyn_cast<DenseElementsAttr>(oldAttr)) {
+-      newAttr = DenseElementsAttr::get(newTy, denseAttr.getRawData());
++      newAttr = DenseElementsAttr::getFromRawBuffer(newTy, denseAttr.getRawData());
+     } else {
+       return rewriter.notifyMatchFailure(op, "unknown elements attribute type");
+     }
 
 diff --git a/mlir/include/mlir/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosa.h b/mlir/include/mlir/Conversion/TosaToSPIRVTosa/TosaToSPIRVTosa.h
 index 9a42cf75f187..ed56a4f58bb6 100644
