@@ -122,7 +122,7 @@ python3 ${SDK_PATH}/sw/model-converter/scripts/build.py -j $(nproc) \
     --vgf-lib-path ${SDK_PATH}/sw/vgf-lib \
     --flatbuffers-path ${SDK_PATH}/dependencies/flatbuffers \
     --argparse-path ${SDK_PATH}/dependencies/argparse \
-    --tosa-tools-path ${SDK_PATH}/dependencies/tosa_tools \
+    --tosa-tools-path ${SDK_PATH}/dependencies/tosa-tools \
     --external-llvm ${SDK_PATH}/dependencies/llvm-project
 ```
 
@@ -135,7 +135,7 @@ python3 "$env:SDK_PATH\sw\model-converter\scripts\build.py" -j $cores `
     --vgf-lib-path "$env:SDK_PATH\sw\vgf-lib" `
     --flatbuffers-path "$env:SDK_PATH\dependencies\flatbuffers" `
     --argparse-path "$env:SDK_PATH\dependencies\argparse" `
-    --tosa-tools-path "$env:SDK_PATH\dependencies\tosa_tools" `
+    --tosa-tools-path "$env:SDK_PATH\dependencies\tosa-tools" `
     --external-llvm "$env:SDK_PATH\dependencies\llvm-project"
 ```
 
@@ -157,8 +157,10 @@ and doxygen must be installed on the machine.
 You can install the project build artifacts into a specified location by passing
 the option `--install` with the required path.
 
-To create an archive with the build artifacts option, add `--package`. The
-archive will be stored in the provided location."
+To create an archive containing the build artifacts, pass the `--package-type`
+option with an archive type such as `zip` or `tgz`. Use `--package-dir` to
+choose where the archive is written; by default, packages are written to the
+build directory.
 
 For more information, see the help output:
 
