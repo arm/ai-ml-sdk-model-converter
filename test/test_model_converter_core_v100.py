@@ -10,6 +10,13 @@ from vgf_decoder import VK_FORMAT_R32_SFLOAT
 from vgf_decoder import VK_FORMAT_R32_SINT
 from vgf_decoder import VK_FORMAT_R8_SINT
 
+SPV_OP_EXTENSION = 10
+SPV_OP_CAPABILITY = 17
+SPV_OP_CONSTANT_COMPOSITE_REPLICATE_EXT = 4461
+SPV_OP_SPEC_CONSTANT_COMPOSITE_REPLICATE_EXT = 4462
+SPV_CAPABILITY_REPLICATED_COMPOSITES_EXT = 6024
+SPV_EXTENSION_REPLICATED_COMPOSITES = "SPV_EXT_replicated_composites"
+
 CONV2D_CONSTANT_VALUES = [
     bytes.fromhex(
         "51266ef1c48a006465b17e2a633507f73841a3812cbf384d83c5cd09263fe5baa9eb25f5d757332ef4d2b64e2f9d0868affb5055023e127d7f70f4016857b4c6bd01a70cf2df535414454067821f1a2d0658e9b27c026d4714ed4962ff1b3c8c0d372139b749e339a41c033e530d686bcde610ea33c2a7cd81f52c658bec1e00abee94d130d4abb9e8527f8a1e7d0b7cd49593961d7eb688470903c14af52d1777e06042d12c2df009eba15e9c4b7b998d649ec406ecfa0a83702e1d06913b433af158fef959bdeda1651435eff87fbb7dc2c09e3b4a923a373c1ec19840c8f8fa4e1ae0ee20c30204a81b58e023d0337d7fc0280a1423cb6a5721818c8bb73aa344a68e7f09c9efa0b2e67ec9f460245457f4fa41066cefc3d9e4e5916a85450ebbad2cc62fbb3699414f09240cf22fb72277db60df3db2a466ba3c49c38527d85ac3dd512f263cd760e4d8b29fd13f707d25b613d481db5db8046dae7ead8dc0bacaeb6d7663936b91a65da22cac9c3732ff5325f1e28b0d4be7785dc9303af747a7fe182bfb7ee32fb0e0f329df088d33deea295e597fa2e6eb4a2a944b9bb9ed6c42f6b85c00b09e756a44f9cb3026025b554d338751f317db17ca96545899b92ee597fa06bdd7b38a0cc1f6b567f4856f3df9814130f495f931cf14e4c3f11ef425bedc2dd3496afc97633496c65ba2f9ee0e51cb87ea10336bd84d17eee32601fc7c3946da41f6626b47852ac25b756c5acf869ddae68e11001b741d7fae3976de9b64a240dc02ace72c8ccac49382b6570f0bf6750fae9efee38ae899dcef77863556d7a0e8a7921860372a476c34bf213914146f87548a6f1f8a8c8ab373bf92d50c2121fac912d0aa16955a968344df728ca791c2737f5e3c67e3d2e99a79e6870ab62c8a7e164dfee7a120d3f32a1224b51f812712e2915031670acb1a4bf32539970b556689bd23dd5dd7f162beeb2d097f68cb872ebcdc2d464a8ed718ec66ac52dcd5f7d2cd82c634a00082f7bdb35bddf5eb3d61c525b8dfb954b2601d81da71ea1ca088dfe1f40ae309be51fac36304c7e4654690f1954973f98fe77f3f7612ab07bd4296bc00b00919d737c4a4e2a51f9d0982cbfce8af5d5eb8a23b8f2e317094878dfc9d41c0c8d4fbb6abf1e4505384963a26c3a647df670f4b878fd4dd85b22035bc4cc3c06acf60ee9483b0c84f1f7a71eca8bf355afdabe4bd6d936aa768e45277ed99f68879358364b6a8c7235c747fc0066e8342a642373c3b0660e4110850c978e113751ea7ba47ec6ab18c6487c4c633f8b87269f0975bec548c98de7af37f9bbeed12055e39fb933500d9cd5063681717fbb950242f8269861b15d3e2592c7f539a076c50b673dc0a91b07ebde6efe0c5d9e4ab8a1c03173c75a699992030bbae302d39b027f540b2a3d906cacf40c1727b66"
@@ -456,3 +463,58 @@ def assert_constants(constants, expected_constants):
             assert value == expected["value"]
         else:
             assert len(value) == expected["size"]
+
+
+def reshape_splat_shape_mlir():
+    return main_mlir(
+        arguments='%arg0: tensor<4xi8> {tf_saved_model.index_path = ["input_0"]}',
+        result='(tensor<2x2xi8> {tf_saved_model.index_path = ["output_0"]})',
+        entry_inputs="input_0",
+        entry_outputs="output_0",
+        body="""    %shape = tosa.const_shape {values = dense<[2, 2]> : tensor<2xindex>} : () -> !tosa.shape<2>
+    %0 = tosa.reshape %arg0, %shape : (tensor<4xi8>, !tosa.shape<2>) -> tensor<2x2xi8>""",
+        return_value="%0 : tensor<2x2xi8>",
+    )
+
+
+def spirv_instructions(spirv_words):
+    words = list(spirv_words)
+    offset = 5
+    while offset < len(words):
+        instruction = words[offset]
+        word_count = instruction >> 16
+        opcode = instruction & 0xFFFF
+        yield opcode, words[offset + 1 : offset + word_count]
+        offset += word_count
+
+
+def spirv_literal_string(words):
+    data = b"".join(word.to_bytes(4, "little") for word in words)
+    return data.split(b"\0", 1)[0].decode("utf-8")
+
+
+def test_disable_replicated_composites_removes_spirv_requirement(
+    model_converter_exe_path,
+):
+    with converted_mlir(
+        model_converter_exe_path,
+        reshape_splat_shape_mlir(),
+        "--disable-replicated-composites",
+    ) as vgf:
+        assert vgf.modules.size() == 1
+        instructions = list(spirv_instructions(vgf.modules.getSPIRVModuleCode(0)))
+
+    for opcode, operands in instructions:
+        assert opcode not in (
+            SPV_OP_CONSTANT_COMPOSITE_REPLICATE_EXT,
+            SPV_OP_SPEC_CONSTANT_COMPOSITE_REPLICATE_EXT,
+        )
+        assert not (
+            opcode == SPV_OP_CAPABILITY
+            and operands
+            and operands[0] == SPV_CAPABILITY_REPLICATED_COMPOSITES_EXT
+        )
+        assert not (
+            opcode == SPV_OP_EXTENSION
+            and spirv_literal_string(operands) == SPV_EXTENSION_REPLICATED_COMPOSITES
+        )

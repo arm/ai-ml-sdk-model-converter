@@ -73,6 +73,10 @@ std::unique_ptr<argparse::ArgumentParser> createParser(int argc, const char *arg
             .help("Produce debug info instructions in SPIR-V assembly")
             .default_value(false)
             .implicit_value(true);
+        parser->add_argument("--disable-replicated-composites")
+            .help("Do not emit SPIR-V features that require VK_EXT_shader_replicated_composites")
+            .default_value(false)
+            .implicit_value(true);
         parser->add_argument("--require-static-shape")
             .help("Require all tensors to be ranked and have a specified shape. Terminate on deviation.")
             .default_value(false)
@@ -145,6 +149,7 @@ int main(int argc, const char *argv[]) {
         options.tosa_fb_schema = options.tosa_serialize ? parser->get("--tosa-flatbuffer-schema") : "";
         options.dump_mlir = parser->get<bool>("--dump-mlir");
         options.emit_debug_info = parser->get<bool>("--emit-debug-info");
+        options.disable_replicated_composites = parser->get<bool>("--disable-replicated-composites");
         options.require_static_shape = parser->get<bool>("--require-static-shape");
         options.analysis = parser->get<bool>("--experimental-analysis");
         options.custom_op_domain_to_opcode = parser->get<std::vector<std::string>>("--custom-op-domain-to-opcode");

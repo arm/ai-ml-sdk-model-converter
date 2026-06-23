@@ -12,13 +12,16 @@ from vgf_decoder import create_vgf_decoders
 
 
 @contextlib.contextmanager
-def converted_mlir(model_converter_exe_path, mlir):
+def converted_mlir(model_converter_exe_path, mlir, extra_args=""):
     with tempfile.TemporaryDirectory() as tmp_path:
         input_mlir = f"{tmp_path}/input.mlir"
         output_vgf = f"{tmp_path}/output.vgf"
         pathlib.Path(input_mlir).write_text(mlir)
 
-        cmd = f"{model_converter_exe_path} --input {input_mlir} --output {output_vgf}"
+        cmd = (
+            f"{model_converter_exe_path} --input {input_mlir} "
+            f"--output {output_vgf} {extra_args}"
+        )
         error = os.system(cmd)
         if error:
             pytest.fail(f"Failed to run ML SDK Model Converter: {cmd}")
