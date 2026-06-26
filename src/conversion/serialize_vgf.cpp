@@ -60,13 +60,13 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
     }
 
   private:
-    std::vector<ConstantRef> getSegmentConstantRefs(spirv::ModuleOp spirvModuleOp) const {
+    std::vector<GraphConstantBindingRef> getSegmentConstantBindings(spirv::ModuleOp spirvModuleOp) const {
         std::vector<uint32_t> ids;
         spirvModuleOp.walk(
             [&](spirv::GraphConstantARMOp graphConstantOp) { ids.push_back(graphConstantOp.getGraphConstantId()); });
         std::sort(ids.begin(), ids.end());
         ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
-        return _VGFBuilder->getConstantRefs(ids);
+        return _VGFBuilder->getConstantBindings(ids);
     }
 
     mlir::LogicalResult serializeModule(mlir::vgf::SequenceOp &sequenceOp) {
@@ -174,7 +174,8 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
 
                     _VGFBuilder->getEncoder().AddSegmentInfo(
                         computeModuleRef, "compute_segment_" + std::to_string(computeSegmentId++), descriptorSetInfos,
-                        segmentInputBindings, segmentOutputBindings, {}, dispatchShape);
+                        segmentInputBindings, segmentOutputBindings, std::vector<GraphConstantBindingRef>{},
+                        dispatchShape);
 
                     return WalkResult::advance();
                 });
@@ -205,7 +206,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
 
                         const DescriptorSetInfoRef descSetInfo =
                             _VGFBuilder->getEncoder().AddDescriptorSetInfo(segmentAllBindings);
-                        const auto segmentConstants = getSegmentConstantRefs(spirvModuleOp);
+                        const auto segmentConstants = getSegmentConstantBindings(spirvModuleOp);
 
                         _VGFBuilder->getEncoder().AddSegmentInfo(
                             graphModuleRef, "graph_segment_" + std::to_string(graphSegmentId++), {descSetInfo},

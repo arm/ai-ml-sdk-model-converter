@@ -78,20 +78,23 @@ def partitioned_table_mlir(shared_constant=False):
     )
 
 
-def graph_segment_constant_indexes(vgf):
-    segment_indexes = []
+def graph_segment_constant_bindings(vgf):
+    segment_bindings = []
     module_ids = []
     for segment_index in range(vgf.sequence.modelSequenceTableSize()):
         if vgf.sequence.getSegmentType(segment_index) != vgfpy.ModuleType.Graph:
             continue
         module_index = vgf.sequence.getSegmentModuleIndex(segment_index)
-        segment_indexes.append(
-            list(vgf.sequence.getSegmentConstantIndexes(segment_index))
+        segment_bindings.append(
+            [
+                (binding.graphConstantId, binding.constantIndex)
+                for binding in vgf.sequence.getSegmentConstantBindings(segment_index)
+            ]
         )
         module_ids.append(
             sorted(graph_constant_ids(vgf.modules.getSPIRVModuleCode(module_index)))
         )
-    return segment_indexes, module_ids
+    return segment_bindings, module_ids
 
 
 def segment_constant_indexes(vgf):
@@ -116,11 +119,11 @@ def assert_constant_table(vgf, expected_values):
 
 def test_partitioned_graph_constants_use_global_sparse_ids(model_converter_exe_path):
     with converted_mlir(model_converter_exe_path, partitioned_table_mlir()) as vgf:
-        segment_constants, module_ids = graph_segment_constant_indexes(vgf)
+        segment_bindings, module_ids = graph_segment_constant_bindings(vgf)
 
         assert_constant_table(vgf, [0, 1, 2])
         assert segment_constant_indexes(vgf) == [[0, 2], [], [1]]
-        assert segment_constants == [[0, 2], [1]]
+        assert segment_bindings == [[(0, 0), (2, 2)], [(1, 1)]]
         assert module_ids == [[0, 2], [1]]
 
 
@@ -128,9 +131,9 @@ def test_rematerialized_shared_graph_constant_serializes_once(model_converter_ex
     with converted_mlir(
         model_converter_exe_path, partitioned_table_mlir(shared_constant=True)
     ) as vgf:
-        segment_constants, module_ids = graph_segment_constant_indexes(vgf)
+        segment_bindings, module_ids = graph_segment_constant_bindings(vgf)
 
         assert_constant_table(vgf, [0, 1, 2])
         assert segment_constant_indexes(vgf) == [[0, 2], [], [0, 1]]
-        assert segment_constants == [[0, 2], [0, 1]]
+        assert segment_bindings == [[(0, 0), (2, 2)], [(0, 0), (1, 1)]]
         assert module_ids == [[0, 2], [0, 1]]

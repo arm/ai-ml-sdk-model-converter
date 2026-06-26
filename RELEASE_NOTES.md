@@ -11,7 +11,13 @@
   graph partitions.
 
 ### Build, Packaging & Developer Experience
- - Updated Model Converter `--version` output to report the package version and include git revision and dependency revision information
+
+- Updated Model Converter `--version` output to report the package version and
+  include git revision and dependency revision information.
+
+### Converter & Toolchain
+
+- Added VGF serialization support for explicit graph constant bindings.
 
 ### Features
  - VGF file output now supports dynamic dimension sizes
