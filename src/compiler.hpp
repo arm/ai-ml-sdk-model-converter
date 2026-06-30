@@ -32,6 +32,7 @@ class Compiler {
         bool emit_debug_info = false;
         bool require_static_shape = false;
         bool analysis = false;
+        bool disable_replicated_composites = false;
         TypeNarrowingMode type_narrowing = TypeNarrowingMode::None;
         std::vector<std::string> custom_op_domain_to_opcode;
     };
