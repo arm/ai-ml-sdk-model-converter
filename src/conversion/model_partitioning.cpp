@@ -373,9 +373,46 @@ bool comparePartitionResultIndex(const Value &a, const Value &b) {
     return false;
 }
 
+bool isMarkedGraphPartitionUse(Operation *user) {
+    if (llvm::isa<func::ReturnOp>(user) || isVulkanCustomShaderOperation(user)) {
+        return false;
+    }
+
+    auto partitionAttr = user->getAttrOfType<IntegerAttr>(graphPartitionIdAttrName);
+    return partitionAttr != nullptr;
+}
+
+bool isCrossPartitionGraphUse(Operation *user, int64_t partitionId) {
+    if (!isMarkedGraphPartitionUse(user)) {
+        return false;
+    }
+
+    auto userPartitionAttr = user->getAttrOfType<IntegerAttr>(graphPartitionIdAttrName);
+    return userPartitionAttr.getInt() != partitionId;
+}
+
+bool hasRematerializedGraphUse(Operation *op, int64_t partitionId) {
+    if (!getDeferredMaterializationInfo(op)) {
+        return false;
+    }
+
+    return llvm::any_of(op->getUsers(),
+                        [partitionId](Operation *user) { return isCrossPartitionGraphUse(user, partitionId); });
+}
+
+bool isOnlyNeededByRematerializedGraphUses(Operation *op, int64_t partitionId) {
+    if (!getDeferredMaterializationInfo(op) || op->use_empty()) {
+        return false;
+    }
+
+    return llvm::all_of(op->getUsers(),
+                        [partitionId](Operation *user) { return isCrossPartitionGraphUse(user, partitionId); });
+}
+
 struct PartitionDependencies {
     SmallVector<Value> inputs;
     SmallVector<Value> compileTimeConstantsToClone;
+    SmallVector<Value> rematerializedGraphValues;
 };
 
 struct PartitionState {
@@ -484,6 +521,7 @@ class FunctionPartitionEmitter {
     Operation *cloneWithoutPartitioningAttrs(Operation *op, IRMapping &mapping);
     Operation *clonePartitionOp(Operation *op, IRMapping &mapping);
     void cloneCompileTimeConstants(const SmallVector<Value> &constantsToClone, IRMapping &mapping);
+    void cloneRematerializedGraphOps(const SmallVector<Value> &values, IRMapping &mapping);
     template <typename ArgumentsT>
     static void mapValuesToArguments(ArrayRef<Value> values, ArgumentsT arguments, IRMapping &mapping);
     static SmallVector<Value> lookupMappedValues(ArrayRef<Value> values, IRMapping &mapping);
@@ -532,6 +570,11 @@ bool FunctionPartitionPlanner::hasExternalPartitionUse(Value value, int64_t part
         }
 
         auto userPartitionAttr = user->getAttrOfType<IntegerAttr>(graphPartitionIdAttrName);
+        if (userPartitionAttr && userPartitionAttr.getInt() == partitionId &&
+            hasRematerializedGraphUse(user, partitionId)) {
+            return true;
+        }
+
         if (userPartitionAttr && userPartitionAttr.getInt() != partitionId) {
             return true;
         }
@@ -554,11 +597,25 @@ bool FunctionPartitionPlanner::hasRuntimeUseOfCompileTimeConstant(Operation *op)
 }
 
 PartitionDependencies FunctionPartitionPlanner::collectPartitionDependencies(ArrayRef<Operation *> ops,
-                                                                             bool rematerializeCompileTimeConstants) {
+                                                                             bool rematerializeGraphDependencies) {
     DenseSet<Operation *> knownOps(ops.begin(), ops.end());
     DenseSet<Value> seenRuntimeInputs;
     DenseSet<Value> seenConstantsToClone;
+    DenseSet<Value> seenRematerializedValues;
     PartitionDependencies dependencies;
+
+    auto addRuntimeInput = [&](Value value) {
+        if (seenRuntimeInputs.insert(value).second) {
+            dependencies.inputs.push_back(value);
+        }
+    };
+
+    auto addCompileTimeConstantToClone = [&](Value value) {
+        if (seenConstantsToClone.insert(value).second) {
+            dependencies.compileTimeConstantsToClone.push_back(value);
+        }
+    };
+
     for (Operation *op : ops) {
         for (auto operand : op->getOperands()) {
             Operation *defOp = operand.getDefiningOp();
@@ -566,16 +623,31 @@ PartitionDependencies FunctionPartitionPlanner::collectPartitionDependencies(Arr
                 continue;
             }
 
-            if (rematerializeCompileTimeConstants && isCompileTimeTosaConstant(defOp)) {
-                if (seenConstantsToClone.insert(operand).second) {
-                    dependencies.compileTimeConstantsToClone.push_back(operand);
+            if (rematerializeGraphDependencies && isCompileTimeTosaConstant(defOp)) {
+                addCompileTimeConstantToClone(operand);
+                continue;
+            }
+
+            if (rematerializeGraphDependencies) {
+                std::optional<DeferredMaterializationInfo> info = getDeferredMaterializationInfo(defOp);
+                if (!info) {
+                    addRuntimeInput(operand);
+                    continue;
+                }
+
+                if (seenRematerializedValues.insert(operand).second) {
+                    dependencies.rematerializedGraphValues.push_back(operand);
+                    for (Value input : info->runtimeInputs) {
+                        addRuntimeInput(input);
+                    }
+                    for (Value constant : info->constantsToClone) {
+                        addCompileTimeConstantToClone(constant);
+                    }
                 }
                 continue;
             }
 
-            if (seenRuntimeInputs.insert(operand).second) {
-                dependencies.inputs.push_back(operand);
-            }
+            addRuntimeInput(operand);
         }
     }
 
@@ -669,9 +741,34 @@ Operation *FunctionPartitionEmitter::clonePartitionOp(Operation *op, IRMapping &
 void FunctionPartitionEmitter::cloneCompileTimeConstants(const SmallVector<Value> &constantsToClone,
                                                          IRMapping &mapping) {
     for (Value operand : constantsToClone) {
+        if (mapping.lookupOrDefault(operand) != operand) {
+            continue;
+        }
         Operation *defOp = operand.getDefiningOp();
         Operation *clonedConst = cloneWithoutPartitioningAttrs(defOp, mapping);
         mapping.map(operand, clonedConst->getResult(0));
+    }
+}
+
+void FunctionPartitionEmitter::cloneRematerializedGraphOps(const SmallVector<Value> &values, IRMapping &mapping) {
+    DenseSet<Operation *> clonedOps;
+    for (Value value : values) {
+        Operation *defOp = value.getDefiningOp();
+        if (!defOp || !clonedOps.insert(defOp).second) {
+            continue;
+        }
+
+        for (Value operand : defOp->getOperands()) {
+            if (mapping.lookupOrDefault(operand) != operand) {
+                continue;
+            }
+            Operation *operandDefOp = operand.getDefiningOp();
+            if (isCompileTimeTosaConstant(operandDefOp)) {
+                Operation *clonedConst = cloneWithoutPartitioningAttrs(operandDefOp, mapping);
+                mapping.map(operand, clonedConst->getResult(0));
+            }
+        }
+        cloneWithoutPartitioningAttrs(defOp, mapping);
     }
 }
 
@@ -744,7 +841,12 @@ void FunctionPartitionEmitter::createGraphSegmentBody(CreatedSegment &segment, c
         mapValuesToArguments(plan.dependencies.inputs, newFuncOp.getArguments(), funcMapping);
 
         cloneCompileTimeConstants(plan.dependencies.compileTimeConstantsToClone, funcMapping);
+        cloneRematerializedGraphOps(plan.dependencies.rematerializedGraphValues, funcMapping);
         for (Operation *op : plan.ops) {
+            if (isOnlyNeededByRematerializedGraphUses(op, plan.partitionId)) {
+                markForDeletion(op);
+                continue;
+            }
             clonePartitionOp(op, funcMapping);
         }
 

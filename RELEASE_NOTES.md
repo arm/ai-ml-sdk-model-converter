@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+### Converter & Toolchain
+
+- Updated graph partitioning to keep eligible boundary rescale resources in
+  narrower integer formats by rematerializing widening rescale operations inside
+  graph partitions.
+
 ### Build, Packaging & Developer Experience
  - Updated Model Converter `--version` output to report the package version and include git revision and dependency revision information
 
