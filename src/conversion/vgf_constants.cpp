@@ -78,7 +78,8 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
             }
 
             auto format = static_cast<FormatType>(vkFormat);
-            ResourceRef resourceRef = _VGFBuilder->getEncoder().AddConstantResource(format, type.getShape(), {});
+            ResourceRef resourceRef =
+                _VGFBuilder->getEncoder().AddConstantResource(format, flagAnyDynamicDims(type.getShape()), {});
 
             int64_t sparsityDimension = -1;
             auto attr = constOp->getAttrOfType<IntegerAttr>("constant_2_4_sparse_on_dimension");

@@ -1,9 +1,12 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2023-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2023-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
 #include "utils.hpp"
+
+#include <algorithm>
+#include <iterator>
 
 namespace mlir {
 
@@ -54,6 +57,17 @@ ShapedType convertShapedType(Type type) {
         return shapedType.cloneWith(shape, shapedType.getElementType());
     }
     return shapedType;
+}
+
+std::vector<int64_t> flagAnyDynamicDims(ArrayRef<int64_t> shape) {
+    static constexpr int64_t dynamicDimensionValue = -1;
+    std::vector<int64_t> normalizedShape;
+    normalizedShape.reserve(shape.size());
+
+    std::transform(shape.begin(), shape.end(), std::back_inserter(normalizedShape),
+                   [](int64_t dim) { return dim < 0 ? dynamicDimensionValue : dim; });
+
+    return normalizedShape;
 }
 
 void SplitString(std::string text, const std::string &del, std::vector<std::string> &parts) {

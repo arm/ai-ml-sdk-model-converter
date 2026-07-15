@@ -142,7 +142,7 @@ FailureOr<std::vector<int64_t>> ResourcePlanner::getValueShape(Value value) cons
     if (!type) {
         return _sequenceOp.emitError("expected shaped value when serializing VGF resources");
     }
-    return std::vector<int64_t>(type.getShape().begin(), type.getShape().end());
+    return flagAnyDynamicDims(type.getShape());
 }
 
 LogicalResult ResourcePlanner::getGraphView(Value value, StringRef role, StringRef segmentName,
