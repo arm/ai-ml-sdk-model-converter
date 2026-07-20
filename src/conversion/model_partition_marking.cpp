@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
-#include "include/custom_op_domains.hpp"
 #include "include/passes.hpp"
 #include "model_partition_attrs.hpp"
+#include "model_partition_common.hpp"
 
 #include <algorithm>
 #include <optional>
@@ -16,13 +16,6 @@ namespace mlir::model_converter_passes {
 namespace {
 
 enum class PartitionKind { Graph, Compute };
-
-bool isCompileTimeTosaConstant(Operation *op) { return llvm::isa_and_nonnull<tosa::ConstOp, tosa::ConstShapeOp>(op); }
-
-bool isVulkanCustomShaderOperation(Operation *op) {
-    auto customOp = llvm::dyn_cast_or_null<tosa::CustomOp>(op);
-    return customOp && isVulkanCustomShaderOp(customOp);
-}
 
 int64_t assignGraphPartitionAfterCompute(const int64_t candidatePartitionId, const int64_t highestPartitionId,
                                          const PartitionKind highestPartitionKind) {

@@ -8,6 +8,7 @@
 #include "mlir/IR/IRMapping.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "model_partition_attrs.hpp"
+#include "model_partition_common.hpp"
 #include "vgf-dialect/VGFDialect.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/Base64.h"
@@ -370,13 +371,6 @@ bool comparePartitionResultIndex(const Value &a, const Value &b) {
     }
 
     return false;
-}
-
-bool isCompileTimeTosaConstant(Operation *op) { return llvm::isa_and_nonnull<tosa::ConstOp, tosa::ConstShapeOp>(op); }
-
-bool isVulkanCustomShaderOperation(Operation *op) {
-    auto customOp = llvm::dyn_cast_or_null<tosa::CustomOp>(op);
-    return customOp && isVulkanCustomShaderOp(customOp);
 }
 
 struct PartitionDependencies {
