@@ -231,7 +231,8 @@ class TypeNarrowingPass final : public impl::TypeNarrowingPassBase<TypeNarrowing
         }
 
         if (failed(applyPartialConversion(op, target, std::move(convPatterns)))) {
-            return signalPassFailure();
+            signalPassFailure();
+            return;
         }
     }
 };

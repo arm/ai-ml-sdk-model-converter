@@ -26,13 +26,15 @@ class TosaShapedVerificationPass : public impl::TosaShapedVerificationPassBase<T
         auto tfEntryFunctionAttr = funcOp->getAttrDictionary().get("tf.entry_function");
         if (!tfEntryFunctionAttr) {
             llvm::errs() << "Can't identify input tensors without entry functions.\n";
-            return signalPassFailure();
+            signalPassFailure();
+            return;
         }
 
         auto tfEntryFunctionDictionaryAttr = llvm::dyn_cast<DictionaryAttr>(tfEntryFunctionAttr);
         if (!tfEntryFunctionDictionaryAttr) {
             llvm::errs() << "\"entry_function\" is not a dictionary attribute.\n";
-            return signalPassFailure();
+            signalPassFailure();
+            return;
         }
 
         auto inputsAttr = tfEntryFunctionDictionaryAttr.get("inputs");
@@ -44,7 +46,8 @@ class TosaShapedVerificationPass : public impl::TosaShapedVerificationPassBase<T
         auto inputsStringAttr = llvm::dyn_cast<StringAttr>(inputsAttr);
         if (!inputsStringAttr) {
             llvm::errs() << "\"inputs\" is not a string attribute.\n";
-            return signalPassFailure();
+            signalPassFailure();
+            return;
         }
 
         llvm::SmallVector<llvm::StringRef> inputNames;
@@ -97,7 +100,8 @@ class TosaShapedVerificationPass : public impl::TosaShapedVerificationPassBase<T
 
         if (dynamicInputs) {
             llvm::errs() << "There was found a further " << dynamicOps.size() << " dynamic tensors in the graph.\n";
-            return signalPassFailure();
+            signalPassFailure();
+            return;
         }
 
         if (!dynamicOps.empty()) {

@@ -32,7 +32,7 @@ template <typename ParseFn> uint32_t parseSamplerEnumValue(const StringRef name,
     if (name.empty()) {
         return UNSET_SAMPLER_VALUE;
     }
-    const auto value = parseFn(name.str());
+    const auto value = std::forward<ParseFn>(parseFn)(name.str());
     return value < 0 ? UNSET_SAMPLER_VALUE : static_cast<uint32_t>(value);
 }
 

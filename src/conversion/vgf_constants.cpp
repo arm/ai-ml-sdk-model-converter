@@ -28,7 +28,8 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
     void runOnOperation() override {
         if (serializeConstants(getOperation()).failed()) {
             llvm::errs() << "Unable to serialize constants\n";
-            return signalPassFailure();
+            signalPassFailure();
+            return;
         }
     }
 
