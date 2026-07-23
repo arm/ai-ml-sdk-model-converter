@@ -80,7 +80,7 @@ std::optional<SamplerConfigValues> getOptionalSamplerConfigValues(ArrayAttr samp
 
 const std::vector<BindingSlotRef> &
 getSegmentBindings(const std::map<SegmentId, std::vector<BindingSlotRef>> &bindingsBySegment, SegmentId segmentId) {
-    static const std::vector<BindingSlotRef> emptyBindings = {};
+    static const std::vector<BindingSlotRef> emptyBindings;
     auto bindingsIt = bindingsBySegment.find(segmentId);
     if (bindingsIt == bindingsBySegment.end()) {
         return emptyBindings;
@@ -600,13 +600,13 @@ void ResourcePlanEncoder::addBindingToDescriptorSet(SegmentId segmentId, int64_t
 ResourceRef ResourcePlanEncoder::createResource(const PlannedValue &plan, const ResourceKey &resourceKey) {
     switch (resourceKey.category) {
     case ResourceCategory::INPUT:
-        return _vgfBuilder.getEncoder()->AddInputResource(resourceKey.view.descriptorType, resourceKey.view.vkFormat,
-                                                          plan.shape, {}, plan.aliasGroupId);
+        return _vgfBuilder.getEncoder().AddInputResource(resourceKey.view.descriptorType, resourceKey.view.vkFormat,
+                                                         plan.shape, {}, plan.aliasGroupId);
     case ResourceCategory::OUTPUT:
-        return _vgfBuilder.getEncoder()->AddOutputResource(resourceKey.view.descriptorType, resourceKey.view.vkFormat,
-                                                           plan.shape, {}, plan.aliasGroupId);
+        return _vgfBuilder.getEncoder().AddOutputResource(resourceKey.view.descriptorType, resourceKey.view.vkFormat,
+                                                          plan.shape, {}, plan.aliasGroupId);
     case ResourceCategory::INTERMEDIATE:
-        return _vgfBuilder.getEncoder()->AddIntermediateResource(
+        return _vgfBuilder.getEncoder().AddIntermediateResource(
             resourceKey.view.descriptorType, resourceKey.view.vkFormat, plan.shape, {}, plan.aliasGroupId);
     case ResourceCategory::CONSTANT:
         assert(false && "planned VGF resources must not be constants");
@@ -622,9 +622,9 @@ void ResourcePlanEncoder::addSamplerConfig(ResourceRef resourceRef, const Resour
     }
 
     const auto &samplerConfig = *resourceKey.samplerConfig;
-    _vgfBuilder.getEncoder()->AddSamplerConfig(resourceRef, samplerConfig.minFilter, samplerConfig.magFilter,
-                                               samplerConfig.addressModeU, samplerConfig.addressModeV,
-                                               samplerConfig.borderColor);
+    _vgfBuilder.getEncoder().AddSamplerConfig(resourceRef, samplerConfig.minFilter, samplerConfig.magFilter,
+                                              samplerConfig.addressModeU, samplerConfig.addressModeV,
+                                              samplerConfig.borderColor);
 }
 
 ResourceRef ResourcePlanEncoder::getOrCreateResource(Value value, const ResourceKey &resourceKey) {
@@ -652,7 +652,7 @@ BindingSlotRef ResourcePlanEncoder::getOrCreateLogicalBindingSlot(Value value, c
     auto bindingSlotIt = encodedValue.logicalBindingSlots.find(resourceKey);
     if (bindingSlotIt == encodedValue.logicalBindingSlots.end()) {
         bindingSlotIt = encodedValue.logicalBindingSlots
-                            .emplace(resourceKey, _vgfBuilder.getEncoder()->AddBindingSlot(
+                            .emplace(resourceKey, _vgfBuilder.getEncoder().AddBindingSlot(
                                                       plan.bindingIndex, getOrCreateResource(value, resourceKey)))
                             .first;
     }
@@ -670,8 +670,7 @@ BindingSlotRef ResourcePlanEncoder::getOrCreateDescriptorBindingSlot(Value value
     if (bindingSlotIt == encodedValue.descriptorBindingSlots.end()) {
         bindingSlotIt =
             encodedValue.descriptorBindingSlots
-                .emplace(key,
-                         _vgfBuilder.getEncoder()->AddBindingSlot(binding, getOrCreateResource(value, resourceKey)))
+                .emplace(key, _vgfBuilder.getEncoder().AddBindingSlot(binding, getOrCreateResource(value, resourceKey)))
                 .first;
     }
 

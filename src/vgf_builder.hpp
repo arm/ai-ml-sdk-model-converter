@@ -10,16 +10,14 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <memory>
 #include <vector>
 
 namespace mlsdk::model_converter {
 
 class VGFBuilder {
   public:
-    ~VGFBuilder(){};
-    VGFBuilder() : _encoder(mlsdk::vgflib::CreateEncoder(0)) {}
-    std::shared_ptr<mlsdk::vgflib::Encoder> getEncoder() const { return _encoder; }
-    const std::vector<mlsdk::vgflib::ConstantRef> &getConstantRefs() const { return _constantRefs; }
+    mlsdk::vgflib::Encoder &getEncoder() { return *_encoder; }
 
     std::vector<mlsdk::vgflib::ConstantRef> getConstantRefs(const std::vector<uint32_t> &ids) const {
         std::vector<mlsdk::vgflib::ConstantRef> refs;
@@ -29,7 +27,7 @@ class VGFBuilder {
         return refs;
     }
 
-    void AddConstantRef(mlsdk::vgflib::ConstantRef constRef) { _constantRefs.emplace_back(constRef); }
+    void addConstantRef(mlsdk::vgflib::ConstantRef constRef) { _constantRefs.push_back(constRef); }
 
     // We only support a small handful of Formats for now so redefine the ones
     // we need as it's simpler than adding a dependency on Vulkan-Headers.
@@ -103,7 +101,7 @@ class VGFBuilder {
     }
 
   private:
-    std::shared_ptr<mlsdk::vgflib::Encoder> _encoder;
+    std::unique_ptr<mlsdk::vgflib::Encoder> _encoder = mlsdk::vgflib::CreateEncoder(0);
     std::vector<mlsdk::vgflib::ConstantRef> _constantRefs;
 };
 
