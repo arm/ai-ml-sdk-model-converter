@@ -35,8 +35,8 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
   private:
     template <typename T> void serializeConstantData(T &attr, ResourceRef resource, int64_t sparsityDimension = -1) {
         mlir::AccessData(attr, [&](const char *data, size_t size) {
-            ConstantRef constRef = _VGFBuilder->getEncoder()->AddConstant(resource, data, size, sparsityDimension);
-            _VGFBuilder->AddConstantRef(constRef);
+            ConstantRef constRef = _VGFBuilder->getEncoder().AddConstant(resource, data, size, sparsityDimension);
+            _VGFBuilder->addConstantRef(constRef);
         });
     }
 
@@ -72,13 +72,13 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
 
             const ShapedType type = convertShapedType(constOp.getResult().getType());
             VGFBuilder::VkFormat vkFormat;
-            if (_VGFBuilder->mlirTypeToVkFormat(type.getElementType(), vkFormat, checkIfUnsignedRequired(constOp))
+            if (VGFBuilder::mlirTypeToVkFormat(type.getElementType(), vkFormat, checkIfUnsignedRequired(constOp))
                     .failed()) {
                 return constOp.emitError("unsupported type for tosa.const op: ") << type.getElementType();
             }
 
             auto format = static_cast<FormatType>(vkFormat);
-            ResourceRef resourceRef = _VGFBuilder->getEncoder()->AddConstantResource(format, type.getShape(), {});
+            ResourceRef resourceRef = _VGFBuilder->getEncoder().AddConstantResource(format, type.getShape(), {});
 
             int64_t sparsityDimension = -1;
             auto attr = constOp->getAttrOfType<IntegerAttr>("constant_2_4_sparse_on_dimension");
@@ -99,8 +99,8 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
 
 } // namespace
 
-std::unique_ptr<Pass> createVGFConstantsPass(std::shared_ptr<VGFBuilder> VGFBuilder) {
-    return std::make_unique<VGFConstantsPass>(VGFBuilder);
+std::unique_ptr<Pass> createVGFConstantsPass(std::shared_ptr<VGFBuilder> vgfBuilder) {
+    return std::make_unique<VGFConstantsPass>(std::move(vgfBuilder));
 }
 
 } // namespace mlir::model_converter_passes

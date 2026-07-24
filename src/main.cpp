@@ -48,7 +48,7 @@ bool validateCustomOpDomainToOpcode(const std::vector<std::string> &mappings) {
 }
 
 std::unique_ptr<argparse::ArgumentParser> createParser(int argc, const char *argv[]) {
-    std::unique_ptr<argparse::ArgumentParser> parser = nullptr;
+    std::unique_ptr<argparse::ArgumentParser> parser;
     try {
         parser = std::make_unique<argparse::ArgumentParser>(argv[0], details::version);
 
@@ -140,7 +140,6 @@ int main(int argc, const char *argv[]) {
     std::string input;
     Compiler::Options options;
     options.enable_verifier = true;
-    options.enable_statistics = false;
 
     try {
         input = parser->get("--input");

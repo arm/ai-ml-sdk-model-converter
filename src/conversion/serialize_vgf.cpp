@@ -72,8 +72,8 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
     mlir::LogicalResult serializeModule(mlir::vgf::SequenceOp &sequenceOp) {
 
         // Fetch input/output names if available
-        std::vector<std::string> inputNames = {};
-        std::vector<std::string> outputNames = {};
+        std::vector<std::string> inputNames;
+        std::vector<std::string> outputNames;
 
         if (auto tfEntryFunctionAttr = sequenceOp->getAttrDictionary().getAs<DictionaryAttr>("tf.entry_function")) {
             if (auto inputsAttr = tfEntryFunctionAttr.getAs<StringAttr>("inputs")) {
@@ -117,7 +117,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
             const auto &segmentOutputBindings = encodedResourcePlan.getSegmentOutputBindings(segmentId);
 
             WalkResult segmentWalkResult;
-            std::vector<BindingSlotRef> segmentAllBindings = {};
+            std::vector<BindingSlotRef> segmentAllBindings;
             if (segmentType == vgf::SegmentTypeEnum::COMPUTE) {
                 segmentWalkResult = segmentOp.walk([&](vgf::ShaderPlaceholderOp shaderPlaceholderOp) {
                     // Add shader module table entry
@@ -135,14 +135,14 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                                    shaderBinaryCodeAttr.asArrayRef().end(),
                                                    std::back_inserter(binaryCode),
                                                    [](int32_t word) { return static_cast<uint32_t>(word); });
-                                    return _VGFBuilder->getEncoder()->AddModule(
+                                    return _VGFBuilder->getEncoder().AddModule(
                                         ModuleType::COMPUTE, segmentName.str(),
                                         shaderPlaceholderOp.getEntryPointAttr().str(), binaryCode);
                                 }
                             } else if (auto shaderSourceAttr = llvm::dyn_cast_if_present<StringAttr>(shaderCodeAttr)) {
                                 const auto shaderType = toShaderType(shaderLanguageAttr.str());
                                 if (shaderType.has_value()) {
-                                    return _VGFBuilder->getEncoder()->AddModule(
+                                    return _VGFBuilder->getEncoder().AddModule(
                                         ModuleType::COMPUTE, segmentName.str(),
                                         shaderPlaceholderOp.getEntryPointAttr().str(), shaderType.value(),
                                         shaderSourceAttr.str());
@@ -150,17 +150,17 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                             }
                         }
 
-                        return _VGFBuilder->getEncoder()->AddModule(ModuleType::COMPUTE, segmentName.str(),
-                                                                    shaderPlaceholderOp.getEntryPointAttr().str());
+                        return _VGFBuilder->getEncoder().AddModule(ModuleType::COMPUTE, segmentName.str(),
+                                                                   shaderPlaceholderOp.getEntryPointAttr().str());
                     }();
 
                     const auto descriptorSetInfos = [&]() {
-                        std::vector<DescriptorSetInfoRef> descriptorSetInfos = {};
+                        std::vector<DescriptorSetInfoRef> descriptorSetInfos;
                         auto descriptorSetBindingsIt = encodedResourcePlan.segmentDescriptorSetBindings.find(segmentId);
                         if (descriptorSetBindingsIt != encodedResourcePlan.segmentDescriptorSetBindings.end()) {
                             for (const auto &[descriptorSetIndex, bindings] : descriptorSetBindingsIt->second) {
                                 descriptorSetInfos.push_back(
-                                    _VGFBuilder->getEncoder()->AddDescriptorSetInfo(bindings, descriptorSetIndex));
+                                    _VGFBuilder->getEncoder().AddDescriptorSetInfo(bindings, descriptorSetIndex));
                             }
                         }
                         return descriptorSetInfos;
@@ -172,7 +172,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                                                    static_cast<uint32_t>(workgroupSizes[1]),
                                                                    static_cast<uint32_t>(workgroupSizes[2])};
 
-                    _VGFBuilder->getEncoder()->AddSegmentInfo(
+                    _VGFBuilder->getEncoder().AddSegmentInfo(
                         computeModuleRef, "compute_segment_" + std::to_string(computeSegmentId++), descriptorSetInfos,
                         segmentInputBindings, segmentOutputBindings, {}, dispatchShape);
 
@@ -194,8 +194,8 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
 
                     // Add graph module table entry
                     ModuleRef graphModuleRef =
-                        _VGFBuilder->getEncoder()->AddModule(ModuleType::GRAPH, segmentName.str(), entryPointName,
-                                                             std::vector<uint32_t>(binary.begin(), binary.end()));
+                        _VGFBuilder->getEncoder().AddModule(ModuleType::GRAPH, segmentName.str(), entryPointName,
+                                                            std::vector<uint32_t>(binary.begin(), binary.end()));
 
                     WalkResult spirvModuleWalkResult = spirvModuleOp.walk([&](spirv::GraphARMOp) {
                         std::copy(segmentInputBindings.cbegin(), segmentInputBindings.cend(),
@@ -204,10 +204,10 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                                   std::back_inserter(segmentAllBindings));
 
                         const DescriptorSetInfoRef descSetInfo =
-                            _VGFBuilder->getEncoder()->AddDescriptorSetInfo(segmentAllBindings);
+                            _VGFBuilder->getEncoder().AddDescriptorSetInfo(segmentAllBindings);
                         const auto segmentConstants = getSegmentConstantRefs(spirvModuleOp);
 
-                        _VGFBuilder->getEncoder()->AddSegmentInfo(
+                        _VGFBuilder->getEncoder().AddSegmentInfo(
                             graphModuleRef, "graph_segment_" + std::to_string(graphSegmentId++), {descSetInfo},
                             segmentInputBindings, segmentOutputBindings, segmentConstants);
 
@@ -226,9 +226,9 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
             return failure();
         }
 
-        _VGFBuilder->getEncoder()->AddModelSequenceInputsOutputs(encodedResourcePlan.sequenceInputBindings, inputNames,
-                                                                 encodedResourcePlan.sequenceOutputBindings,
-                                                                 outputNames);
+        _VGFBuilder->getEncoder().AddModelSequenceInputsOutputs(encodedResourcePlan.sequenceInputBindings, inputNames,
+                                                                encodedResourcePlan.sequenceOutputBindings,
+                                                                outputNames);
         return success();
     }
 
@@ -238,10 +238,10 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
             return failure();
         }
 
-        _VGFBuilder->getEncoder()->Finish();
+        _VGFBuilder->getEncoder().Finish();
 
         if (_outputName == "-") {
-            if (!_VGFBuilder->getEncoder()->WriteTo(std::cout)) {
+            if (!_VGFBuilder->getEncoder().WriteTo(std::cout)) {
                 llvm::errs() << "Unable to write to stdout\n";
                 return failure();
             }
@@ -254,7 +254,7 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
             return failure();
         }
 
-        if (!_VGFBuilder->getEncoder()->WriteTo(fstream)) {
+        if (!_VGFBuilder->getEncoder().WriteTo(fstream)) {
             llvm::errs() << "Error writing to file\n";
             return failure();
         }
@@ -264,16 +264,16 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
         return success();
     }
 
-    std::shared_ptr<VGFBuilder> _VGFBuilder = {nullptr};
+    std::shared_ptr<VGFBuilder> _VGFBuilder;
     std::string _outputName;
     bool _emitDebugInfo;
 };
 
 } // namespace
 
-std::unique_ptr<Pass> createSerializeVGFPass(std::shared_ptr<VGFBuilder> VGFBuilder, std::string outputName,
+std::unique_ptr<Pass> createSerializeVGFPass(std::shared_ptr<VGFBuilder> vgfBuilder, std::string outputName,
                                              const SerializeVGFPassOptions &options) {
-    return std::make_unique<SerializeVGFPass>(VGFBuilder, outputName, options);
+    return std::make_unique<SerializeVGFPass>(std::move(vgfBuilder), std::move(outputName), options);
 }
 
 } // namespace mlir::model_converter_passes
