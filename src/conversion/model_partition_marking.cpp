@@ -165,7 +165,9 @@ class PartitionPlan {
                         continue;
                     }
 
-                    if (!isRematerializableGraphUse(op, user)) {
+                    if (isRematerializableGraphUse(op, user)) {
+                        markRematerializedGraphInput(op);
+                    } else {
                         leafOps.insert(op);
                     }
                 }
@@ -242,14 +244,35 @@ class PartitionPlan {
         return *llvm::min_element(userPartitionIds);
     }
 
-    bool isRematerializableGraphUse(Operation *op, Operation *user) const {
-        if (!isCompileTimeTosaConstant(op) || llvm::isa<func::ReturnOp>(user) || isVulkanCustomShaderOperation(user)) {
+    bool isPlannedGraphPartitionUse(Operation *user) const {
+        if (llvm::isa<func::ReturnOp>(user) || isVulkanCustomShaderOperation(user)) {
             return false;
         }
 
         auto userPartitionIt = partitionByOp.find(user);
         return userPartitionIt != partitionByOp.end() &&
                partitionKinds.lookup(userPartitionIt->second) == PartitionKind::Graph;
+    }
+
+    bool isRematerializableGraphUse(Operation *op, Operation *user) const {
+        if (!isPlannedGraphPartitionUse(user)) {
+            return false;
+        }
+
+        return isCompileTimeTosaConstant(op) || getDeferredMaterializationInfo(op).has_value();
+    }
+
+    void markRematerializedGraphInput(Operation *op) {
+        std::optional<DeferredMaterializationInfo> info = getDeferredMaterializationInfo(op);
+        if (!info) {
+            return;
+        }
+
+        for (Value input : info->runtimeInputs) {
+            if (Operation *inputDefOp = input.getDefiningOp()) {
+                leafOps.insert(inputDefOp);
+            }
+        }
     }
 
     std::optional<int64_t> getLastPartitionOfKind(PartitionKind kind) const {
