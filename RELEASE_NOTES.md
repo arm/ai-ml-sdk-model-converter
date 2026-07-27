@@ -13,6 +13,9 @@
 ### Build, Packaging & Developer Experience
  - Updated Model Converter `--version` output to report the package version and include git revision and dependency revision information
 
+### Features
+ - VGF file output now supports dynamic dimension sizes
+
 ## Version 0.10.0 – *Bespoke Ops, Partitioning & Toolchain Updates*
 
 ### Converter & Toolchain

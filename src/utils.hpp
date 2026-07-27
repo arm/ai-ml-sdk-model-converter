@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: Copyright 2023-2024 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ * SPDX-FileCopyrightText: Copyright 2023-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
 
@@ -20,6 +20,8 @@ void AccessData(const AttrType &attr, std::function<void(const char *, size_t)> 
 }
 
 ShapedType convertShapedType(Type type);
+
+std::vector<int64_t> flagAnyDynamicDims(ArrayRef<int64_t> shape);
 
 void SplitString(std::string text, const std::string &del, std::vector<std::string> &parts);
 

@@ -94,6 +94,18 @@ def add_mlir():
     )
 
 
+def dynamic_abs_mlir():
+    return main_mlir(
+        arguments='%arg0: tensor<?xf32> {tf_saved_model.index_path = ["input_0"]}',
+        result='(tensor<?xf32> {tf_saved_model.index_path = ["output_0"]})',
+        entry_inputs="input_0",
+        entry_outputs="output_0",
+        exported_name="serving_default",
+        body="    %0 = tosa.abs %arg0 : (tensor<?xf32>) -> tensor<?xf32>",
+        return_value="%0 : tensor<?xf32>",
+    )
+
+
 def direct_passthrough_mlir():
     return main_mlir(
         arguments='%arg0: tensor<49x38x55xi16> {tf_saved_model.index_path = ["input_0"]}',
@@ -230,6 +242,21 @@ def inlined_higher_rank_constant_mlir():
                 "constants": [],
             },
             id="add",
+        ),
+        pytest.param(
+            dynamic_abs_mlir(),
+            {
+                "resources": [
+                    (vgfpy.ResourceCategory.Input, VK_FORMAT_R32_SFLOAT, [-1]),
+                    (vgfpy.ResourceCategory.Output, VK_FORMAT_R32_SFLOAT, [-1]),
+                ],
+                "segment_inputs": [(0, 0)],
+                "segment_outputs": [(1, 1)],
+                "model_inputs": [(0, 0, "input_0")],
+                "model_outputs": [(1, 1, "output_0")],
+                "constants": [],
+            },
+            id="dynamic-abs",
         ),
         pytest.param(
             direct_passthrough_mlir(),
