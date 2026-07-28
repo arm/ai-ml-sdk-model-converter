@@ -15,7 +15,8 @@ class SignlessIntegerMarkingPass : public impl::SignlessIntegerMarkingPassBase<S
 
     void runOnOperation() override {
         if (SignlessIntegerMarking(getOperation()).failed()) {
-            return signalPassFailure();
+            signalPassFailure();
+            return;
         }
     }
 

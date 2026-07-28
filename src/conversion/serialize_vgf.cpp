@@ -54,16 +54,16 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
 
     void runOnOperation() override {
         if (serialize(getOperation()).failed()) {
-            return signalPassFailure();
+            signalPassFailure();
+            return;
         }
     }
 
   private:
     std::vector<ConstantRef> getSegmentConstantRefs(spirv::ModuleOp spirvModuleOp) const {
         std::vector<uint32_t> ids;
-        spirvModuleOp.walk([&](spirv::GraphConstantARMOp graphConstantOp) {
-            ids.push_back(static_cast<uint32_t>(graphConstantOp.getGraphConstantId()));
-        });
+        spirvModuleOp.walk(
+            [&](spirv::GraphConstantARMOp graphConstantOp) { ids.push_back(graphConstantOp.getGraphConstantId()); });
         std::sort(ids.begin(), ids.end());
         ids.erase(std::unique(ids.begin(), ids.end()), ids.end());
         return _VGFBuilder->getConstantRefs(ids);

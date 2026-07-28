@@ -227,7 +227,7 @@ struct TosaCustomOpRewriter : public OpConversionPattern<tosa::CustomOp> {
 
     template <typename Fn> bool fetch(const json &map, const std::string &key, Fn &&callback) const {
         const auto *value = get(map, key);
-        return value != nullptr && callback(*value);
+        return value != nullptr && std::forward<Fn>(callback)(*value);
     }
 
     bool parseIO(ConversionPatternRewriter &rewriter, const json &map, const std::string &prefix, const unsigned numIOs,
@@ -946,14 +946,16 @@ class ModelPartitioningPass : public impl::ModelPartitioningPassBase<ModelPartit
         MLIRContext *context = &getContext();
 
         if (hasFunctionDeclaration(moduleOp)) {
-            return signalPassFailure();
+            signalPassFailure();
+            return;
         }
 
         partitionModuleFunctions(moduleOp, context);
         deleteOldOps(moduleOp);
 
         if (convertPartitionedModule(moduleOp, context, analysis).failed()) {
-            return signalPassFailure();
+            signalPassFailure();
+            return;
         }
     }
 };
