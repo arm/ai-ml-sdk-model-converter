@@ -117,9 +117,7 @@ bool ResourcePlanner::isSequenceInputOperand(Value operand) const {
                        [&](const Value sequenceOpArgument) { return sequenceOpArgument == operand; });
 }
 
-bool ResourcePlanner::isSequenceOutputOperand(Value operand) const {
-    return _sequenceOutputIndices.find(operand) != _sequenceOutputIndices.end();
-}
+bool ResourcePlanner::isSequenceOutputOperand(Value operand) const { return _sequenceOutputIndices.contains(operand); }
 
 bool ResourcePlanner::getSequenceInputUnsigned(uint32_t inputIndex) const {
     if (auto unsignedAttr = _sequenceOp.getArgAttrOfType<BoolAttr>(inputIndex, UNSIGNED_INPUT_OUTPUT_ATTR)) {
