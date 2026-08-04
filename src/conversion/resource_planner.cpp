@@ -660,7 +660,7 @@ BindingSlotRef ResourcePlanEncoder::getOrCreateLogicalBindingSlot(Value value, c
 
 BindingSlotRef ResourcePlanEncoder::getOrCreateDescriptorBindingSlot(Value value, const ResourceKey &resourceKey,
                                                                      uint32_t binding) {
-    assert(_resourcePlan.plannedValues.find(value) != _resourcePlan.plannedValues.end());
+    assert(_resourcePlan.plannedValues.contains(value));
     auto &encodedValue = _encodedValues[value];
 
     const DescriptorBindingKey key = {resourceKey, binding};
