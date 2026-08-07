@@ -10,7 +10,9 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <map>
 #include <memory>
+#include <stdexcept>
 #include <vector>
 
 namespace mlsdk::model_converter {
@@ -19,15 +21,24 @@ class VGFBuilder {
   public:
     mlsdk::vgflib::Encoder &getEncoder() { return *_encoder; }
 
-    std::vector<mlsdk::vgflib::ConstantRef> getConstantRefs(const std::vector<uint32_t> &ids) const {
-        std::vector<mlsdk::vgflib::ConstantRef> refs;
-        refs.reserve(ids.size());
-        std::transform(ids.begin(), ids.end(), std::back_inserter(refs),
-                       [this](uint32_t id) { return _constantRefs[id]; });
-        return refs;
+    std::vector<mlsdk::vgflib::GraphConstantBindingRef>
+    getConstantBindings(const std::vector<uint32_t> &graphConstantIds) const {
+        std::vector<mlsdk::vgflib::GraphConstantBindingRef> bindings;
+        bindings.reserve(graphConstantIds.size());
+        std::transform(graphConstantIds.begin(), graphConstantIds.end(), std::back_inserter(bindings),
+                       [this](uint32_t graphConstantId) {
+                           return mlsdk::vgflib::GraphConstantBindingRef{graphConstantId,
+                                                                         _constantRefsByGraphId.at(graphConstantId)};
+                       });
+        return bindings;
     }
 
-    void addConstantRef(mlsdk::vgflib::ConstantRef constRef) { _constantRefs.push_back(constRef); }
+    void AddConstantBinding(uint32_t graphConstantId, mlsdk::vgflib::ConstantRef constantRef) {
+        const auto [_, inserted] = _constantRefsByGraphId.emplace(graphConstantId, constantRef);
+        if (!inserted) {
+            throw std::runtime_error("Duplicate graph constant ID");
+        }
+    }
 
     // We only support a small handful of Formats for now so redefine the ones
     // we need as it's simpler than adding a dependency on Vulkan-Headers.
@@ -102,7 +113,7 @@ class VGFBuilder {
 
   private:
     std::unique_ptr<mlsdk::vgflib::Encoder> _encoder = mlsdk::vgflib::CreateEncoder(0);
-    std::vector<mlsdk::vgflib::ConstantRef> _constantRefs;
+    std::map<uint32_t, mlsdk::vgflib::ConstantRef> _constantRefsByGraphId;
 };
 
 } // namespace mlsdk::model_converter

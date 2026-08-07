@@ -34,10 +34,12 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
     }
 
   private:
-    template <typename T> void serializeConstantData(T &attr, ResourceRef resource, int64_t sparsityDimension = -1) {
+    template <typename T>
+    void serializeConstantData(uint32_t graphConstantId, T &attr, ResourceRef resource,
+                               int64_t sparsityDimension = -1) {
         mlir::AccessData(attr, [&](const char *data, size_t size) {
             ConstantRef constRef = _VGFBuilder->getEncoder().AddConstant(resource, data, size, sparsityDimension);
-            _VGFBuilder->addConstantRef(constRef);
+            _VGFBuilder->AddConstantBinding(graphConstantId, constRef);
         });
     }
 
@@ -64,13 +66,7 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
             }
         });
 
-        uint32_t expectedId = 0;
         for (auto &[id, constOp] : constantsById) {
-            if (id != expectedId) {
-                return constOp.emitError("missing TOSA graph constant id ")
-                       << expectedId << "; VGF constants must be serialized in global graph constant id order";
-            }
-
             const ShapedType type = convertShapedType(constOp.getResult().getType());
             VGFBuilder::VkFormat vkFormat;
             if (VGFBuilder::mlirTypeToVkFormat(type.getElementType(), vkFormat, checkIfUnsignedRequired(constOp))
@@ -89,8 +85,7 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
             }
 
             auto attrVal = llvm::dyn_cast<DenseTypedElementsAttr>(constOp.getValuesAttr());
-            serializeConstantData(attrVal, resourceRef, sparsityDimension);
-            ++expectedId;
+            serializeConstantData(id, attrVal, resourceRef, sparsityDimension);
         }
 
         return mlir::success();
