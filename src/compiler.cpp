@@ -104,6 +104,16 @@ void Compiler::SetPassManager() {
         funcNestedPM.addPass(createTosaShapedVerificationPass());
     }
 
+    // Canonicalize only after validating the input so that dead, malformed IR cannot be
+    // removed before the verifier sees it. Doing this before narrowing also avoids
+    // rewriting operations that can already be folded or eliminated. Keep this pass on
+    // func.func: canonicalization also removes trivially dead, side-effect-free operations
+    // without pruning the module's input/output interfaces. Do not replace it with
+    // createRemoveDeadValuesPass(), which may remove function arguments or results. If
+    // unreachable private functions ever need removing, add createSymbolDCEPass() at the
+    // module level here, after validation and before narrowing.
+    _pm.nest<func::FuncOp>().addPass(mlir::createCanonicalizerPass());
+
     // Type narrowing
     if (_options.type_narrowing != TypeNarrowingMode::None) {
         _pm.addPass(createTypeNarrowingPass({_options.type_narrowing}));
@@ -113,6 +123,12 @@ void Compiler::SetPassManager() {
         OpPassManager &funcNestedPM = _pm.nest<func::FuncOp>();
         funcNestedPM.addPass(mlir::tosa::createTosaNarrowI64ToI32Pass({true, true}));
         funcNestedPM.addPass(mlir::tosa::createTosaNarrowF64ToF32Pass({true, true}));
+
+        // Dialect conversion and type narrowing can expose new folds or leave redundant
+        // casts and dead operations. Clean those up before signless interface metadata,
+        // graph constant IDs, and partition plans are computed below. Moving this pass
+        // past any of those stages can make their annotations and bookkeeping stale.
+        funcNestedPM.addPass(mlir::createCanonicalizerPass());
     }
 
     if (_options.tosa_serialize) {
@@ -128,6 +144,10 @@ void Compiler::SetPassManager() {
         _pm.nest<func::FuncOp>().addPass(createSignlessIntegerMarkingPass());
         {
             OpPassManager &funcNestedPM = _pm.nest<func::FuncOp>();
+            // This pass registers the canonicalization patterns for every TOSA operation
+            // and applies them greedily in addition to its specialized constant folds. It
+            // therefore serves as the VGF pipeline's later, TOSA-specific canonicalization
+            // phase; do not add a redundant generic canonicalizer immediately around it.
             // Run constant folding before assigning graph constant IDs so fold-created constants get stable,
             // sequence-wide IDs before partitioning clones them into graph segments.
             funcNestedPM.addPass(mlir::tosa::createTosaLayerwiseConstantFoldPass());
