@@ -154,7 +154,7 @@
             "licenseDeclared": "MIT",
             "name": "nlohmann-json",
             "supplier": "Organization: nlohmann-json",
-            "versionInfo": "3.11.3"
+            "versionInfo": "3.12.0"
         },
         {
             "SPDXID": "SPDXRef-package-d58a27a6-bae7-4758-a981-c7daabde9e3b",
@@ -209,7 +209,7 @@
             "name": "p-ranav/argparse",
             "supplier": "Organization: p-ranav/argparse",
             "copyrightText": "Copyright (c) 2018 Pranav Srinivas Kumar",
-            "versionInfo": "v3.1"
+            "versionInfo": "v3.2"
         },
         {
             "SPDXID": "SPDXRef-package-d68de693-37ca-4589-a088-91167bd3e408",
@@ -231,7 +231,7 @@
             "licenseDeclared": "BSD-3-Clause",
             "name": "pybind11",
             "supplier": "Organization: pybind11",
-            "versionInfo": "2.13.6"
+            "versionInfo": "3.1.0"
         },
         {
             "SPDXID": "SPDXRef-package-19c1c0dd-fcb5-4363-ab62-c81727a5da98",
@@ -475,7 +475,7 @@
             "licenseConcluded": "Apache-2.0 WITH LLVM-exception",
             "licenseDeclared": "Apache-2.0 WITH LLVM-exception",
             "copyrightText": "NOASSERTION",
-            "versionInfo": "93c93ff199a1",
+            "versionInfo": "d8b5208b88a3",
             "supplier": "Organization: llvm (github.com)",
             "licenseInfoFromFiles": [
                 "NOASSERTION"
@@ -484,7 +484,7 @@
                 {
                     "referenceCategory": "PACKAGE-MANAGER",
                     "referenceType": "purl",
-                    "referenceLocator": "pkg:generic/llvm-project@93c93ff199a1"
+                    "referenceLocator": "pkg:generic/llvm-project@d8b5208b88a3"
                 }
             ]
         },
