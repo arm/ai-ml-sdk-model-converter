@@ -33,54 +33,70 @@ endfunction()
 
 if(EXISTS ${LLVM_PATH}/llvm/CMakeLists.txt)
     if(MODEL_CONVERTER_APPLY_LLVM_PATCH)
-        set(LLVM_PATCH_COMMIT_MESSAGE "llvm-changes-for-model-converter-02-07-2026")
-        execute_process(
-            COMMAND git log --grep=${LLVM_PATCH_COMMIT_MESSAGE}
-            WORKING_DIRECTORY "${LLVM_PATH}"
-            RESULT_VARIABLE LLVM_PATCH_SEARCH_RESULT
-            OUTPUT_VARIABLE LLVM_PATCH_SEARCH_OUTPUT
+        set(LLVM_PROJECT_PATCH_FILES
+            "${CMAKE_CURRENT_LIST_DIR}/../patches/llvm.patch"
         )
-        set(LLVM_PROJECT_PATCH_FILE "${CMAKE_CURRENT_LIST_DIR}/../patches/llvm.patch")
-        if(LLVM_PATCH_SEARCH_OUTPUT)
-            # Check if the already applied patch matches the patch file
-            execute_process(
-                COMMAND git apply --reverse --check ${LLVM_PROJECT_PATCH_FILE}
-                WORKING_DIRECTORY ${LLVM_PATH}
-                RESULT_VARIABLE LLVM_PATCH_REVERSE_CHECK
-            )
-            if(LLVM_PATCH_REVERSE_CHECK EQUAL 0)
-                message(STATUS "LLVM patch is already applied")
-            else()
-                message(FATAL_ERROR "Existing LLVM commit ${LLVM_PATCH_COMMIT_MESSAGE} doesnt match LLVM patch file")
-            endif()
-        else()
-            execute_process(
-                COMMAND git -c user.name=svc_sdk -c user.email=svc_sdk@arm.com am "${LLVM_PROJECT_PATCH_FILE}"
-                WORKING_DIRECTORY "${LLVM_PATH}"
-                RESULT_VARIABLE LLVM_APPLY_AND_COMMIT_PATCH
-                OUTPUT_VARIABLE LLVM_APPLY_AND_COMMIT_PATCH_OUTPUT
-                ERROR_VARIABLE LLVM_APPLY_AND_COMMIT_PATCH_ERROR
-            )
-            if(LLVM_APPLY_AND_COMMIT_PATCH EQUAL 0)
+
+        if(LLVM_PROJECT_PATCH_FILES)
+            find_package(Git REQUIRED)
+
+            foreach(LLVM_PROJECT_PATCH_FILE IN LISTS LLVM_PROJECT_PATCH_FILES)
                 execute_process(
-                    COMMAND git log -1 --oneline
-                    WORKING_DIRECTORY "${LLVM_PATH}"
-                    OUTPUT_VARIABLE LLVM_PATCH_COMMIT
-                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                    COMMAND
+                        "${GIT_EXECUTABLE}"
+                        -C
+                        "${LLVM_PATH}"
+                        apply
+                        --reverse
+                        --check
+                        "${LLVM_PROJECT_PATCH_FILE}"
+                    RESULT_VARIABLE LLVM_PATCH_REVERSE_CHECK
+                    OUTPUT_VARIABLE LLVM_PATCH_REVERSE_CHECK_OUTPUT
+                    ERROR_VARIABLE LLVM_PATCH_REVERSE_CHECK_ERROR
                 )
-                message(STATUS "LLVM patch ${LLVM_PATCH_COMMIT} applied")
-            else()
+
+                if(LLVM_PATCH_REVERSE_CHECK EQUAL 0)
+                    message(STATUS "LLVM patch ${LLVM_PROJECT_PATCH_FILE} is already applied")
+                    continue()
+                endif()
+
                 execute_process(
-                    COMMAND git am --abort
-                    WORKING_DIRECTORY "${LLVM_PATH}"
-                    OUTPUT_QUIET
-                    ERROR_QUIET
+                    COMMAND
+                        "${GIT_EXECUTABLE}"
+                        -C
+                        "${LLVM_PATH}"
+                        -c
+                        user.name=svc_sdk
+                        -c
+                        user.email=svc_sdk@arm.com
+                        am
+                        "${LLVM_PROJECT_PATCH_FILE}"
+                    RESULT_VARIABLE LLVM_APPLY_AND_COMMIT_PATCH
+                    OUTPUT_VARIABLE LLVM_APPLY_AND_COMMIT_PATCH_OUTPUT
+                    ERROR_VARIABLE LLVM_APPLY_AND_COMMIT_PATCH_ERROR
                 )
-                message(STATUS "${LLVM_APPLY_AND_COMMIT_PATCH}")
-                message(STATUS "${LLVM_APPLY_AND_COMMIT_PATCH_OUTPUT}")
-                message(STATUS "${LLVM_APPLY_AND_COMMIT_PATCH_ERROR}")
-                message(FATAL_ERROR "Failed to apply LLVM patch")
-            endif()
+                if(LLVM_APPLY_AND_COMMIT_PATCH EQUAL 0)
+                    execute_process(
+                        COMMAND "${GIT_EXECUTABLE}" -C "${LLVM_PATH}" log -1 --oneline
+                        OUTPUT_VARIABLE LLVM_PATCH_COMMIT
+                        OUTPUT_STRIP_TRAILING_WHITESPACE
+                    )
+                    message(STATUS "LLVM patch ${LLVM_PATCH_COMMIT} applied")
+                else()
+                    execute_process(
+                        COMMAND "${GIT_EXECUTABLE}" -C "${LLVM_PATH}" am --abort
+                        OUTPUT_QUIET
+                        ERROR_QUIET
+                    )
+                    message(STATUS "${LLVM_PATCH_REVERSE_CHECK}")
+                    message(STATUS "${LLVM_PATCH_REVERSE_CHECK_OUTPUT}")
+                    message(STATUS "${LLVM_PATCH_REVERSE_CHECK_ERROR}")
+                    message(STATUS "${LLVM_APPLY_AND_COMMIT_PATCH}")
+                    message(STATUS "${LLVM_APPLY_AND_COMMIT_PATCH_OUTPUT}")
+                    message(STATUS "${LLVM_APPLY_AND_COMMIT_PATCH_ERROR}")
+                    message(FATAL_ERROR "Failed to apply LLVM patch ${LLVM_PROJECT_PATCH_FILE}")
+                endif()
+            endforeach()
         endif()
     endif()
 
