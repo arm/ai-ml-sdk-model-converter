@@ -8,7 +8,6 @@ import os
 import pathlib
 import platform
 import re
-import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -68,8 +67,11 @@ class Builder:
         if self.package_release_pip:
             self.package_pip = True
 
+        self.pip_install = str(
+            MODEL_CONVERTER_DIR / "pip_package" / "model_converter" / "binaries"
+        )
         if not self.install and self.package_pip:
-            self.install = "pip_install"
+            self.install = self.pip_install
 
     def setup_platform_build(self, cmake_cmd):
         system = platform.system()
@@ -335,13 +337,19 @@ class Builder:
                 self.generate_cmake_package("ZIP")
 
             if self.package_pip:
-                os.makedirs("pip_package/model_converter/binaries/", exist_ok=True)
-                shutil.copytree(
-                    self.install,
-                    "pip_package/model_converter/binaries/",
-                    dirs_exist_ok=True,
-                )
-                shutil.copyfile("README.md", "pip_package/README.md")
+                if self.install != self.pip_install:
+                    subprocess.run(
+                        [
+                            "cmake",
+                            "--install",
+                            self.build_dir,
+                            "--prefix",
+                            self.pip_install,
+                            "--config",
+                            self.build_type,
+                        ],
+                        check=True,
+                    )
 
                 package_version = ""
                 if self.package_version:
@@ -351,14 +359,23 @@ class Builder:
                         "" if self.package_release_pip else get_package_version()
                     )
 
-                os.environ[
+                build_env = os.environ.copy()
+                build_env[
                     "SETUPTOOLS_SCM_PRETEND_VERSION_FOR_AI_ML_SDK_MODEL_CONVERTER"
                 ] = package_version
+                build_env["MODEL_CONVERTER_SKIP_NATIVE_BUILD"] = "1"
 
                 result = subprocess.Popen(
-                    [sys.executable, "-m", "build"],
-                    env=os.environ,
-                    cwd="pip_package",
+                    [
+                        sys.executable,
+                        "-m",
+                        "build",
+                        "--outdir",
+                        str(MODEL_CONVERTER_DIR / "pip_package" / "dist"),
+                        str(MODEL_CONVERTER_DIR),
+                    ],
+                    env=build_env,
+                    cwd=MODEL_CONVERTER_DIR,
                 )
                 result.communicate()
                 if result.returncode != 0:
@@ -373,7 +390,7 @@ class Builder:
 
 
 def get_package_version():
-    pyproject = (MODEL_CONVERTER_DIR / "pip_package" / "pyproject.toml").read_text()
+    pyproject = (MODEL_CONVERTER_DIR / "pyproject.toml").read_text()
 
     regex_result = re.search(r'fallback_version\s*=\s*"([^"]+)"', pyproject)
     if not regex_result:
@@ -386,7 +403,7 @@ def get_package_version():
     return f"{base_version}.dev{date_tag}"
 
 
-def parse_arguments():
+def parse_arguments(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--build-dir",
@@ -517,16 +534,19 @@ def parse_arguments():
         default=False,
     )
 
-    if argcomplete:
+    if argcomplete and argv is None:
         argcomplete.autocomplete(parser)
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     return args
 
 
+def build(argv=None):
+    return Builder(parse_arguments(argv)).run()
+
+
 def main():
-    builder = Builder(parse_arguments())
-    sys.exit(builder.run())
+    sys.exit(build())
 
 
 if __name__ == "__main__":
