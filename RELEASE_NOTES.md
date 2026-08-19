@@ -14,6 +14,8 @@
 
 - Updated Model Converter `--version` output to report the package version and
   include git revision and dependency revision information.
+- Enabled building and installing Model Converter, including its native binaries,
+  with `pip install .` from the repository root.
 
 ### Converter & Toolchain
 

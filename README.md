@@ -205,10 +205,17 @@ For more information, see the help output:
 
 The ML SDK Model Converter is available on PyPI as the [ai-ml-sdk-model-converter](https://pypi.org/project/ai-ml-sdk-model-converter) package.
 
-Install:
+Install the published package:
 
 ```bash
 pip install ai-ml-sdk-model-converter
+```
+
+To build and install the host executable from an ML SDK checkout, run from this
+repository root:
+
+```bash
+pip install .
 ```
 
 ## Known Limitations
