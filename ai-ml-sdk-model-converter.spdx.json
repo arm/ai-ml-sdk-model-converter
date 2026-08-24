@@ -496,7 +496,7 @@
             "licenseConcluded": "(Apache-2.0 WITH LLVM-exception AND Apache-2.0)",
             "licenseDeclared": "(Apache-2.0 WITH LLVM-exception AND Apache-2.0)",
             "copyrightText": "Copyright (c) ARM Limited.",
-            "versionInfo": "v2026.05.0",
+            "versionInfo": "v2026.08.0-rc0",
             "supplier": "Organization: tosa (https://gitlab.arm.com/tosa)",
             "licenseInfoFromFiles": [
                 "NOASSERTION"
@@ -505,7 +505,7 @@
                 {
                     "referenceCategory": "PACKAGE-MANAGER",
                     "referenceType": "purl",
-                    "referenceLocator": "pkg:generic/tosa-tools@v2026.05.0"
+                    "referenceLocator": "pkg:generic/tosa-tools@v2026.08.0-rc0"
                 }
             ]
         },
