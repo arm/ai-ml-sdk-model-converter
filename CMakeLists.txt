@@ -35,7 +35,6 @@ endif()
 # Options
 #############################################################################
 
-option(MODEL_CONVERTER_ENABLE_CCACHE "Enable CCACHE support" OFF)
 option(MODEL_CONVERTER_BUILD_DOCS "Build documentation" OFF)
 option(MODEL_CONVERTER_BUILD_TESTS "Build Model Converter tests" OFF)
 option(MODEL_CONVERTER_ENABLE_COVERAGE "Enable coverage build" OFF)
@@ -48,15 +47,6 @@ if(NOT (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR) AND ML_SDK_GENERATE_CPACK)
     set(MODEL_CONVERTER_PACKAGE_NAME "ai_ml_sdk_for_vulkan")
 else()
     set(CPACK_PACKAGE_NAME "ai_ml_sdk_model_converter")
-endif()
-
-#############################################################################
-# Toolchain configuration
-#############################################################################
-
-find_program(CCACHE_PROGRAM ccache)
-if(CCACHE_PROGRAM AND MODEL_CONVERTER_ENABLE_CCACHE)
-    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
 endif()
 
 #############################################################################
