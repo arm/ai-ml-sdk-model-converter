@@ -2,6 +2,8 @@
 # SPDX-FileCopyrightText: Copyright 2023-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
+import subprocess
+
 import pytest
 import vgfpy
 from model_converter_helpers import converted_mlir
@@ -116,6 +118,37 @@ def direct_passthrough_mlir():
         body="",
         return_value="%arg0 : tensor<49x38x55xi16>",
     )
+
+
+def test_tosa_flatbuffer_file_identifier(model_converter_exe_path, tmp_path):
+    input_mlir = tmp_path / "input.mlir"
+    input_flatbuffer = tmp_path / "input.bin"
+    output_vgf = tmp_path / "output.vgf"
+    input_mlir.write_text(direct_passthrough_mlir())
+
+    subprocess.run(
+        [
+            model_converter_exe_path,
+            "--tosa-flatbuffer",
+            "--input",
+            input_mlir,
+            "--output",
+            input_flatbuffer,
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            model_converter_exe_path,
+            "--input",
+            input_flatbuffer,
+            "--output",
+            output_vgf,
+        ],
+        check=True,
+    )
+
+    assert output_vgf.stat().st_size > 0
 
 
 def conv2d_mlir():

@@ -18,15 +18,29 @@
 #include "include/DeserializationPasses.h" // from @tosa_tools/mlir_translator
 #include "include/SerializationPasses.h"   // from @tosa_tools/mlir_translator
 
-#include <filesystem>
+#include <array>
+#include <fstream>
 #include <iostream>
+#include <string_view>
 
 using namespace mlir::model_converter_passes;
 
 namespace mlsdk::model_converter {
 
 namespace {
-bool isTosaFlatbuffer(const std::string &input) { return std::filesystem::path(input).extension() == ".tosa"; }
+bool isTosaFlatbuffer(const std::string &input) {
+    std::ifstream stream(input, std::ios::binary);
+
+    // Non-size-prefixed FlatBuffers store their four-byte file identifier after the
+    // four-byte root table offset. The TOSA schema declares this identifier as "TOSA".
+    std::array<char, 8> header{};
+    // Reading the complete header also rejects files shorter than eight bytes.
+    if (!stream.read(header.data(), header.size())) {
+        return false;
+    }
+
+    return std::string_view(header.data() + 4, 4) == "TOSA";
+}
 
 LogicalResult printPassOptionError(const Twine &message) {
     llvm::errs() << message << "\n";
