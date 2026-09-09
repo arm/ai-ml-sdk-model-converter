@@ -92,7 +92,6 @@ Checks: >
     readability-use-anyofallof,
 
 WarningsAsErrors: '*'
-HeaderFilterRegex: '.*'
 FormatStyle: file
 CheckOptions:
   - key: bugprone-unsafe-functions.ReportDefaultFunctions

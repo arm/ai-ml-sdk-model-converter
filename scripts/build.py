@@ -278,6 +278,7 @@ class Builder:
 
                 clang_tidy_cmd = [
                     "run-clang-tidy",
+                    "-header-filter=model-converter/src/.*",
                     "-quiet",
                     f"-j{self.threads}",
                     f"-p{self.build_dir}",
