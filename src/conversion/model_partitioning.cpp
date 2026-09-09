@@ -32,8 +32,8 @@ struct FuncOpRewriter : public OpConversionPattern<func::FuncOp> {
     LogicalResult matchAndRewrite(func::FuncOp funcOp, OpAdaptor adaptor,
                                   ConversionPatternRewriter &rewriter) const override {
         auto sequenceOp =
-            vgf::SequenceOp::create(rewriter, funcOp.getLoc(), adaptor.getSymName(), adaptor.getFunctionType(),
-                                    adaptor.getArgAttrsAttr(), adaptor.getResAttrsAttr());
+            vgf::SequenceOp::create(rewriter, funcOp.getLoc(), adaptor.getSymName(), adaptor.getSymVisibilityAttr(),
+                                    adaptor.getFunctionType(), adaptor.getArgAttrsAttr(), adaptor.getResAttrsAttr());
         sequenceOp->setAttrs(adaptor.getAttributes());
         rewriter.inlineRegionBefore(funcOp.getBody(), sequenceOp.getBody(), sequenceOp.end());
         rewriter.eraseOp(funcOp);
@@ -802,8 +802,8 @@ FunctionPartitionEmitter::CreatedSegment FunctionPartitionEmitter::createSegment
     segment.name = "graph_partition_" + std::to_string(plan.partitionId);
     segment.functionType =
         builder.getFunctionType(ValueRange(plan.dependencies.inputs).getTypes(), ValueRange(plan.results).getTypes());
-    segment.op = vgf::SegmentOp::create(builder, funcOp.getLoc(), segment.name, plan.type, segment.functionType,
-                                        nullptr, nullptr);
+    segment.op = vgf::SegmentOp::create(builder, funcOp.getLoc(), segment.name, nullptr, plan.type,
+                                        segment.functionType, nullptr, nullptr);
     segment.op->setAttr("segment_id", IntegerAttr::get(segmentIdType, plan.partitionId));
     return segment;
 }
