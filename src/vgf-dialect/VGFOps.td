@@ -55,13 +55,15 @@ class VGF_Op<string mnemonic, list<Trait> traits = []> :
 //===----------------------------------------------------------------------===//
 
 def SequenceOp : VGF_Op<"sequence",
-  [InModuleScope, IsolatedFromAbove, FunctionOpInterface, SymbolTable]> {
+  [InModuleScope, IsolatedFromAbove, SymbolName, SymbolVisibility,
+   FunctionOpInterface, SymbolTable]> {
   let summary = "TODO";
   let description = [{
     TODO
   }];
 
   let arguments = (ins SymbolNameAttr:$sym_name,
+                       OptionalAttr<StrAttr>:$sym_visibility,
                        TypeAttrOf<FunctionType>:$function_type,
                        OptionalAttr<DictArrayAttr>:$arg_attrs,
                        OptionalAttr<DictArrayAttr>:$res_attrs);
@@ -103,13 +105,15 @@ def SequenceOutputOp : VGF_Op<"sequence_output",
 //===----------------------------------------------------------------------===//
 
 def SegmentOp : VGF_Op<"segment",
-  [HasParent<"SequenceOp">, IsolatedFromAbove, FunctionOpInterface, SymbolTable]> {
+  [HasParent<"SequenceOp">, IsolatedFromAbove, SymbolName, SymbolVisibility,
+   FunctionOpInterface, SymbolTable]> {
   let summary = "TODO";
   let description = [{
     TODO
   }];
 
   let arguments = (ins SymbolNameAttr:$sym_name,
+                       OptionalAttr<StrAttr>:$sym_visibility,
                        SegmentTypeEnumAttr:$segment_type,
                        TypeAttrOf<FunctionType>:$function_type,
                        OptionalAttr<DictArrayAttr>:$arg_attrs,
@@ -159,7 +163,7 @@ def SegmentRunOp : VGF_Op<"run_segment",
     }
 
     void setCalleeFromCallable(CallInterfaceCallable segment) {
-      (*this)->setAttr("segment", segment.get<SymbolRefAttr>());
+      (*this)->setAttr("segment", cast<SymbolRefAttr>(segment));
     }
 
     ArrayAttr getArgAttrsAttr() { return {}; }
