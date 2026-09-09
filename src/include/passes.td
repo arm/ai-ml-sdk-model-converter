@@ -75,23 +75,6 @@ def SignlessIntegerMarkingPass : Pass<"signless-integer-marking", "mlir::func::F
   let description = [{}];
 }
 
-def TypeNarrowingPass : Pass<"type-narrowing", "mlir::ModuleOp"> {
-  let summary = "Narrow types of operations' operands/results";
-  let description = [{
-    Reduce the size of the input floating point model by quantizing the weights to narrower floating-point types;
-    e.g. float16. Moreover, reduce the operational precision by type-casting all the internal operations as well;
-    something that can improve the overall execution time.
-  }];
-  let options = [
-      Option<"mode", "mode", "TypeNarrowingMode", "TypeNarrowingMode::Full","Type narrowing",
-            [{::llvm::cl::values(
-               clEnumValN(TypeNarrowingMode::Full, "full", "Full type narrowing"),
-               clEnumValN(TypeNarrowingMode::Partial, "partial", "Partial type narrowing"),
-               clEnumValN(TypeNarrowingMode::FullPreserveIO, "full_preserve_io", "Full type narrowing with i/o types preserved")
-            )}]>
-  ];
-}
-
 def DenseResourceInlinerPass : Pass<"dense-resource-inliner", "func::FuncOp"> {
   let summary = "Inline DenseResourceElementsAttr into DenseElementsAttr";
   let description = [{}];

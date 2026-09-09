@@ -118,7 +118,6 @@ set(CONVERTER_PASS_LIB_SOURCES
     "src/conversion/resource_planner.cpp"
     "src/conversion/serialize_vgf.cpp"
     "src/conversion/signless_integer_marking.cpp"
-    "src/conversion/type_narrowing.cpp"
     "src/conversion/verify_shaped_tensors.cpp"
     "src/conversion/vgf_constants.cpp"
     "src/utils.cpp"

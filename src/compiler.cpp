@@ -130,7 +130,10 @@ void Compiler::SetPassManager() {
 
     // Type narrowing
     if (_options.type_narrowing != TypeNarrowingMode::None) {
-        _pm.addPass(createTypeNarrowingPass({_options.type_narrowing}));
+        const bool convertFunctionBoundaries = _options.type_narrowing != TypeNarrowingMode::FullPreserveIO;
+        const bool convertAccumulatorType = _options.type_narrowing != TypeNarrowingMode::Partial;
+        _pm.nest<func::FuncOp>().addPass(
+            mlir::tosa::createTosaNarrowF32ToF16Pass({true, convertFunctionBoundaries, convertAccumulatorType}));
     }
 
     {
