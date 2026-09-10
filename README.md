@@ -93,11 +93,11 @@ dependencies required by the ML SDK Model Converter in
 
 The build system must have:
 
-- CMake 3.25 or later.
 - C/C++ 17 compiler: GCC, or optionally Clang on Linux and MSVC on Windows®.
+- CMake 3.25 or later.
+- Ninja 1.8.2 or later.
 - Python 3.10 or later. Required python libraries for building are listed in
   `tooling-requirements.txt`.
-- Ninja 1.10 or later.
 
 The following dependencies are also needed:
 
