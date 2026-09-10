@@ -233,6 +233,13 @@ if(MODEL_CONVERTER_BUILD_TESTS)
     llvm_update_compile_flags(model-converter-opt)
     mlir_check_all_link_libraries(model-converter-opt)
 
+    # LLVM applies this stack size to targets in its own directory tree, but
+    # that setting does not propagate back to this parent project. The default
+    # 1 MiB stack is insufficient for Windows AddressSanitizer builds.
+    if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+        target_link_options(model-converter-opt PRIVATE "/STACK:10000000")
+    endif()
+
     add_subdirectory(test/lit)
 endif()
 unset(MODEL_CONVERTER_BUILD_TESTS CACHE)
