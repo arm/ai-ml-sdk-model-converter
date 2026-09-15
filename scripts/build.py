@@ -371,6 +371,7 @@ class Builder:
                         sys.executable,
                         "-m",
                         "build",
+                        "--wheel",
                         "--outdir",
                         str(MODEL_CONVERTER_DIR / "pip_package" / "dist"),
                         str(MODEL_CONVERTER_DIR),
