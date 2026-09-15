@@ -21,8 +21,6 @@ except ImportError:
 MODEL_CONVERTER_DIR = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(MODEL_CONVERTER_DIR))
 
-from scripts.build import build as build_model_converter  # noqa: E402
-
 SKIP_NATIVE_BUILD_ENV = "MODEL_CONVERTER_SKIP_NATIVE_BUILD"
 
 
@@ -69,6 +67,8 @@ class BuildPy(build_py):
             raise RuntimeError(
                 "The Model Converter native build requires: " + ", ".join(missing_tools)
             )
+
+        from scripts.build import build as build_model_converter
 
         build_command = self.get_finalized_command("build")
         native_build_dir = pathlib.Path(build_command.build_temp) / "model_converter"
