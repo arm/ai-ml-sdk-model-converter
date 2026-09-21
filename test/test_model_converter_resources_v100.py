@@ -7,14 +7,14 @@ import json
 import pytest
 import vgfpy
 from model_converter_helpers import converted_mlir
-from vgf_decoder import VK_FORMAT_R16_SFLOAT_FPENCODING_BFLOAT16_ARM
-from vgf_decoder import VK_FORMAT_R16_SINT
-from vgf_decoder import VK_FORMAT_R16_UINT
-from vgf_decoder import VK_FORMAT_R32_SINT
 from vgf_decoder import VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E4M3_ARM
 from vgf_decoder import VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E5M2_ARM
 from vgf_decoder import VK_FORMAT_R8_SINT
 from vgf_decoder import VK_FORMAT_R8_UINT
+from vgf_decoder import VK_FORMAT_R16_SFLOAT_FPENCODING_BFLOAT16_ARM
+from vgf_decoder import VK_FORMAT_R16_SINT
+from vgf_decoder import VK_FORMAT_R16_UINT
+from vgf_decoder import VK_FORMAT_R32_SINT
 
 
 def io_vk_format_mlir(element_type):

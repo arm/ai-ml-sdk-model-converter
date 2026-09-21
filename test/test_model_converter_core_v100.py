@@ -7,10 +7,10 @@ import subprocess
 import pytest
 import vgfpy
 from model_converter_helpers import converted_mlir
+from vgf_decoder import VK_FORMAT_R8_SINT
 from vgf_decoder import VK_FORMAT_R16_SINT
 from vgf_decoder import VK_FORMAT_R32_SFLOAT
 from vgf_decoder import VK_FORMAT_R32_SINT
-from vgf_decoder import VK_FORMAT_R8_SINT
 
 SPV_OP_EXTENSION = 10
 SPV_OP_CAPABILITY = 17
