@@ -11,6 +11,7 @@ import sys
 from setuptools import setup
 from setuptools.command.build import build as setuptools_build
 from setuptools.command.build_py import build_py
+from setuptools.dist import Distribution
 
 try:
     from setuptools.command.bdist_wheel import bdist_wheel
@@ -76,18 +77,31 @@ class BuildPy(build_py):
             pathlib.Path(self.build_lib) / "model_converter" / "binaries"
         )
 
+        extra_args = []
+        if os.environ.get("MODEL_CONVERTER_SKIP_LLVM_PATCH") == "1":
+            extra_args.append("--skip-llvm-patch")
         result = build_model_converter(
             [
                 "--build-dir",
                 str(native_build_dir),
                 "--install",
                 str(native_install_dir),
+                "--package-version",
+                self.distribution.get_version(),
+                "--threads",
+                os.environ.get("CMAKE_BUILD_PARALLEL_LEVEL", str(os.cpu_count() or 1)),
             ]
+            + extra_args
         )
         if result:
             raise RuntimeError(
                 f"Model Converter native build failed with code {result}"
             )
+
+
+class BinaryDistribution(Distribution):
+    def has_ext_modules(self):
+        return True
 
 
 class BDistWheel(bdist_wheel):
@@ -96,21 +110,11 @@ class BDistWheel(bdist_wheel):
         self.root_is_pure = False
 
     def get_tag(self):
-        system = platform.system()
-        machine = platform.machine()
-        if system == "Windows":
-            assert machine == "AMD64"
-            platformName = "win_amd64"
-        elif system == "Linux":
-            if machine == "aarch64":
-                platformName = "manylinux2014_aarch64"
-            else:
-                assert machine == "x86_64"
-                platformName = "manylinux2014_x86_64"
-        elif system == "Darwin":
-            assert machine == "arm64"
-            platformName = "macosx_11_0_arm64"
-        return ("py3", "none", platformName)
+        _, _, platform_tag = super().get_tag()
+        return ("py3", "none", platform_tag)
 
 
-setup(cmdclass={"build": Build, "build_py": BuildPy, "bdist_wheel": BDistWheel})
+setup(
+    cmdclass={"build": Build, "build_py": BuildPy, "bdist_wheel": BDistWheel},
+    distclass=BinaryDistribution,
+)
