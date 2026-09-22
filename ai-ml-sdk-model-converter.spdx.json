@@ -477,9 +477,6 @@
             "copyrightText": "NOASSERTION",
             "versionInfo": "3a8bd232cfa8",
             "supplier": "Organization: llvm (github.com)",
-            "licenseInfoFromFiles": [
-                "NOASSERTION"
-            ],
             "externalRefs": [
                 {
                     "referenceCategory": "PACKAGE-MANAGER",
@@ -498,9 +495,6 @@
             "copyrightText": "Copyright (c) ARM Limited.",
             "versionInfo": "v2026.08.0",
             "supplier": "Organization: tosa (https://gitlab.arm.com/tosa)",
-            "licenseInfoFromFiles": [
-                "NOASSERTION"
-            ],
             "externalRefs": [
                 {
                     "referenceCategory": "PACKAGE-MANAGER",
@@ -725,7 +719,7 @@
         {
             "spdxElementId": "SPDXRef-package-ce2b91e5-996c-4dc7-be9e-146bd1c789c9",
             "relationshipType": "DEPENDS_ON",
-            "relatedSpdxElement": "SPDXRef-package-18e36ba3-5553-495c-afa3-ef67a7b417c"
+            "relatedSpdxElement": "SPDXRef-package-18e36ba3-5553-495c-afa3-ef67a7b417c1"
         },
         {
             "spdxElementId": "SPDXRef-package-ce2b91e5-996c-4dc7-be9e-146bd1c789c9",
