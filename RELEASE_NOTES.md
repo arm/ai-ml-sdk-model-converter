@@ -2,20 +2,24 @@
 
 ---
 
-## Unreleased
+## Version 0.11.0 – *Partitioning & Graph Constant Bindings*
 
 ### Converter & Toolchain
 
 - Updated graph partitioning to keep eligible boundary rescale resources in
   narrower integer formats by rematerializing widening rescale operations inside
   graph partitions.
+- Added `--disable-replicated-composites` to avoid emitting SPIR-V™ features
+  that require `VK_EXT_shader_replicated_composites`.
 
 ### Build, Packaging & Developer Experience
 
+- Raised the minimum supported Python version for the pip package from 3.8 to
+  3.10.
 - Updated Model Converter `--version` output to report the package version and
   include git revision and dependency revision information.
-- Enabled building and installing Model Converter, including its native binaries,
-  with `pip install .` from the repository root.
+- Enabled building and installing Model Converter, including its native
+  binaries, with `pip install .` from the repository root.
 
 ### Converter & Toolchain
 
