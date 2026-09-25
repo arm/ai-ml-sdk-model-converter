@@ -23,6 +23,7 @@ model_converter = "model_converter.cli:main"
 model-converter = "model_converter.cli:main"
 
 [tool.setuptools]
+license-files = ["LICENSES/*.txt"]
 package-dir = { "" = "pip_package" }
 include-package-data = true
 
