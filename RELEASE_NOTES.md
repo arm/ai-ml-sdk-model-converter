@@ -8,6 +8,7 @@
 
 - Locked development and test dependencies with `uv.lock` in place of the
   requirements files.
+- Added GCC code coverage reporting for native Linux unit-test and lit builds.
 
 ## Version 0.11.0 – *Partitioning & Graph Constant Bindings*
 

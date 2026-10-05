@@ -41,6 +41,31 @@ option(MODEL_CONVERTER_ENABLE_COVERAGE "Enable coverage build" OFF)
 option(MODEL_CONVERTER_ENABLE_LTO "Enable Link Time Optimization when CMAKE_BUILD_TYPE=Release" ON)
 set(MODEL_CONVERTER_LOG_TRACE_MASK "" CACHE STRING "Log trace enable mask")
 
+if(MODEL_CONVERTER_ENABLE_COVERAGE)
+    if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        message(FATAL_ERROR "MODEL_CONVERTER_ENABLE_COVERAGE requires GCC")
+    endif()
+    if(CMAKE_CROSSCOMPILING)
+        message(FATAL_ERROR "MODEL_CONVERTER_ENABLE_COVERAGE is only supported for native builds")
+    endif()
+endif()
+
+function(model_converter_enable_coverage target_name)
+    if(NOT MODEL_CONVERTER_ENABLE_COVERAGE)
+        return()
+    endif()
+
+    target_compile_options(${target_name} PRIVATE --coverage -O0 -g)
+
+    set(coverage_private_link_types EXECUTABLE SHARED_LIBRARY MODULE_LIBRARY)
+    get_target_property(target_type ${target_name} TYPE)
+    if(target_type STREQUAL "STATIC_LIBRARY")
+        target_link_options(${target_name} INTERFACE --coverage)
+    elseif(target_type IN_LIST coverage_private_link_types)
+        target_link_options(${target_name} PRIVATE --coverage)
+    endif()
+endfunction()
+
 set(MODEL_CONVERTER_PACKAGE_NAME ${PROJECT_NAME})
 set(MODEL_CONVERTER_NAMESPACE ${PROJECT_NAME})
 if(NOT (CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR) AND ML_SDK_GENERATE_CPACK)
@@ -155,6 +180,7 @@ target_include_directories(model-converter-passes-lib PUBLIC src)
 target_include_directories(model-converter-passes-lib SYSTEM PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(model-converter-passes-lib PUBLIC ${CONVERTER_PASS_LIB_DEPENDENCIES})
 target_compile_options(model-converter-passes-lib PRIVATE ${ML_SDK_MODEL_CONVERTER_COMPILE_OPTIONS})
+model_converter_enable_coverage(model-converter-passes-lib)
 
 add_dependencies(model-converter-passes-lib
                 MLIRModelConverterPasses
@@ -170,10 +196,12 @@ target_include_directories(model-converter-driver-lib PUBLIC src)
 target_include_directories(model-converter-driver-lib SYSTEM PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(model-converter-driver-lib PUBLIC ${CONVERTER_DRIVER_LIB_DEPENDENCIES})
 target_compile_options(model-converter-driver-lib PRIVATE ${ML_SDK_MODEL_CONVERTER_COMPILE_OPTIONS})
+model_converter_enable_coverage(model-converter-driver-lib)
 
 add_executable(model-converter "src/main.cpp")
 target_link_libraries(model-converter PRIVATE model-converter-driver-lib argparse::argparse)
 target_compile_options(model-converter PRIVATE ${ML_SDK_MODEL_CONVERTER_COMPILE_OPTIONS})
+model_converter_enable_coverage(model-converter)
 
 mlsdk_generate_version_header(
     TARGET model-converter
@@ -231,6 +259,7 @@ if(MODEL_CONVERTER_BUILD_TESTS)
     add_dependencies(model-converter-opt model-converter-passes-lib)
 
     llvm_update_compile_flags(model-converter-opt)
+    model_converter_enable_coverage(model-converter-opt)
     mlir_check_all_link_libraries(model-converter-opt)
 
     # LLVM applies this stack size to targets in its own directory tree, but
