@@ -2,6 +2,13 @@
 
 ---
 
+## Unreleased
+
+### Build, Packaging & Dependencies
+
+- Locked development and test dependencies with `uv.lock` in place of the
+  requirements files.
+
 ## Version 0.11.0 – *Partitioning & Graph Constant Bindings*
 
 ### Converter & Toolchain
