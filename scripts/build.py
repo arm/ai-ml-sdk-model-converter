@@ -41,7 +41,8 @@ class Builder:
         self.prefix_path = args.prefix_path
         self.external_llvm = args.external_llvm
         self.skip_llvm_patch = args.skip_llvm_patch
-        self.run_tests = args.test
+        self.coverage = args.coverage
+        self.run_tests = args.test or self.coverage
         self.build_type = args.build_type
         self.vgf_lib_path = args.vgf_lib_path
         self.json_path = args.json_path
@@ -199,6 +200,15 @@ class Builder:
         if self.run_tests:
             cmake_setup_cmd.append("-DMODEL_CONVERTER_BUILD_TESTS=ON")
 
+        if self.coverage:
+            if self.target_platform != "host" or platform.system() != "Linux":
+                print(
+                    "ERROR: Coverage requires a native Linux GCC build",
+                    file=sys.stderr,
+                )
+                return 1
+            cmake_setup_cmd.append("-DMODEL_CONVERTER_ENABLE_COVERAGE=ON")
+
         if self.package_version:
             cmake_setup_cmd.append(f"-DML_SDK_PACKAGE_VERSION={self.package_version}")
 
@@ -310,6 +320,10 @@ class Builder:
                 subprocess.run(cmake_install_cmd, check=True)
 
             if self.run_tests:
+                if self.coverage:
+                    for coverage_data in pathlib.Path(self.build_dir).rglob("*.gcda"):
+                        coverage_data.unlink()
+
                 pytest_cmd = [
                     sys.executable,
                     "-m",
@@ -336,6 +350,27 @@ class Builder:
                     self.build_type,
                 ]
                 subprocess.run(lit_cmd, check=True)
+
+            if self.coverage:
+                coverage_dir = pathlib.Path(self.build_dir, "coverage")
+                coverage_dir.mkdir(parents=True, exist_ok=True)
+                coverage_cmd = [
+                    "gcovr",
+                    "--root",
+                    str(MODEL_CONVERTER_DIR),
+                    "--filter",
+                    str(MODEL_CONVERTER_DIR / "src"),
+                    "--object-directory",
+                    self.build_dir,
+                    "--html-details",
+                    str(coverage_dir / "index.html"),
+                    "--json-summary-pretty",
+                    "--json-summary",
+                    str(coverage_dir / "summary.json"),
+                    "--print-summary",
+                    self.build_dir,
+                ]
+                subprocess.run(coverage_cmd, check=True)
 
             if self.package_tgz:
                 self.generate_cmake_package("TGZ")
@@ -438,6 +473,12 @@ def parse_arguments(argv=None):
         "-t",
         "--test",
         help="Run unit tests after build. Default: %(default)s",
+        action="store_true",
+        default=False,
+    )
+    parser.add_argument(
+        "--coverage",
+        help="Run tests with GCC coverage and generate reports. Default: %(default)s",
         action="store_true",
         default=False,
     )

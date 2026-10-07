@@ -168,6 +168,21 @@ For more information, see the help output:
 python3 scripts/build.py --help
 ```
 
+## Code coverage
+
+Sync the locked test and tooling dependencies, then run the unit and lit tests on
+Linux with GCC coverage instrumentation:
+
+```bash
+uv sync --locked --no-install-project --no-default-groups --group test --group tooling
+uv run --no-sync python scripts/build.py --coverage --build-dir build-coverage
+```
+
+The coverage command writes a detailed HTML report to
+`build-coverage/coverage/index.html` and a machine-readable JSON summary to
+`build-coverage/coverage/summary.json`. Coverage is collected for Model
+Converter sources; tests, LLVM, and bundled dependencies are excluded.
+
 ## Usage
 
 To generate a VGF file, run:
