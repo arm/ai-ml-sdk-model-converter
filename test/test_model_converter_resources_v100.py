@@ -21,7 +21,7 @@ def io_vk_format_mlir(element_type):
     return f"""
 module {{
   func.func @main(%arg0: tensor<4x{element_type}> {{tf_saved_model.index_path = ["input_0"]}}) -> (tensor<4x{element_type}> {{tf_saved_model.index_path = ["output_0"]}}) attributes {{tf.entry_function = {{inputs = "input_0", outputs = "output_0"}}, tf_saved_model.exported_names = ["main"]}} {{
-    %0 = tosa.reverse %arg0 {{axis = 0 : i32}} : (tensor<4x{element_type}>) -> tensor<4x{element_type}>
+    %0 = tosa.reverse %arg0 axis(0) : (tensor<4x{element_type}>) -> tensor<4x{element_type}>
     return %0 : tensor<4x{element_type}>
   }}
 }}
@@ -36,7 +36,7 @@ module {{
     %1 = "tosa.const"() <{{values = dense<[23]> : tensor<1xi8>}}> : () -> tensor<1xi8>
     %2 = "tosa.const"() <{{values = dense<[0]> : tensor<1xi8>}}> : () -> tensor<1xi8>
     %3 = "tosa.const"() <{{values = dense<[0]> : tensor<1xi16>}}> : () -> tensor<1xi16>
-    %4 = tosa.rescale %arg0, %0, %1, %2, %3 {{rounding_mode = SINGLE_ROUND, per_channel = false, scale32 = true, input_unsigned = {str(input_unsigned).lower()}, output_unsigned = {str(output_unsigned).lower()}}} : (tensor<1x1xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi16>) -> tensor<1x1xi16>
+    %4 = tosa.rescale %arg0, %0, %1, %2, %3 scale32(true) rounding_mode<SINGLE_ROUND> per_channel(false) input_unsigned({str(input_unsigned).lower()}) output_unsigned({str(output_unsigned).lower()}) : (tensor<1x1xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi16>) -> tensor<1x1xi16>
     return %4 : tensor<1x1xi16>
   }}
 }}
@@ -76,10 +76,10 @@ module {{
     %input_zp = "tosa.const"() {{values = dense<[0]> : tensor<1xi8>}} : () -> tensor<1xi8>
     %flow_output_zp = "tosa.const"() {{values = dense<[0]> : tensor<1xi8>}} : () -> tensor<1xi8>
     %output_zp = "tosa.const"() {{values = dense<[0]> : tensor<1xi32>}} : () -> tensor<1xi32>
-    %flow = tosa.rescale %arg0, %multiplier, %shift, %input_zp, %flow_output_zp {{rounding_mode = SINGLE_ROUND, per_channel = false, scale32 = true, input_unsigned = false, output_unsigned = false}} : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi8>) -> tensor<4xi8>
-    %old_flow_i32 = tosa.rescale %flow, %multiplier, %shift, %input_zp, %output_zp {{rounding_mode = SINGLE_ROUND, per_channel = false, scale32 = true, input_unsigned = false, output_unsigned = false}} : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi32>) -> tensor<4xi32>
-    %shader = tosa.custom %flow {{domain_name = "com.arm.VulkanCustomShader", implementation_attrs = {attrs}, operator_name = "remat_shader"}} : (tensor<4xi8>) -> tensor<4xi8>
-    %shader_i32 = tosa.rescale %shader, %multiplier, %shift, %input_zp, %output_zp {{rounding_mode = SINGLE_ROUND, per_channel = false, scale32 = true, input_unsigned = false, output_unsigned = false}} : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi32>) -> tensor<4xi32>
+    %flow = tosa.rescale %arg0, %multiplier, %shift, %input_zp, %flow_output_zp scale32(true) rounding_mode<SINGLE_ROUND> per_channel(false) input_unsigned(false) output_unsigned(false) : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi8>) -> tensor<4xi8>
+    %old_flow_i32 = tosa.rescale %flow, %multiplier, %shift, %input_zp, %output_zp scale32(true) rounding_mode<SINGLE_ROUND> per_channel(false) input_unsigned(false) output_unsigned(false) : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi32>) -> tensor<4xi32>
+    %shader = tosa.custom %flow operator_name("remat_shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs({attrs}) : (tensor<4xi8>) -> tensor<4xi8>
+    %shader_i32 = tosa.rescale %shader, %multiplier, %shift, %input_zp, %output_zp scale32(true) rounding_mode<SINGLE_ROUND> per_channel(false) input_unsigned(false) output_unsigned(false) : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi32>) -> tensor<4xi32>
     %out = tosa.add %shader_i32, %old_flow_i32 : (tensor<4xi32>, tensor<4xi32>) -> tensor<4xi32>
     return %out : tensor<4xi32>
   }}
@@ -97,9 +97,9 @@ module {{
     %input_zp = "tosa.const"() {{values = dense<[0]> : tensor<1xi8>}} : () -> tensor<1xi8>
     %flow_output_zp = "tosa.const"() {{values = dense<[0]> : tensor<1xi8>}} : () -> tensor<1xi8>
     %output_zp = "tosa.const"() {{values = dense<[0]> : tensor<1xi32>}} : () -> tensor<1xi32>
-    %flow = tosa.rescale %arg0, %multiplier, %shift, %input_zp, %flow_output_zp {{rounding_mode = SINGLE_ROUND, per_channel = false, scale32 = true, input_unsigned = false, output_unsigned = false}} : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi8>) -> tensor<4xi8>
-    %old_flow_i32 = tosa.rescale %flow, %multiplier, %shift, %input_zp, %output_zp {{rounding_mode = SINGLE_ROUND, per_channel = false, scale32 = true, input_unsigned = false, output_unsigned = false}} : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi32>) -> tensor<4xi32>
-    %shader = tosa.custom %old_flow_i32 {{domain_name = "com.arm.VulkanCustomShader", implementation_attrs = {attrs}, operator_name = "i32_shader"}} : (tensor<4xi32>) -> tensor<4xi32>
+    %flow = tosa.rescale %arg0, %multiplier, %shift, %input_zp, %flow_output_zp scale32(true) rounding_mode<SINGLE_ROUND> per_channel(false) input_unsigned(false) output_unsigned(false) : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi8>) -> tensor<4xi8>
+    %old_flow_i32 = tosa.rescale %flow, %multiplier, %shift, %input_zp, %output_zp scale32(true) rounding_mode<SINGLE_ROUND> per_channel(false) input_unsigned(false) output_unsigned(false) : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi32>) -> tensor<4xi32>
+    %shader = tosa.custom %old_flow_i32 operator_name("i32_shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs({attrs}) : (tensor<4xi32>) -> tensor<4xi32>
     %out = tosa.add %shader, %old_flow_i32 : (tensor<4xi32>, tensor<4xi32>) -> tensor<4xi32>
     return %out : tensor<4xi32>
   }}

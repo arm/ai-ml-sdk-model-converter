@@ -7,7 +7,7 @@
 
 // CHECK-LABEL: func.func @graph_only_chain
 func.func @graph_only_chain(%arg0: tensor<4xi8>) -> tensor<4xi8> {
-  // CHECK: "tosa.const"
+  // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = false
   %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
@@ -63,7 +63,7 @@ func.func @internal_cross_partition_and_return_use(%arg0: tensor<4xi8>) -> (tens
   // CHECK-SAME: graph_partition_id = 1 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   // CHECK-SAME: graph_partition_sequence_output_indices = array<i64: 1>
-  %2 = tosa.custom %0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader"} : (tensor<4xi8>) -> tensor<4xi8>
+  %2 = tosa.custom %0 operator_name("shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
   return %1, %2, %0 : tensor<4xi8>, tensor<4xi8>, tensor<4xi8>
 }
 
@@ -92,7 +92,7 @@ func.func @graph_then_compute_return(%arg0: tensor<4xi8>) -> tensor<4xi8> {
   // CHECK-SAME: graph_partition_id = 1 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   // CHECK-SAME: graph_partition_sequence_output_indices = array<i64: 0>
-  %1 = tosa.custom %0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader"} : (tensor<4xi8>) -> tensor<4xi8>
+  %1 = tosa.custom %0 operator_name("shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
   return %1 : tensor<4xi8>
 }
 
@@ -103,7 +103,7 @@ func.func @compute_then_graph_return(%arg0: tensor<4xi8>) -> tensor<4xi8> {
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %0 = tosa.custom %arg0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader"} : (tensor<4xi8>) -> tensor<4xi8>
+  %0 = tosa.custom %arg0 operator_name("shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.abs
   // CHECK-SAME: graph_partition_id = 1 : i32
@@ -120,7 +120,7 @@ func.func @compute_then_graph_then_compute_return(%arg0: tensor<4xi8>) -> tensor
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %0 = tosa.custom %arg0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader0"} : (tensor<4xi8>) -> tensor<4xi8>
+  %0 = tosa.custom %arg0 operator_name("shader0") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.abs
   // CHECK-SAME: graph_partition_id = 1 : i32
@@ -131,7 +131,7 @@ func.func @compute_then_graph_then_compute_return(%arg0: tensor<4xi8>) -> tensor
   // CHECK-SAME: graph_partition_id = 2 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   // CHECK-SAME: graph_partition_sequence_output_indices = array<i64: 0>
-  %2 = tosa.custom %1 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader1"} : (tensor<4xi8>) -> tensor<4xi8>
+  %2 = tosa.custom %1 operator_name("shader1") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
   return %2 : tensor<4xi8>
 }
 
@@ -142,7 +142,7 @@ func.func @compute_graph_compute_graph_compute_return(%arg0: tensor<4xi8>) -> te
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %0 = tosa.custom %arg0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader0"} : (tensor<4xi8>) -> tensor<4xi8>
+  %0 = tosa.custom %arg0 operator_name("shader0") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.abs
   // CHECK-SAME: graph_partition_id = 1 : i32
@@ -152,7 +152,7 @@ func.func @compute_graph_compute_graph_compute_return(%arg0: tensor<4xi8>) -> te
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 2 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %2 = tosa.custom %1 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader1"} : (tensor<4xi8>) -> tensor<4xi8>
+  %2 = tosa.custom %1 operator_name("shader1") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.abs
   // CHECK-SAME: graph_partition_id = 3 : i32
@@ -163,7 +163,7 @@ func.func @compute_graph_compute_graph_compute_return(%arg0: tensor<4xi8>) -> te
   // CHECK-SAME: graph_partition_id = 4 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   // CHECK-SAME: graph_partition_sequence_output_indices = array<i64: 0>
-  %4 = tosa.custom %3 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader2"} : (tensor<4xi8>) -> tensor<4xi8>
+  %4 = tosa.custom %3 operator_name("shader2") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
   return %4 : tensor<4xi8>
 }
 
@@ -179,7 +179,7 @@ func.func @two_compute_boundaries(%arg0: tensor<4xi8>) -> tensor<4xi8> {
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 1 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %1 = tosa.custom %0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader0"} : (tensor<4xi8>) -> tensor<4xi8>
+  %1 = tosa.custom %0 operator_name("shader0") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.abs
   // CHECK-SAME: graph_partition_id = 2 : i32
@@ -189,7 +189,7 @@ func.func @two_compute_boundaries(%arg0: tensor<4xi8>) -> tensor<4xi8> {
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 3 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %3 = tosa.custom %2 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader1"} : (tensor<4xi8>) -> tensor<4xi8>
+  %3 = tosa.custom %2 operator_name("shader1") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.abs
   // CHECK-SAME: graph_partition_id = 4 : i32
@@ -206,13 +206,13 @@ func.func @compute_to_compute(%arg0: tensor<4xi8>) -> tensor<4xi8> {
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %0 = tosa.custom %arg0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader0"} : (tensor<4xi8>) -> tensor<4xi8>
+  %0 = tosa.custom %arg0 operator_name("shader0") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 1 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   // CHECK-SAME: graph_partition_sequence_output_indices = array<i64: 0>
-  %1 = tosa.custom %0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader1"} : (tensor<4xi8>) -> tensor<4xi8>
+  %1 = tosa.custom %0 operator_name("shader1") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
   return %1 : tensor<4xi8>
 }
 
@@ -220,7 +220,7 @@ func.func @compute_to_compute(%arg0: tensor<4xi8>) -> tensor<4xi8> {
 
 // CHECK-LABEL: func.func @constant_used_after_compute
 func.func @constant_used_after_compute(%arg0: tensor<4xi8>) -> tensor<4xi8> {
-  // CHECK: "tosa.const"
+  // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 2 : i32
   // CHECK-SAME: graph_partition_leaf_node = false
   %table = "tosa.const"() {values = dense<0> : tensor<256xi8>} : () -> tensor<256xi8>
@@ -233,7 +233,7 @@ func.func @constant_used_after_compute(%arg0: tensor<4xi8>) -> tensor<4xi8> {
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 1 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %1 = tosa.custom %0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader"} : (tensor<4xi8>) -> tensor<4xi8>
+  %1 = tosa.custom %0 operator_name("shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.table
   // CHECK-SAME: graph_partition_id = 2 : i32
@@ -246,7 +246,7 @@ func.func @constant_used_after_compute(%arg0: tensor<4xi8>) -> tensor<4xi8> {
 
 // CHECK-LABEL: func.func @shared_graph_constant_across_partitions
 func.func @shared_graph_constant_across_partitions(%arg0: tensor<4xi8>) -> tensor<4xi8> {
-  // CHECK: "tosa.const"
+  // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = false
   %table = "tosa.const"() {values = dense<1> : tensor<256xi8>} : () -> tensor<256xi8>
@@ -259,7 +259,7 @@ func.func @shared_graph_constant_across_partitions(%arg0: tensor<4xi8>) -> tenso
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 1 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %1 = tosa.custom %0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader"} : (tensor<4xi8>) -> tensor<4xi8>
+  %1 = tosa.custom %0 operator_name("shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.table
   // CHECK-SAME: graph_partition_id = 2 : i32
@@ -272,7 +272,7 @@ func.func @shared_graph_constant_across_partitions(%arg0: tensor<4xi8>) -> tenso
 
 // CHECK-LABEL: func.func @constant_used_by_compute_only
 func.func @constant_used_by_compute_only() -> tensor<4xi8> {
-  // CHECK: "tosa.const"
+  // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
@@ -281,7 +281,7 @@ func.func @constant_used_by_compute_only() -> tensor<4xi8> {
   // CHECK-SAME: graph_partition_id = 1 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   // CHECK-SAME: graph_partition_sequence_output_indices = array<i64: 0>
-  %0 = tosa.custom %c0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader"} : (tensor<4xi8>) -> tensor<4xi8>
+  %0 = tosa.custom %c0 operator_name("shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
   return %0 : tensor<4xi8>
 }
 
@@ -289,7 +289,7 @@ func.func @constant_used_by_compute_only() -> tensor<4xi8> {
 
 // CHECK-LABEL: func.func @constant_used_by_graph_and_compute
 func.func @constant_used_by_graph_and_compute() -> tensor<4xi8> {
-  // CHECK: "tosa.const"
+  // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
@@ -302,7 +302,7 @@ func.func @constant_used_by_graph_and_compute() -> tensor<4xi8> {
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 1 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %1 = tosa.custom %c0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader"} : (tensor<4xi8>) -> tensor<4xi8>
+  %1 = tosa.custom %c0 operator_name("shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.add
   // CHECK-SAME: graph_partition_id = 2 : i32
@@ -329,7 +329,7 @@ func.func @const_shape_used_after_compute(%arg0: tensor<4xi8>) -> tensor<2x2xi8>
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 1 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %1 = tosa.custom %0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader"} : (tensor<4xi8>) -> tensor<4xi8>
+  %1 = tosa.custom %0 operator_name("shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.reshape
   // CHECK-SAME: graph_partition_id = 2 : i32
@@ -356,7 +356,7 @@ func.func @const_shape_used_in_multiple_graph_partitions(%arg0: tensor<4xi8>) ->
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 1 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %1 = tosa.custom %0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader"} : (tensor<2x2xi8>) -> tensor<2x2xi8>
+  %1 = tosa.custom %0 operator_name("shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<2x2xi8>) -> tensor<2x2xi8>
 
   // CHECK: tosa.reshape
   // CHECK-SAME: graph_partition_id = 2 : i32
@@ -370,7 +370,7 @@ func.func @const_shape_used_in_multiple_graph_partitions(%arg0: tensor<4xi8>) ->
 
 // CHECK-LABEL: func.func @constant_used_by_graph_before_later_compute
 func.func @constant_used_by_graph_before_later_compute() -> (tensor<4xi8>, tensor<4xi8>) {
-  // CHECK: "tosa.const"
+  // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
@@ -385,7 +385,7 @@ func.func @constant_used_by_graph_before_later_compute() -> (tensor<4xi8>, tenso
   // CHECK-SAME: graph_partition_id = 1 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   // CHECK-SAME: graph_partition_sequence_output_indices = array<i64: 1>
-  %1 = tosa.custom %c0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader"} : (tensor<4xi8>) -> tensor<4xi8>
+  %1 = tosa.custom %c0 operator_name("shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
   return %0, %1 : tensor<4xi8>, tensor<4xi8>
 }
 
@@ -393,7 +393,7 @@ func.func @constant_used_by_graph_before_later_compute() -> (tensor<4xi8>, tenso
 
 // CHECK-LABEL: func.func @constant_used_by_compute_before_multiple_later_graphs
 func.func @constant_used_by_compute_before_multiple_later_graphs() -> tensor<4xi8> {
-  // CHECK: "tosa.const"
+  // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
@@ -401,7 +401,7 @@ func.func @constant_used_by_compute_before_multiple_later_graphs() -> tensor<4xi
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 1 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %0 = tosa.custom %c0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader0"} : (tensor<4xi8>) -> tensor<4xi8>
+  %0 = tosa.custom %c0 operator_name("shader0") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.add
   // CHECK-SAME: graph_partition_id = 2 : i32
@@ -411,7 +411,7 @@ func.func @constant_used_by_compute_before_multiple_later_graphs() -> tensor<4xi
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 3 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %2 = tosa.custom %1 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader1"} : (tensor<4xi8>) -> tensor<4xi8>
+  %2 = tosa.custom %1 operator_name("shader1") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.add
   // CHECK-SAME: graph_partition_id = 4 : i32
@@ -425,7 +425,7 @@ func.func @constant_used_by_compute_before_multiple_later_graphs() -> tensor<4xi
 
 // CHECK-LABEL: func.func @constant_return_only
 func.func @constant_return_only() -> tensor<4xi8> {
-  // CHECK: "tosa.const"
+  // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   // CHECK-SAME: graph_partition_sequence_output_indices = array<i64: 0>
@@ -437,7 +437,7 @@ func.func @constant_return_only() -> tensor<4xi8> {
 
 // CHECK-LABEL: func.func @unused_constant_in_graph_function
 func.func @unused_constant_in_graph_function(%arg0: tensor<4xi8>) -> tensor<4xi8> {
-  // CHECK: "tosa.const"
+  // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = false
   %c0 = "tosa.const"() {values = dense<9> : tensor<4xi8>} : () -> tensor<4xi8>
@@ -454,7 +454,7 @@ func.func @unused_constant_in_graph_function(%arg0: tensor<4xi8>) -> tensor<4xi8
 
 // CHECK-LABEL: func.func @constant_used_in_multiple_late_graph_partitions
 func.func @constant_used_in_multiple_late_graph_partitions(%arg0: tensor<4xi8>) -> tensor<4xi8> {
-  // CHECK: "tosa.const"
+  // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 2 : i32
   // CHECK-SAME: graph_partition_leaf_node = false
   %table = "tosa.const"() {values = dense<0> : tensor<256xi8>} : () -> tensor<256xi8>
@@ -467,7 +467,7 @@ func.func @constant_used_in_multiple_late_graph_partitions(%arg0: tensor<4xi8>) 
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 1 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %1 = tosa.custom %0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader0"} : (tensor<4xi8>) -> tensor<4xi8>
+  %1 = tosa.custom %0 operator_name("shader0") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.table
   // CHECK-SAME: graph_partition_id = 2 : i32
@@ -477,7 +477,7 @@ func.func @constant_used_in_multiple_late_graph_partitions(%arg0: tensor<4xi8>) 
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 3 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %3 = tosa.custom %2 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader1"} : (tensor<4xi8>) -> tensor<4xi8>
+  %3 = tosa.custom %2 operator_name("shader1") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.table
   // CHECK-SAME: graph_partition_id = 4 : i32
@@ -491,7 +491,7 @@ func.func @constant_used_in_multiple_late_graph_partitions(%arg0: tensor<4xi8>) 
 
 // CHECK-LABEL: func.func @constant_used_by_compute_before_later_graph
 func.func @constant_used_by_compute_before_later_graph() -> tensor<4xi8> {
-  // CHECK: "tosa.const"
+  // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
@@ -499,7 +499,7 @@ func.func @constant_used_by_compute_before_later_graph() -> tensor<4xi8> {
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 1 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %0 = tosa.custom %c0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader"} : (tensor<4xi8>) -> tensor<4xi8>
+  %0 = tosa.custom %c0 operator_name("shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.abs
   // CHECK-SAME: graph_partition_id = 2 : i32
@@ -518,7 +518,7 @@ func.func @constant_used_by_compute_before_later_graph() -> tensor<4xi8> {
 
 // CHECK-LABEL: func.func @constant_used_by_multiple_compute_partitions
 func.func @constant_used_by_multiple_compute_partitions() -> tensor<4xi8> {
-  // CHECK: "tosa.const"
+  // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
@@ -526,12 +526,12 @@ func.func @constant_used_by_multiple_compute_partitions() -> tensor<4xi8> {
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 1 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %0 = tosa.custom %c0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader0"} : (tensor<4xi8>) -> tensor<4xi8>
+  %0 = tosa.custom %c0 operator_name("shader0") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 2 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %1 = tosa.custom %c0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader1"} : (tensor<4xi8>) -> tensor<4xi8>
+  %1 = tosa.custom %c0 operator_name("shader1") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.add
   // CHECK-SAME: graph_partition_id = 3 : i32
@@ -555,7 +555,7 @@ func.func @multiple_outputs_across_partitions(%arg0: tensor<4xi8>) -> (tensor<4x
   // CHECK-SAME: graph_partition_id = 1 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   // CHECK-SAME: graph_partition_sequence_output_indices = array<i64: 0>
-  %1 = tosa.custom %0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader"} : (tensor<4xi8>) -> tensor<4xi8>
+  %1 = tosa.custom %0 operator_name("shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.abs
   // CHECK-SAME: graph_partition_id = 2 : i32
@@ -573,7 +573,7 @@ func.func @multi_result_op_outputs_keep_result_order(%arg0: tensor<4xi8>) -> (te
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   // CHECK-SAME: graph_partition_sequence_output_indices = array<i64: 0, 1>
-  %0:2 = tosa.custom %arg0 {domain_name = "com.example.GraphCustom", implementation_attrs = "{}", operator_name = "graph_custom"} : (tensor<4xi8>) -> (tensor<4xi8>, tensor<4xi8>)
+  %0:2 = tosa.custom %arg0 operator_name("graph_custom") domain_name("com.example.GraphCustom") implementation_attrs("{}") : (tensor<4xi8>) -> (tensor<4xi8>, tensor<4xi8>)
 
   return %0#0, %0#1 : tensor<4xi8>, tensor<4xi8>
 }
@@ -586,7 +586,7 @@ func.func @multi_result_op_outputs_keep_sequence_order(%arg0: tensor<4xi8>) -> (
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   // CHECK-SAME: graph_partition_sequence_output_indices = array<i64: 1, 0>
-  %0:2 = tosa.custom %arg0 {domain_name = "com.example.GraphCustom", implementation_attrs = "{}", operator_name = "graph_custom"} : (tensor<4xi8>) -> (tensor<4xi8>, tensor<4xi8>)
+  %0:2 = tosa.custom %arg0 operator_name("graph_custom") domain_name("com.example.GraphCustom") implementation_attrs("{}") : (tensor<4xi8>) -> (tensor<4xi8>, tensor<4xi8>)
 
   return %0#1, %0#0 : tensor<4xi8>, tensor<4xi8>
 }
@@ -598,7 +598,7 @@ func.func @non_vulkan_custom_is_graph(%arg0: tensor<4xi8>) -> tensor<4xi8> {
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = false
-  %0 = tosa.custom %arg0 {domain_name = "com.example.GraphCustom", implementation_attrs = "{}", operator_name = "graph_custom"} : (tensor<4xi8>) -> tensor<4xi8>
+  %0 = tosa.custom %arg0 operator_name("graph_custom") domain_name("com.example.GraphCustom") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.abs
   // CHECK-SAME: graph_partition_id = 0 : i32
@@ -622,7 +622,7 @@ func.func @stale_partition_attrs_are_rewritten(%arg0: tensor<4xi8>) -> tensor<4x
   // CHECK-SAME: graph_partition_id = 1 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   // CHECK-SAME: graph_partition_sequence_output_indices = array<i64: 0>
-  %1 = tosa.custom %0 {domain_name = "com.arm.VulkanCustomShader", graph_partition_id = 43 : i32, graph_partition_leaf_node = false, graph_partition_sequence_output_indices = array<i64: 8>, implementation_attrs = "{}", operator_name = "shader"} : (tensor<4xi8>) -> tensor<4xi8>
+  %1 = tosa.custom %0 operator_name("shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") {graph_partition_id = 43 : i32, graph_partition_leaf_node = false, graph_partition_sequence_output_indices = array<i64: 8>} : (tensor<4xi8>) -> tensor<4xi8>
   return %1 : tensor<4xi8>
 }
 
@@ -636,7 +636,7 @@ func.func @partition_ids_reset_after_many_partitions(%arg0: tensor<4xi8>) -> ten
 
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 1 : i32
-  %1 = tosa.custom %0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader0"} : (tensor<4xi8>) -> tensor<4xi8>
+  %1 = tosa.custom %0 operator_name("shader0") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.abs
   // CHECK-SAME: graph_partition_id = 2 : i32
@@ -644,7 +644,7 @@ func.func @partition_ids_reset_after_many_partitions(%arg0: tensor<4xi8>) -> ten
 
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 3 : i32
-  %3 = tosa.custom %2 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader1"} : (tensor<4xi8>) -> tensor<4xi8>
+  %3 = tosa.custom %2 operator_name("shader1") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
 
   // CHECK: tosa.abs
   // CHECK-SAME: graph_partition_id = 4 : i32
@@ -672,7 +672,7 @@ func.func @partition_ids_reset_first(%arg0: tensor<4xi8>) -> tensor<4xi8> {
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   // CHECK-SAME: graph_partition_sequence_output_indices = array<i64: 0>
-  %0 = tosa.custom %arg0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader0"} : (tensor<4xi8>) -> tensor<4xi8>
+  %0 = tosa.custom %arg0 operator_name("shader0") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
   return %0 : tensor<4xi8>
 }
 
@@ -682,6 +682,6 @@ func.func @partition_ids_reset_second(%arg0: tensor<4xi8>) -> tensor<4xi8> {
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   // CHECK-SAME: graph_partition_sequence_output_indices = array<i64: 0>
-  %0 = tosa.custom %arg0 {domain_name = "com.arm.VulkanCustomShader", implementation_attrs = "{}", operator_name = "shader1"} : (tensor<4xi8>) -> tensor<4xi8>
+  %0 = tosa.custom %arg0 operator_name("shader1") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{}") : (tensor<4xi8>) -> tensor<4xi8>
   return %0 : tensor<4xi8>
 }

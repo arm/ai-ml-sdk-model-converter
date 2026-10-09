@@ -230,7 +230,7 @@ def ShaderPlaceholderOp : VGF_Op<"shader_placeholder",
 
   let results = (outs Variadic<AnyType>);
 
-  let assemblyFormat = "`(` $operands `)` attr-dict `:` functional-type($operands, results)";
+  let assemblyFormat = "`(` $operands `)` prop-dict attr-dict `:` functional-type($operands, results)";
 }
 
 #endif // MLIR_VGF_DIALECT_OPS_TD
