@@ -20,7 +20,6 @@ requires-python = ">=3.10"
 
 [project.scripts]
 model_converter = "model_converter.cli:main"
-model-converter = "model_converter.cli:main"
 
 [tool.setuptools]
 license-files = ["LICENSES/*.txt"]
