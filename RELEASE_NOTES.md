@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+### Breaking Changes
+
+- Removed the duplicate `model-converter` Python console-script alias. Use
+  `model_converter` to run Model Converter from a pip installation.
+
 ### Build, Packaging & Dependencies
 
 - Locked development and test dependencies with `uv.lock` in place of the
