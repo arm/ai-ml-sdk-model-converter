@@ -4,7 +4,6 @@
 #
 import os
 import pathlib
-import platform
 import shutil
 import sys
 
@@ -21,8 +20,12 @@ except ImportError:
 
 MODEL_CONVERTER_DIR = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(MODEL_CONVERTER_DIR))
+sys.path.insert(0, str(MODEL_CONVERTER_DIR / "pip_package"))
 
-SKIP_NATIVE_BUILD_ENV = "MODEL_CONVERTER_SKIP_NATIVE_BUILD"
+from wheel_build import STAGED_MODE  # noqa: E402
+from wheel_build import copy_staged_payload  # noqa: E402
+from wheel_build import get_staging_dir  # noqa: E402
+from wheel_build import get_wheel_build_mode  # noqa: E402
 
 
 class Build(setuptools_build):
@@ -34,21 +37,12 @@ class Build(setuptools_build):
 class BuildPy(build_py):
     def run(self):
         super().run()
+        native_install_dir = (
+            pathlib.Path(self.build_lib) / "model_converter" / "binaries"
+        )
 
-        binary_name = (
-            "model-converter.exe"
-            if platform.system() == "Windows"
-            else "model-converter"
-        )
-        staged_binary = (
-            MODEL_CONVERTER_DIR
-            / "pip_package"
-            / "model_converter"
-            / "binaries"
-            / "bin"
-            / binary_name
-        )
-        if os.environ.get(SKIP_NATIVE_BUILD_ENV) == "1" or staged_binary.is_file():
+        if get_wheel_build_mode() == STAGED_MODE:
+            copy_staged_payload(get_staging_dir(), native_install_dir)
             return
 
         dependency_dir = MODEL_CONVERTER_DIR.parent.parent / "dependencies"
@@ -73,9 +67,6 @@ class BuildPy(build_py):
 
         build_command = self.get_finalized_command("build")
         native_build_dir = pathlib.Path(build_command.build_temp) / "model_converter"
-        native_install_dir = (
-            pathlib.Path(self.build_lib) / "model_converter" / "binaries"
-        )
 
         extra_args = []
         if os.environ.get("MODEL_CONVERTER_SKIP_LLVM_PATCH") == "1":

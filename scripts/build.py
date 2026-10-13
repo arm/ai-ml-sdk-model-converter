@@ -8,6 +8,7 @@ import os
 import pathlib
 import platform
 import re
+import shutil
 import subprocess
 import sys
 from datetime import datetime
@@ -59,6 +60,7 @@ class Builder:
         self.clang_tidy_fix = args.clang_tidy_fix
 
         self.package_dir = args.package_dir or self.build_dir
+        self.pip_package_dir = args.pip_package_dir
         self.package_tgz = "tgz" in args.package_type
         self.package_zip = "zip" in args.package_type
         self.package_pip = "pip" in args.package_type
@@ -69,9 +71,7 @@ class Builder:
             self.package_pip = True
         self.install_libdir = "lib" if self.package_pip else args.install_libdir
 
-        self.pip_install = str(
-            MODEL_CONVERTER_DIR / "pip_package" / "model_converter" / "binaries"
-        )
+        self.pip_install = str(pathlib.Path(self.build_dir) / "python-wheel-staging")
         if not self.install and self.package_pip:
             self.install = self.pip_install
 
@@ -150,6 +150,8 @@ class Builder:
         subprocess.run(cmake_package_cmd, check=True)
 
     def run(self):
+        if self.package_pip:
+            shutil.rmtree(self.pip_install, ignore_errors=True)
         cmake_setup_cmd = [
             "cmake",
             "-S",
@@ -329,6 +331,7 @@ class Builder:
                     "-m",
                     "pytest",
                     "test",
+                    "pip_package/tests",
                     "-n",
                     str(self.threads),
                     "--build-dir",
@@ -405,7 +408,8 @@ class Builder:
                 build_env[
                     "SETUPTOOLS_SCM_PRETEND_VERSION_FOR_AI_ML_SDK_MODEL_CONVERTER"
                 ] = package_version
-                build_env["MODEL_CONVERTER_SKIP_NATIVE_BUILD"] = "1"
+                build_env["MLSDK_WHEEL_BUILD_MODE"] = "staged"
+                build_env["MLSDK_WHEEL_STAGING_DIR"] = self.pip_install
 
                 result = subprocess.Popen(
                     [
@@ -414,7 +418,7 @@ class Builder:
                         "build",
                         "--wheel",
                         "--outdir",
-                        str(MODEL_CONVERTER_DIR / "pip_package" / "dist"),
+                        self.pip_package_dir,
                         str(MODEL_CONVERTER_DIR),
                     ],
                     env=build_env,
@@ -561,6 +565,11 @@ def parse_arguments(argv=None):
         "--package-dir",
         help="Specify location for packages to be created. Default path is the build directory",
         default="",
+    )
+    parser.add_argument(
+        "--pip-package-dir",
+        help="Specify where pip wheels are written. Default: %(default)s",
+        default=str(MODEL_CONVERTER_DIR / "pip_package" / "dist"),
     )
     parser.add_argument(
         "--package-type",
