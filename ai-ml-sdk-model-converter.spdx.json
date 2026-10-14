@@ -3,9 +3,9 @@
   "spdxVersion": "SPDX-2.3",
   "name": "ai-ml-sdk-model-converter",
   "dataLicense": "CC0-1.0",
-  "documentNamespace": "https://spdx.org/spdxdocs/ai-ml-sdk-model-converter-be11d54f2e0b184fd756",
+  "documentNamespace": "https://spdx.org/spdxdocs/ai-ml-sdk-model-converter-4de66825fe4c66f2061c",
   "creationInfo": {
-    "created": "2026-10-05T09:14:49Z",
+    "created": "2026-10-14T09:04:43Z",
     "creators": [
       "Organization: Arm Limited",
       "Tool: mlsdk-source-sbom-generator"
@@ -39,8 +39,7 @@
       "filesAnalyzed": false,
       "licenseConcluded": "NOASSERTION",
       "licenseDeclared": "Apache-2.0",
-      "copyrightText": "NOASSERTION",
-      "versionInfo": "2ac59a7135f8a4b1ae3ec8a95557ba73ff1ba9c2"
+      "copyrightText": "NOASSERTION"
     },
     {
       "SPDXID": "SPDXRef-fetch-tosa-tools-cxxopts",
