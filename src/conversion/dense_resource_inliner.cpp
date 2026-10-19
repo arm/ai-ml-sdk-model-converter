@@ -38,7 +38,7 @@ class DenseResourceInlinerPass final : public impl::DenseResourceInlinerPassBase
             }
 
             ArrayRef<char> data = blob->getData();
-            const auto attrType = constOp.getType();
+            const auto attrType = resourceAttr.getType();
             if (!DenseElementsAttr::isValidRawBuffer(attrType, data)) {
                 return;
             }
