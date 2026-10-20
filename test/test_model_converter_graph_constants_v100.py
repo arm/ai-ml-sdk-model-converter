@@ -59,9 +59,9 @@ def partitioned_table_mlir(shared_constant=False):
         )
         shared_return = "%5"
 
-    body = f"""    %c0 = "tosa.const"() {{values = dense<0> : tensor<256xi8>}} : () -> tensor<256xi8>
-    %c1 = "tosa.const"() {{values = dense<1> : tensor<256xi8>}} : () -> tensor<256xi8>
-    %c2 = "tosa.const"() {{values = dense<2> : tensor<256xi8>}} : () -> tensor<256xi8>
+    body = f"""    %c0 = tosa.const values(dense<0> : tensor<256xi8>) : () -> tensor<256xi8>
+    %c1 = tosa.const values(dense<1> : tensor<256xi8>) : () -> tensor<256xi8>
+    %c2 = tosa.const values(dense<2> : tensor<256xi8>) : () -> tensor<256xi8>
     %0 = tosa.table %arg0, %c0 : (tensor<4xi8>, tensor<256xi8>) -> tensor<4xi8>
     %1 = tosa.table %0, %c2 : (tensor<4xi8>, tensor<256xi8>) -> tensor<4xi8>
     %2 = tosa.custom %1 operator_name("partition_barrier") domain_name("com.arm.VulkanCustomShader") implementation_attrs({vulkan_custom_shader_attrs()}) : (tensor<4xi8>) -> tensor<4xi8>

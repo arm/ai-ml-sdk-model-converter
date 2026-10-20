@@ -208,8 +208,8 @@ func.func @fft2d_multiple_outputs_keep_result_order() -> (tensor<1x32x32xf32> {t
   // CHECK: return %[[FFT_REAL]], %[[FFT_IMAG]] : tensor<1x32x32xf32>, tensor<1x32x32xf32>
   // CHECK: %[[FFT_SEGMENT:[0-9]+]]:2 = vgf.run_segment @graph_partition_0 () -> (tensor<1x32x32xf32>, tensor<1x32x32xf32>)
   // CHECK: vgf.sequence_output %[[FFT_SEGMENT]]#0, %[[FFT_SEGMENT]]#1 : tensor<1x32x32xf32>, tensor<1x32x32xf32>
-  %real = "tosa.const"() {values = dense<0.0> : tensor<1x32x32xf32>} : () -> tensor<1x32x32xf32>
-  %imag = "tosa.const"() {values = dense<0.0> : tensor<1x32x32xf32>} : () -> tensor<1x32x32xf32>
+  %real = tosa.const values(dense<0.0> : tensor<1x32x32xf32>) : () -> tensor<1x32x32xf32>
+  %imag = tosa.const values(dense<0.0> : tensor<1x32x32xf32>) : () -> tensor<1x32x32xf32>
   %output_real, %output_imag = tosa.fft2d %real, %imag inverse(true) : (tensor<1x32x32xf32>, tensor<1x32x32xf32>) -> (tensor<1x32x32xf32>, tensor<1x32x32xf32>)
 
   return %output_real, %output_imag : tensor<1x32x32xf32>, tensor<1x32x32xf32>
@@ -224,7 +224,7 @@ func.func @rfft2d_multiple_outputs_keep_result_order() -> (tensor<1x32x17xf32> {
   // CHECK: return %[[RFFT_REAL]], %[[RFFT_IMAG]] : tensor<1x32x17xf32>, tensor<1x32x17xf32>
   // CHECK: %[[RFFT_SEGMENT:[0-9]+]]:2 = vgf.run_segment @graph_partition_0 () -> (tensor<1x32x17xf32>, tensor<1x32x17xf32>)
   // CHECK: vgf.sequence_output %[[RFFT_SEGMENT]]#0, %[[RFFT_SEGMENT]]#1 : tensor<1x32x17xf32>, tensor<1x32x17xf32>
-  %input = "tosa.const"() {values = dense<0.0> : tensor<1x32x32xf32>} : () -> tensor<1x32x32xf32>
+  %input = tosa.const values(dense<0.0> : tensor<1x32x32xf32>) : () -> tensor<1x32x32xf32>
   %output_real, %output_imag = tosa.rfft2d %input : (tensor<1x32x32xf32>) -> (tensor<1x32x17xf32>, tensor<1x32x17xf32>)
 
   return %output_real, %output_imag : tensor<1x32x17xf32>, tensor<1x32x17xf32>
@@ -281,7 +281,7 @@ func.func @direct_constant_return() -> (tensor<4xi8> {tf_saved_model.index_path 
   // CHECK-LABEL: vgf.sequence @direct_constant_return
   // CHECK: vgf.segment @graph_partition_0() -> tensor<4xi8>
   // CHECK: %[[DIRECT_CONST:[0-9]+]] = vgf.run_segment @graph_partition_0 () -> tensor<4xi8>
-  %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
+  %c0 = tosa.const values(dense<1> : tensor<4xi8>) : () -> tensor<4xi8>
 
   // CHECK: vgf.sequence_output %[[DIRECT_CONST]] : tensor<4xi8>
   return %c0 : tensor<4xi8>
@@ -305,7 +305,7 @@ func.func @constant_graph_first_then_compute_abi() -> (tensor<4xi8> {tf_saved_mo
   // CHECK-LABEL: vgf.sequence @constant_graph_first_then_compute_abi
   // CHECK: vgf.segment @graph_partition_0() -> tensor<4xi8>
   // CHECK: %[[CGFC_CONST:[0-9]+]] = vgf.run_segment @graph_partition_0 () -> tensor<4xi8>
-  %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
+  %c0 = tosa.const values(dense<1> : tensor<4xi8>) : () -> tensor<4xi8>
 
   %0 = tosa.abs %c0 : (tensor<4xi8>) -> tensor<4xi8>
 
@@ -323,7 +323,7 @@ func.func @constant_compute_first_then_graph_abi() -> (tensor<4xi8> {tf_saved_mo
   // CHECK-LABEL: vgf.sequence @constant_compute_first_then_graph_abi
   // CHECK: vgf.segment @graph_partition_0() -> tensor<4xi8>
   // CHECK: %[[CCFG_CONST:[0-9]+]] = vgf.run_segment @graph_partition_0 () -> tensor<4xi8>
-  %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
+  %c0 = tosa.const values(dense<1> : tensor<4xi8>) : () -> tensor<4xi8>
 
   // CHECK: %[[CCFG_C1:[0-9]+]] = vgf.run_segment @graph_partition_1 : (%[[CCFG_CONST]]) (tensor<4xi8>) -> tensor<4xi8>
   %0 = tosa.custom %c0 operator_name("ccfg_shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{\22entry_point\22:\22main\22,\22is_vkshader\22:true,\22workgroup_sizes\22:[1,1,1],\22input_0_binding\22:0,\22input_0_descriptorset\22:0,\22input_0_type\22:\22TENSOR\22,\22input_0_vkdescriptortype\22:\22VK_DESCRIPTOR_TYPE_TENSOR_ARM\22,\22input_0_vkformat\22:\22VK_FORMAT_R8_SINT\22,\22output_0_binding\22:1,\22output_0_descriptorset\22:0,\22output_0_type\22:\22TENSOR\22,\22output_0_vkdescriptortype\22:\22VK_DESCRIPTOR_TYPE_TENSOR_ARM\22,\22output_0_vkformat\22:\22VK_FORMAT_R8_SINT\22}") : (tensor<4xi8>) -> tensor<4xi8>

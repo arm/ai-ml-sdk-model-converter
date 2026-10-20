@@ -10,7 +10,7 @@ func.func @graph_only_chain(%arg0: tensor<4xi8>) -> tensor<4xi8> {
   // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = false
-  %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
+  %c0 = tosa.const values(dense<1> : tensor<4xi8>) : () -> tensor<4xi8>
 
   // CHECK: tosa.add
   // CHECK-SAME: graph_partition_id = 0 : i32
@@ -223,7 +223,7 @@ func.func @constant_used_after_compute(%arg0: tensor<4xi8>) -> tensor<4xi8> {
   // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 2 : i32
   // CHECK-SAME: graph_partition_leaf_node = false
-  %table = "tosa.const"() {values = dense<0> : tensor<256xi8>} : () -> tensor<256xi8>
+  %table = tosa.const values(dense<0> : tensor<256xi8>) : () -> tensor<256xi8>
 
   // CHECK: tosa.abs
   // CHECK-SAME: graph_partition_id = 0 : i32
@@ -249,7 +249,7 @@ func.func @shared_graph_constant_across_partitions(%arg0: tensor<4xi8>) -> tenso
   // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = false
-  %table = "tosa.const"() {values = dense<1> : tensor<256xi8>} : () -> tensor<256xi8>
+  %table = tosa.const values(dense<1> : tensor<256xi8>) : () -> tensor<256xi8>
 
   // CHECK: tosa.table
   // CHECK-SAME: graph_partition_id = 0 : i32
@@ -275,7 +275,7 @@ func.func @constant_used_by_compute_only() -> tensor<4xi8> {
   // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
+  %c0 = tosa.const values(dense<1> : tensor<4xi8>) : () -> tensor<4xi8>
 
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 1 : i32
@@ -292,7 +292,7 @@ func.func @constant_used_by_graph_and_compute() -> tensor<4xi8> {
   // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
+  %c0 = tosa.const values(dense<1> : tensor<4xi8>) : () -> tensor<4xi8>
 
   // CHECK: tosa.abs
   // CHECK-SAME: graph_partition_id = 0 : i32
@@ -319,7 +319,7 @@ func.func @const_shape_used_after_compute(%arg0: tensor<4xi8>) -> tensor<2x2xi8>
   // CHECK: tosa.const_shape
   // CHECK-SAME: graph_partition_id = 2 : i32
   // CHECK-SAME: graph_partition_leaf_node = false
-  %shape = "tosa.const_shape"() {values = dense<[2, 2]> : tensor<2xindex>} : () -> !tosa.shape<2>
+  %shape = tosa.const_shape values(dense<[2, 2]> : tensor<2xindex>) : () -> !tosa.shape<2>
 
   // CHECK: tosa.abs
   // CHECK-SAME: graph_partition_id = 0 : i32
@@ -346,7 +346,7 @@ func.func @const_shape_used_in_multiple_graph_partitions(%arg0: tensor<4xi8>) ->
   // CHECK: tosa.const_shape
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = false
-  %shape = "tosa.const_shape"() {values = dense<[2, 2]> : tensor<2xindex>} : () -> !tosa.shape<2>
+  %shape = tosa.const_shape values(dense<[2, 2]> : tensor<2xindex>) : () -> !tosa.shape<2>
 
   // CHECK: tosa.reshape
   // CHECK-SAME: graph_partition_id = 0 : i32
@@ -373,7 +373,7 @@ func.func @constant_used_by_graph_before_later_compute() -> (tensor<4xi8>, tenso
   // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
+  %c0 = tosa.const values(dense<1> : tensor<4xi8>) : () -> tensor<4xi8>
 
   // CHECK: tosa.abs
   // CHECK-SAME: graph_partition_id = 0 : i32
@@ -396,7 +396,7 @@ func.func @constant_used_by_compute_before_multiple_later_graphs() -> tensor<4xi
   // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
+  %c0 = tosa.const values(dense<1> : tensor<4xi8>) : () -> tensor<4xi8>
 
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 1 : i32
@@ -429,7 +429,7 @@ func.func @constant_return_only() -> tensor<4xi8> {
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
   // CHECK-SAME: graph_partition_sequence_output_indices = array<i64: 0>
-  %c0 = "tosa.const"() {values = dense<7> : tensor<4xi8>} : () -> tensor<4xi8>
+  %c0 = tosa.const values(dense<7> : tensor<4xi8>) : () -> tensor<4xi8>
   return %c0 : tensor<4xi8>
 }
 
@@ -440,7 +440,7 @@ func.func @unused_constant_in_graph_function(%arg0: tensor<4xi8>) -> tensor<4xi8
   // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = false
-  %c0 = "tosa.const"() {values = dense<9> : tensor<4xi8>} : () -> tensor<4xi8>
+  %c0 = tosa.const values(dense<9> : tensor<4xi8>) : () -> tensor<4xi8>
 
   // CHECK: tosa.abs
   // CHECK-SAME: graph_partition_id = 0 : i32
@@ -457,7 +457,7 @@ func.func @constant_used_in_multiple_late_graph_partitions(%arg0: tensor<4xi8>) 
   // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 2 : i32
   // CHECK-SAME: graph_partition_leaf_node = false
-  %table = "tosa.const"() {values = dense<0> : tensor<256xi8>} : () -> tensor<256xi8>
+  %table = tosa.const values(dense<0> : tensor<256xi8>) : () -> tensor<256xi8>
 
   // CHECK: tosa.abs
   // CHECK-SAME: graph_partition_id = 0 : i32
@@ -494,7 +494,7 @@ func.func @constant_used_by_compute_before_later_graph() -> tensor<4xi8> {
   // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
+  %c0 = tosa.const values(dense<1> : tensor<4xi8>) : () -> tensor<4xi8>
 
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 1 : i32
@@ -521,7 +521,7 @@ func.func @constant_used_by_multiple_compute_partitions() -> tensor<4xi8> {
   // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 0 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
-  %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
+  %c0 = tosa.const values(dense<1> : tensor<4xi8>) : () -> tensor<4xi8>
 
   // CHECK: tosa.custom
   // CHECK-SAME: graph_partition_id = 1 : i32

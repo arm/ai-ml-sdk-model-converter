@@ -162,7 +162,7 @@ func.func @constant_used_by_multiple_compute_partitions_abi() -> (tensor<4xi8> {
   // CHECK-LABEL: vgf.sequence @constant_used_by_multiple_compute_partitions_abi
   // CHECK: vgf.segment @graph_partition_0() -> tensor<4xi8>
   // CHECK: %[[CONST_GRAPH0:[0-9]+]] = vgf.run_segment @graph_partition_0 () -> tensor<4xi8>
-  %c0 = "tosa.const"() {values = dense<1> : tensor<4xi8>} : () -> tensor<4xi8>
+  %c0 = tosa.const values(dense<1> : tensor<4xi8>) : () -> tensor<4xi8>
 
   // CHECK: vgf.segment @graph_partition_1(%{{[^:]+}}: tensor<4xi8>) -> tensor<4xi8>
   // CHECK: %[[CONST_COMPUTE1:[0-9]+]] = vgf.run_segment @graph_partition_1 : (%[[CONST_GRAPH0]]) (tensor<4xi8>) -> tensor<4xi8>

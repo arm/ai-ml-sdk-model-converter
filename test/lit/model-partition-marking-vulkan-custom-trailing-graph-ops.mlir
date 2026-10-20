@@ -18,7 +18,7 @@ func.func @trailing_const(%arg0: tensor<1x16x16x16xf32> {tf_saved_model.index_pa
   // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 2 : i32
   // CHECK-SAME: graph_partition_leaf_node = false
-  %2 = "tosa.const"() {values = dense<1.000000e+00> : tensor<1x16x16x16xf32>} : () -> tensor<1x16x16x16xf32>
+  %2 = tosa.const values(dense<1.000000e+00> : tensor<1x16x16x16xf32>) : () -> tensor<1x16x16x16xf32>
   // CHECK: tosa.add
   // CHECK-SAME: graph_partition_id = 2 : i32
   // CHECK-SAME: graph_partition_leaf_node = true
@@ -41,15 +41,15 @@ func.func @multiple_trailing_consts(%arg0: tensor<1x16x16x16xf32> {tf_saved_mode
   // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 2 : i32
   // CHECK-SAME: graph_partition_leaf_node = false
-  %2 = "tosa.const"() {values = dense<1.000000e+00> : tensor<1x16x16x16xf32>} : () -> tensor<1x16x16x16xf32>
+  %2 = tosa.const values(dense<1.000000e+00> : tensor<1x16x16x16xf32>) : () -> tensor<1x16x16x16xf32>
   // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 2 : i32
   // CHECK-SAME: graph_partition_leaf_node = false
-  %3 = "tosa.const"() {values = dense<2.000000e+00> : tensor<1x16x16x16xf32>} : () -> tensor<1x16x16x16xf32>
+  %3 = tosa.const values(dense<2.000000e+00> : tensor<1x16x16x16xf32>) : () -> tensor<1x16x16x16xf32>
   // CHECK: tosa.const
   // CHECK-SAME: graph_partition_id = 2 : i32
   // CHECK-SAME: graph_partition_leaf_node = false
-  %4 = "tosa.const"() {values = dense<3.000000e+00> : tensor<1x16x16x16xf32>} : () -> tensor<1x16x16x16xf32>
+  %4 = tosa.const values(dense<3.000000e+00> : tensor<1x16x16x16xf32>) : () -> tensor<1x16x16x16xf32>
   // CHECK: tosa.add
   // CHECK-SAME: graph_partition_id = 2 : i32
   // CHECK-SAME: graph_partition_leaf_node = false

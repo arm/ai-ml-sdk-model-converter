@@ -14,11 +14,11 @@ func.func @rescale_rematerialized_after_shader(%arg0: tensor<4xi8> {tf_saved_mod
   // CHECK: tosa.rescale
   // CHECK: tosa.rescale
   // CHECK: tosa.add
-  %multiplier = "tosa.const"() {values = dense<[1]> : tensor<1xi32>} : () -> tensor<1xi32>
-  %shift = "tosa.const"() {values = dense<[0]> : tensor<1xi8>} : () -> tensor<1xi8>
-  %input_zp = "tosa.const"() {values = dense<[0]> : tensor<1xi8>} : () -> tensor<1xi8>
-  %flow_output_zp = "tosa.const"() {values = dense<[0]> : tensor<1xi8>} : () -> tensor<1xi8>
-  %output_zp = "tosa.const"() {values = dense<[0]> : tensor<1xi32>} : () -> tensor<1xi32>
+  %multiplier = tosa.const values(dense<[1]> : tensor<1xi32>) : () -> tensor<1xi32>
+  %shift = tosa.const values(dense<[0]> : tensor<1xi8>) : () -> tensor<1xi8>
+  %input_zp = tosa.const values(dense<[0]> : tensor<1xi8>) : () -> tensor<1xi8>
+  %flow_output_zp = tosa.const values(dense<[0]> : tensor<1xi8>) : () -> tensor<1xi8>
+  %output_zp = tosa.const values(dense<[0]> : tensor<1xi32>) : () -> tensor<1xi32>
   %flow = tosa.rescale %arg0, %multiplier, %shift, %input_zp, %flow_output_zp scale32(true) rounding_mode<SINGLE_ROUND> per_channel(false) input_unsigned(false) output_unsigned(false) : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi8>) -> tensor<4xi8>
   %old_flow_i32 = tosa.rescale %flow, %multiplier, %shift, %input_zp, %output_zp scale32(true) rounding_mode<SINGLE_ROUND> per_channel(false) input_unsigned(false) output_unsigned(false) : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi32>) -> tensor<4xi32>
   %shader = tosa.custom %flow operator_name("rescale_remat_shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{\22entry_point\22:\22main\22,\22is_vkshader\22:true,\22workgroup_sizes\22:[1,1,1],\22input_0_binding\22:0,\22input_0_descriptorset\22:0,\22input_0_type\22:\22TENSOR\22,\22input_0_vkdescriptortype\22:\22VK_DESCRIPTOR_TYPE_TENSOR_ARM\22,\22input_0_vkformat\22:\22VK_FORMAT_R8_SINT\22,\22output_0_binding\22:1,\22output_0_descriptorset\22:0,\22output_0_type\22:\22TENSOR\22,\22output_0_vkdescriptortype\22:\22VK_DESCRIPTOR_TYPE_TENSOR_ARM\22,\22output_0_vkformat\22:\22VK_FORMAT_R8_SINT\22}") : (tensor<4xi8>) -> tensor<4xi8>
@@ -38,11 +38,11 @@ func.func @rescale_compute_use_preserved_graph_use_rematerialized(%arg0: tensor<
   // CHECK: func.func @graph_partition_2(%{{[^:]+}}: tensor<4xi32>, %{{[^:]+}}: tensor<4xi8>) -> tensor<4xi32>
   // CHECK: tosa.rescale
   // CHECK: tosa.add
-  %multiplier = "tosa.const"() {values = dense<[1]> : tensor<1xi32>} : () -> tensor<1xi32>
-  %shift = "tosa.const"() {values = dense<[0]> : tensor<1xi8>} : () -> tensor<1xi8>
-  %input_zp = "tosa.const"() {values = dense<[0]> : tensor<1xi8>} : () -> tensor<1xi8>
-  %flow_output_zp = "tosa.const"() {values = dense<[0]> : tensor<1xi8>} : () -> tensor<1xi8>
-  %output_zp = "tosa.const"() {values = dense<[0]> : tensor<1xi32>} : () -> tensor<1xi32>
+  %multiplier = tosa.const values(dense<[1]> : tensor<1xi32>) : () -> tensor<1xi32>
+  %shift = tosa.const values(dense<[0]> : tensor<1xi8>) : () -> tensor<1xi8>
+  %input_zp = tosa.const values(dense<[0]> : tensor<1xi8>) : () -> tensor<1xi8>
+  %flow_output_zp = tosa.const values(dense<[0]> : tensor<1xi8>) : () -> tensor<1xi8>
+  %output_zp = tosa.const values(dense<[0]> : tensor<1xi32>) : () -> tensor<1xi32>
   %flow = tosa.rescale %arg0, %multiplier, %shift, %input_zp, %flow_output_zp scale32(true) rounding_mode<SINGLE_ROUND> per_channel(false) input_unsigned(false) output_unsigned(false) : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi8>) -> tensor<4xi8>
   %old_flow_i32 = tosa.rescale %flow, %multiplier, %shift, %input_zp, %output_zp scale32(true) rounding_mode<SINGLE_ROUND> per_channel(false) input_unsigned(false) output_unsigned(false) : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi32>) -> tensor<4xi32>
   %shader = tosa.custom %old_flow_i32 operator_name("rescale_i32_shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{\22entry_point\22:\22main\22,\22is_vkshader\22:true,\22workgroup_sizes\22:[1,1,1],\22input_0_binding\22:0,\22input_0_descriptorset\22:0,\22input_0_type\22:\22TENSOR\22,\22input_0_vkdescriptortype\22:\22VK_DESCRIPTOR_TYPE_TENSOR_ARM\22,\22input_0_vkformat\22:\22VK_FORMAT_R32_SINT\22,\22output_0_binding\22:1,\22output_0_descriptorset\22:0,\22output_0_type\22:\22TENSOR\22,\22output_0_vkdescriptortype\22:\22VK_DESCRIPTOR_TYPE_TENSOR_ARM\22,\22output_0_vkformat\22:\22VK_FORMAT_R32_SINT\22}") : (tensor<4xi32>) -> tensor<4xi32>
@@ -57,11 +57,11 @@ func.func @rescale_model_output_preserved(%arg0: tensor<4xi8> {tf_saved_model.in
   // CHECK: func.func @graph_partition_0(%{{[^:]+}}: tensor<4xi8>) -> (tensor<4xi32>, tensor<4xi8>)
   // CHECK: func.func @graph_partition_2(%{{[^:]+}}: tensor<4xi8>, %{{[^:]+}}: tensor<4xi8>) -> tensor<4xi32>
   // CHECK: vgf.sequence_output %{{.*}}, %{{.*}} : tensor<4xi32>, tensor<4xi32>
-  %multiplier = "tosa.const"() {values = dense<[1]> : tensor<1xi32>} : () -> tensor<1xi32>
-  %shift = "tosa.const"() {values = dense<[0]> : tensor<1xi8>} : () -> tensor<1xi8>
-  %input_zp = "tosa.const"() {values = dense<[0]> : tensor<1xi8>} : () -> tensor<1xi8>
-  %flow_output_zp = "tosa.const"() {values = dense<[0]> : tensor<1xi8>} : () -> tensor<1xi8>
-  %output_zp = "tosa.const"() {values = dense<[0]> : tensor<1xi32>} : () -> tensor<1xi32>
+  %multiplier = tosa.const values(dense<[1]> : tensor<1xi32>) : () -> tensor<1xi32>
+  %shift = tosa.const values(dense<[0]> : tensor<1xi8>) : () -> tensor<1xi8>
+  %input_zp = tosa.const values(dense<[0]> : tensor<1xi8>) : () -> tensor<1xi8>
+  %flow_output_zp = tosa.const values(dense<[0]> : tensor<1xi8>) : () -> tensor<1xi8>
+  %output_zp = tosa.const values(dense<[0]> : tensor<1xi32>) : () -> tensor<1xi32>
   %flow = tosa.rescale %arg0, %multiplier, %shift, %input_zp, %flow_output_zp scale32(true) rounding_mode<SINGLE_ROUND> per_channel(false) input_unsigned(false) output_unsigned(false) : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi8>) -> tensor<4xi8>
   %old_flow_i32 = tosa.rescale %flow, %multiplier, %shift, %input_zp, %output_zp scale32(true) rounding_mode<SINGLE_ROUND> per_channel(false) input_unsigned(false) output_unsigned(false) : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi32>) -> tensor<4xi32>
   %shader = tosa.custom %flow operator_name("rescale_output_shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{\22entry_point\22:\22main\22,\22is_vkshader\22:true,\22workgroup_sizes\22:[1,1,1],\22input_0_binding\22:0,\22input_0_descriptorset\22:0,\22input_0_type\22:\22TENSOR\22,\22input_0_vkdescriptortype\22:\22VK_DESCRIPTOR_TYPE_TENSOR_ARM\22,\22input_0_vkformat\22:\22VK_FORMAT_R8_SINT\22,\22output_0_binding\22:1,\22output_0_descriptorset\22:0,\22output_0_type\22:\22TENSOR\22,\22output_0_vkdescriptortype\22:\22VK_DESCRIPTOR_TYPE_TENSOR_ARM\22,\22output_0_vkformat\22:\22VK_FORMAT_R8_SINT\22}") : (tensor<4xi8>) -> tensor<4xi8>
@@ -76,10 +76,10 @@ func.func @non_constant_rescale_params_not_rematerialized(%arg0: tensor<4xi8> {t
   // CHECK-LABEL: vgf.sequence @non_constant_rescale_params_not_rematerialized
   // CHECK: func.func @graph_partition_0(%{{[^:]+}}: tensor<4xi8>, %{{[^:]+}}: tensor<1xi32>) -> (tensor<4xi8>, tensor<4xi32>)
   // CHECK: func.func @graph_partition_2(%{{[^:]+}}: tensor<4xi8>, %{{[^:]+}}: tensor<1xi32>, %{{[^:]+}}: tensor<4xi32>) -> tensor<4xi32>
-  %shift = "tosa.const"() {values = dense<[0]> : tensor<1xi8>} : () -> tensor<1xi8>
-  %input_zp = "tosa.const"() {values = dense<[0]> : tensor<1xi8>} : () -> tensor<1xi8>
-  %flow_output_zp = "tosa.const"() {values = dense<[0]> : tensor<1xi8>} : () -> tensor<1xi8>
-  %output_zp = "tosa.const"() {values = dense<[0]> : tensor<1xi32>} : () -> tensor<1xi32>
+  %shift = tosa.const values(dense<[0]> : tensor<1xi8>) : () -> tensor<1xi8>
+  %input_zp = tosa.const values(dense<[0]> : tensor<1xi8>) : () -> tensor<1xi8>
+  %flow_output_zp = tosa.const values(dense<[0]> : tensor<1xi8>) : () -> tensor<1xi8>
+  %output_zp = tosa.const values(dense<[0]> : tensor<1xi32>) : () -> tensor<1xi32>
   %flow = tosa.rescale %arg0, %arg1, %shift, %input_zp, %flow_output_zp scale32(true) rounding_mode<SINGLE_ROUND> per_channel(false) input_unsigned(false) output_unsigned(false) : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi8>) -> tensor<4xi8>
   %old_flow_i32 = tosa.rescale %flow, %arg1, %shift, %input_zp, %output_zp scale32(true) rounding_mode<SINGLE_ROUND> per_channel(false) input_unsigned(false) output_unsigned(false) : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi32>) -> tensor<4xi32>
   %shader = tosa.custom %flow operator_name("non_constant_rescale_params_shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{\22entry_point\22:\22main\22,\22is_vkshader\22:true,\22workgroup_sizes\22:[1,1,1],\22input_0_binding\22:0,\22input_0_descriptorset\22:0,\22input_0_type\22:\22TENSOR\22,\22input_0_vkdescriptortype\22:\22VK_DESCRIPTOR_TYPE_TENSOR_ARM\22,\22input_0_vkformat\22:\22VK_FORMAT_R8_SINT\22,\22output_0_binding\22:1,\22output_0_descriptorset\22:0,\22output_0_type\22:\22TENSOR\22,\22output_0_vkdescriptortype\22:\22VK_DESCRIPTOR_TYPE_TENSOR_ARM\22,\22output_0_vkformat\22:\22VK_FORMAT_R8_SINT\22}") : (tensor<4xi8>) -> tensor<4xi8>
@@ -104,10 +104,10 @@ func.func @rescale_rematerialized_in_each_consuming_graph_partition(%arg0: tenso
   // CHECK: func.func @graph_partition_4
   // CHECK: tosa.rescale
   // CHECK: tosa.add
-  %multiplier = "tosa.const"() {values = dense<[1]> : tensor<1xi32>} : () -> tensor<1xi32>
-  %shift = "tosa.const"() {values = dense<[0]> : tensor<1xi8>} : () -> tensor<1xi8>
-  %input_zp = "tosa.const"() {values = dense<[0]> : tensor<1xi8>} : () -> tensor<1xi8>
-  %output_zp = "tosa.const"() {values = dense<[0]> : tensor<1xi32>} : () -> tensor<1xi32>
+  %multiplier = tosa.const values(dense<[1]> : tensor<1xi32>) : () -> tensor<1xi32>
+  %shift = tosa.const values(dense<[0]> : tensor<1xi8>) : () -> tensor<1xi8>
+  %input_zp = tosa.const values(dense<[0]> : tensor<1xi8>) : () -> tensor<1xi8>
+  %output_zp = tosa.const values(dense<[0]> : tensor<1xi32>) : () -> tensor<1xi32>
   %flow = tosa.reverse %arg0 axis(0) : (tensor<4xi8>) -> tensor<4xi8>
   %flow_i32 = tosa.rescale %flow, %multiplier, %shift, %input_zp, %output_zp scale32(true) rounding_mode<SINGLE_ROUND> per_channel(false) input_unsigned(false) output_unsigned(false) : (tensor<4xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>, tensor<1xi32>) -> tensor<4xi32>
   %shader_0 = tosa.custom %flow operator_name("first_shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{\22entry_point\22:\22main\22,\22is_vkshader\22:true,\22workgroup_sizes\22:[1,1,1],\22input_0_binding\22:0,\22input_0_descriptorset\22:0,\22input_0_type\22:\22TENSOR\22,\22input_0_vkdescriptortype\22:\22VK_DESCRIPTOR_TYPE_TENSOR_ARM\22,\22input_0_vkformat\22:\22VK_FORMAT_R8_SINT\22,\22output_0_binding\22:1,\22output_0_descriptorset\22:0,\22output_0_type\22:\22TENSOR\22,\22output_0_vkdescriptortype\22:\22VK_DESCRIPTOR_TYPE_TENSOR_ARM\22,\22output_0_vkformat\22:\22VK_FORMAT_R8_SINT\22}") : (tensor<4xi8>) -> tensor<4xi8>
@@ -128,9 +128,9 @@ func.func @equal_width_rescale_not_rematerialized(%arg0: tensor<4xi16> {tf_saved
   // CHECK: func.func @graph_partition_2(%{{[^:]+}}: tensor<4xi16>, %{{[^:]+}}: tensor<4xi16>) -> tensor<4xi16>
   // CHECK-NOT: tosa.rescale
   // CHECK: tosa.add
-  %multiplier = "tosa.const"() {values = dense<[1]> : tensor<1xi32>} : () -> tensor<1xi32>
-  %shift = "tosa.const"() {values = dense<[0]> : tensor<1xi8>} : () -> tensor<1xi8>
-  %zero_point = "tosa.const"() {values = dense<[0]> : tensor<1xi16>} : () -> tensor<1xi16>
+  %multiplier = tosa.const values(dense<[1]> : tensor<1xi32>) : () -> tensor<1xi32>
+  %shift = tosa.const values(dense<[0]> : tensor<1xi8>) : () -> tensor<1xi8>
+  %zero_point = tosa.const values(dense<[0]> : tensor<1xi16>) : () -> tensor<1xi16>
   %rescaled = tosa.rescale %arg0, %multiplier, %shift, %zero_point, %zero_point scale32(true) rounding_mode<SINGLE_ROUND> per_channel(false) input_unsigned(false) output_unsigned(false) : (tensor<4xi16>, tensor<1xi32>, tensor<1xi8>, tensor<1xi16>, tensor<1xi16>) -> tensor<4xi16>
   %shader = tosa.custom %arg0 operator_name("equal_width_shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{\22entry_point\22:\22main\22,\22is_vkshader\22:true,\22workgroup_sizes\22:[1,1,1],\22input_0_binding\22:0,\22input_0_descriptorset\22:0,\22input_0_type\22:\22TENSOR\22,\22input_0_vkdescriptortype\22:\22VK_DESCRIPTOR_TYPE_TENSOR_ARM\22,\22input_0_vkformat\22:\22VK_FORMAT_R16_SINT\22,\22output_0_binding\22:1,\22output_0_descriptorset\22:0,\22output_0_type\22:\22TENSOR\22,\22output_0_vkdescriptortype\22:\22VK_DESCRIPTOR_TYPE_TENSOR_ARM\22,\22output_0_vkformat\22:\22VK_FORMAT_R16_SINT\22}") : (tensor<4xi16>) -> tensor<4xi16>
   %out = tosa.add %shader, %rescaled : (tensor<4xi16>, tensor<4xi16>) -> tensor<4xi16>
@@ -147,10 +147,10 @@ func.func @narrowing_rescale_not_rematerialized(%arg0: tensor<4xi16> {tf_saved_m
   // CHECK: func.func @graph_partition_2(%{{[^:]+}}: tensor<4xi8>, %{{[^:]+}}: tensor<4xi8>) -> tensor<4xi8>
   // CHECK-NOT: tosa.rescale
   // CHECK: tosa.add
-  %multiplier = "tosa.const"() {values = dense<[1]> : tensor<1xi32>} : () -> tensor<1xi32>
-  %shift = "tosa.const"() {values = dense<[0]> : tensor<1xi8>} : () -> tensor<1xi8>
-  %input_zp = "tosa.const"() {values = dense<[0]> : tensor<1xi16>} : () -> tensor<1xi16>
-  %output_zp = "tosa.const"() {values = dense<[0]> : tensor<1xi8>} : () -> tensor<1xi8>
+  %multiplier = tosa.const values(dense<[1]> : tensor<1xi32>) : () -> tensor<1xi32>
+  %shift = tosa.const values(dense<[0]> : tensor<1xi8>) : () -> tensor<1xi8>
+  %input_zp = tosa.const values(dense<[0]> : tensor<1xi16>) : () -> tensor<1xi16>
+  %output_zp = tosa.const values(dense<[0]> : tensor<1xi8>) : () -> tensor<1xi8>
   %rescaled = tosa.rescale %arg0, %multiplier, %shift, %input_zp, %output_zp scale32(true) rounding_mode<SINGLE_ROUND> per_channel(false) input_unsigned(false) output_unsigned(false) : (tensor<4xi16>, tensor<1xi32>, tensor<1xi8>, tensor<1xi16>, tensor<1xi8>) -> tensor<4xi8>
   %shader = tosa.custom %arg0 operator_name("narrowing_shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs("{\22entry_point\22:\22main\22,\22is_vkshader\22:true,\22workgroup_sizes\22:[1,1,1],\22input_0_binding\22:0,\22input_0_descriptorset\22:0,\22input_0_type\22:\22TENSOR\22,\22input_0_vkdescriptortype\22:\22VK_DESCRIPTOR_TYPE_TENSOR_ARM\22,\22input_0_vkformat\22:\22VK_FORMAT_R16_SINT\22,\22output_0_binding\22:1,\22output_0_descriptorset\22:0,\22output_0_type\22:\22TENSOR\22,\22output_0_vkdescriptortype\22:\22VK_DESCRIPTOR_TYPE_TENSOR_ARM\22,\22output_0_vkformat\22:\22VK_FORMAT_R8_SINT\22}") : (tensor<4xi16>) -> tensor<4xi8>
   %out = tosa.add %shader, %rescaled : (tensor<4xi8>, tensor<4xi8>) -> tensor<4xi8>
