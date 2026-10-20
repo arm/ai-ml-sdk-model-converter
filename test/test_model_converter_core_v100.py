@@ -79,7 +79,7 @@ def rescale_mlir():
     %2 = "tosa.const"() {values = dense<[23]> : tensor<1xi8>} : () -> tensor<1xi8>
     %3 = "tosa.const"() {values = dense<0> : tensor<1xi32>} : () -> tensor<1xi32>
     %4 = "tosa.const"() {values = dense<0> : tensor<1xi16>} : () -> tensor<1xi16>
-    %5 = tosa.rescale %arg0, %1, %2, %3, %4 {rounding_mode = DOUBLE_ROUND, per_channel = false, scale32 = true, input_unsigned = false, output_unsigned = false} : (tensor<1x1xi32>, tensor<1xi32>, tensor<1xi8>, tensor<1xi32>, tensor<1xi16>) -> tensor<1x1xi16>""",
+    %5 = tosa.rescale %arg0, %1, %2, %3, %4 scale32(true) rounding_mode<DOUBLE_ROUND> per_channel(false) input_unsigned(false) output_unsigned(false) : (tensor<1x1xi32>, tensor<1xi32>, tensor<1xi8>, tensor<1xi32>, tensor<1xi16>) -> tensor<1x1xi16>""",
         return_value="%5 : tensor<1x1xi16>",
     )
 
@@ -159,10 +159,10 @@ def conv2d_mlir():
     %3 = "tosa.const"() {values = dense<42> : tensor<16xi8>} : () -> tensor<16xi8>
     %4 = "tosa.const"() {values = dense<-128> : tensor<1xi8>} : () -> tensor<1xi8>
     %5 = "tosa.const"() {values = dense<0> : tensor<1xi8>} : () -> tensor<1xi8>
-    %6 = tosa.conv2d %arg0, %1, %0, %4, %5 {dilation = array<i64: 1, 1>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 2>, acc_type = i32} : (tensor<1x16x16x16xi8>, tensor<16x2x2x16xi8>, tensor<16xi32>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x8x8x16xi32>
+    %6 = tosa.conv2d %arg0, %1, %0, %4, %5 pad([0, 0, 0, 0]) stride([2, 2]) dilation([1, 1]) acc_type(i32) : (tensor<1x16x16x16xi8>, tensor<16x2x2x16xi8>, tensor<16xi32>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x8x8x16xi32>
     %7 = "tosa.const"() {values = dense<0> : tensor<1xi32>} : () -> tensor<1xi32>
     %8 = "tosa.const"() {values = dense<0> : tensor<1xi8>} : () -> tensor<1xi8>
-    %9 = tosa.rescale %6, %2, %3, %7, %8 {rounding_mode = DOUBLE_ROUND, per_channel = true, scale32 = true,  input_unsigned = false, output_unsigned = false} : (tensor<1x8x8x16xi32>, tensor<16xi32>, tensor<16xi8>, tensor<1xi32>, tensor<1xi8>) -> tensor<1x8x8x16xi8>
+    %9 = tosa.rescale %6, %2, %3, %7, %8 scale32(true) rounding_mode<DOUBLE_ROUND> per_channel(true) input_unsigned(false) output_unsigned(false) : (tensor<1x8x8x16xi32>, tensor<16xi32>, tensor<16xi8>, tensor<1xi32>, tensor<1xi8>) -> tensor<1x8x8x16xi8>
 """.replace("__CONV2D_CONSTANT__", CONV2D_CONSTANT_VALUES[0].hex().upper())
 
     return main_mlir(
@@ -184,7 +184,7 @@ def maxpool_mlir():
         result="tensor<1x8x8x16xi8>",
         entry_inputs="data/Placeholder",
         entry_outputs="pool0/max_pooling2d/MaxPool",
-        body="    %0 = tosa.max_pool2d %arg0 {kernel = array<i64: 2, 2>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 2>, nan_mode = IGNORE} : (tensor<1x16x16x16xi8>) -> tensor<1x8x8x16xi8>",
+        body="    %0 = tosa.max_pool2d %arg0 kernel([2, 2]) stride([2, 2]) pad([0, 0, 0, 0]) nan_mode<IGNORE> : (tensor<1x16x16x16xi8>) -> tensor<1x8x8x16xi8>",
         return_value="%0 : tensor<1x8x8x16xi8>",
     )
 
@@ -198,11 +198,11 @@ def double_conv2d_mlir():
     %4 = "tosa.const"() {values = dense<2026291432> : tensor<1xi32>} : () -> tensor<1xi32>
     %5 = "tosa.const"() {values = dense<40> : tensor<1xi8>} : () -> tensor<1xi8>
     %6 = "tosa.const"() {values = dense<0> : tensor<1xi8>} : () -> tensor<1xi8>
-    %7 = tosa.conv2d %arg0, %0, %1, %6, %6 {dilation = array<i64: 1, 1>, pad = array<i64: 1, 1, 1, 1>, stride = array<i64: 1, 1>, acc_type = i32} : (tensor<1x32x32x23xi8>, tensor<1x3x3x23xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x32x32x1xi32>
+    %7 = tosa.conv2d %arg0, %0, %1, %6, %6 pad([1, 1, 1, 1]) stride([1, 1]) dilation([1, 1]) acc_type(i32) : (tensor<1x32x32x23xi8>, tensor<1x3x3x23xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x32x32x1xi32>
     %8 = "tosa.const"() {values = dense<0> : tensor<1xi8>} : () -> tensor<1xi8>
     %9 = "tosa.const"() {values = dense<0> : tensor<1xi32>} : () -> tensor<1xi32>
-    %10 = tosa.rescale %7, %4, %5, %9, %8 {rounding_mode = DOUBLE_ROUND, per_channel = true, scale32 = true, input_unsigned = false, output_unsigned = false} : (tensor<1x32x32x1xi32>, tensor<1xi32>, tensor<1xi8>, tensor<1xi32>, tensor<1xi8>) -> tensor<1x32x32x1xi8>
-    %11 = tosa.conv2d %10, %2, %3, %8, %8 {dilation = array<i64: 1, 1>, pad = array<i64: 1, 1, 1, 1>, stride = array<i64: 1, 1>, acc_type = i32} : (tensor<1x32x32x1xi8>, tensor<5x3x3x1xi8>, tensor<5xi32>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x32x32x5xi32>
+    %10 = tosa.rescale %7, %4, %5, %9, %8 scale32(true) rounding_mode<DOUBLE_ROUND> per_channel(true) input_unsigned(false) output_unsigned(false) : (tensor<1x32x32x1xi32>, tensor<1xi32>, tensor<1xi8>, tensor<1xi32>, tensor<1xi8>) -> tensor<1x32x32x1xi8>
+    %11 = tosa.conv2d %10, %2, %3, %8, %8 pad([1, 1, 1, 1]) stride([1, 1]) dilation([1, 1]) acc_type(i32) : (tensor<1x32x32x1xi8>, tensor<5x3x3x1xi8>, tensor<5xi32>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x32x32x5xi32>
 """.replace(
         "__DOUBLE_CONV2D_CONSTANT_0__",
         DOUBLE_CONV2D_CONSTANT_VALUES[0].hex().upper(),
@@ -233,7 +233,7 @@ def inlined_higher_rank_constant_mlir():
     %bias = "tosa.const"() {values = dense<0> : tensor<1xi32>} : ()-> tensor<1xi32>
     %input_zp = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : ()-> tensor<1xi8>
     %weight_zp = "tosa.const"() <{values = dense<0> : tensor<1xi8>}> : ()-> tensor<1xi8>
-    %0 = tosa.conv2d %arg0, %weight, %bias, %input_zp, %weight_zp {acc_type = i32, pad = array<i64: 1, 1, 1, 1>, stride = array<i64: 1, 1>, dilation = array<i64: 1, 1>} : (tensor<1x3x3x1xi8>, tensor<1x3x3x1xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x3x3x1xi32>
+    %0 = tosa.conv2d %arg0, %weight, %bias, %input_zp, %weight_zp pad([1, 1, 1, 1]) stride([1, 1]) dilation([1, 1]) acc_type(i32) : (tensor<1x3x3x1xi8>, tensor<1x3x3x1xi8>, tensor<1xi32>, tensor<1xi8>, tensor<1xi8>) -> tensor<1x3x3x1xi32>
     %1 = tosa.cast %0 : (tensor<1x3x3x1xi32>) -> tensor<1x3x3x1xi8>""",
         return_value="%1 : tensor<1x3x3x1xi8>",
     )
@@ -531,7 +531,7 @@ def reshape_splat_shape_mlir():
         result='(tensor<2x2xi8> {tf_saved_model.index_path = ["output_0"]})',
         entry_inputs="input_0",
         entry_outputs="output_0",
-        body="""    %shape = tosa.const_shape {values = dense<[2, 2]> : tensor<2xindex>} : () -> !tosa.shape<2>
+        body="""    %shape = tosa.const_shape values(dense<[2, 2]> : tensor<2xindex>) : () -> !tosa.shape<2>
     %0 = tosa.reshape %arg0, %shape : (tensor<4xi8>, !tosa.shape<2>) -> tensor<2x2xi8>""",
         return_value="%0 : tensor<2x2xi8>",
     )

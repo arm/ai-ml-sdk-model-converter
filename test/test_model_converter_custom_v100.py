@@ -198,7 +198,7 @@ def custom_image_sampler_mlir():
     return f"""
 module {{
   func.func @main(%arg0: tensor<1x8x8x4xf32> {{tf_saved_model.index_path = ["input_0"]}}) -> (tensor<1x8x8x4xf32> {{tf_saved_model.index_path = ["output_0"]}}) attributes {{tf.entry_function = {{inputs = "tosa_deserialized_input_0:0", outputs = "tosa_deserialized_output_0:0"}}, tf_saved_model.exported_names = ["tosa_deserialized"]}} {{
-    %0 = tosa.custom %arg0 {{domain_name = "com.arm.VulkanCustomShader", implementation_attrs = {implementation_attrs}, operator_name = "test_image_sampler_shader"}} : (tensor<1x8x8x4xf32>) -> tensor<1x8x8x4xf32>
+    %0 = tosa.custom %arg0 operator_name("test_image_sampler_shader") domain_name("com.arm.VulkanCustomShader") implementation_attrs({implementation_attrs}) : (tensor<1x8x8x4xf32>) -> tensor<1x8x8x4xf32>
     return %0 : tensor<1x8x8x4xf32>
   }}
 }}
@@ -245,7 +245,7 @@ def custom_op(
     operands = ", ".join(operands)
     operand_types = ", ".join(operand_types)
     return f"""
-    {result} = tosa.custom {operands} {{domain_name = "com.arm.VulkanCustomShader", implementation_attrs = {implementation_attrs}, operator_name = "{operator_name}"}} : ({operand_types}) -> {result_type}
+    {result} = tosa.custom {operands} operator_name("{operator_name}") domain_name("com.arm.VulkanCustomShader") implementation_attrs({implementation_attrs}) : ({operand_types}) -> {result_type}
 """
 
 
@@ -317,7 +317,7 @@ def custom_binding_mlir(input_descriptor_set, output_descriptor_set):
 module attributes {{tf_saved_model.semantics, tosa.description = "TOSA FBS Converted", tosa.fbs_version = "1.1.0d"}} {{
   func.func @main(%arg0: tensor<10xf32> {{tf_saved_model.index_path = ["input_0"]}}, %arg1: tensor<10xf32> {{tf_saved_model.index_path = ["input_1"]}}) -> (tensor<10xf32> {{tf_saved_model.index_path = ["output_0"]}}) attributes {{tf.entry_function = {{inputs = "tosa_deserialized_input_0:0,tosa_deserialized_input_1:0", outputs = "tosa_deserialized_output_0:0"}}, tf_saved_model.exported_names = ["tosa_deserialized"]}} {{
     %0 = tosa.add %arg0, %arg1 : (tensor<10xf32>, tensor<10xf32>) -> tensor<10xf32>
-    %1 = tosa.custom %0 {{domain_name = "com.arm.VulkanCustomShader", implementation_attrs = {implementation_attrs}, operator_name = "thribrary.threee_pleee"}} : (tensor<10xf32>) -> tensor<10xf32>
+    %1 = tosa.custom %0 operator_name("thribrary.threee_pleee") domain_name("com.arm.VulkanCustomShader") implementation_attrs({implementation_attrs}) : (tensor<10xf32>) -> tensor<10xf32>
     return %1 : tensor<10xf32>
   }}
 }}
@@ -568,7 +568,7 @@ def custom_graph_custom_mlir():
 module {{
   func.func @main(%arg0: tensor<1x16x16x16xi8> {{tf_saved_model.index_path = ["input_1"]}}, %arg1: tensor<1x8x8x16xi8> {{tf_saved_model.index_path = ["input_3"]}}, %arg2: tensor<1x16x16x16xi8> {{tf_saved_model.index_path = ["input_2"]}}) -> (tensor<1x8x8x16xi8> {{tf_saved_model.index_path = ["tf.quantization.fake_quant_with_min_max_vars_4"]}}) attributes {{tf.entry_function = {{inputs = "input_0,input_1,input_2", outputs = "output_0"}}, tf_saved_model.exported_names = ["serving_default"]}} {{
 {first_custom}
-    %1 = tosa.max_pool2d %0 {{kernel = array<i64: 2, 2>, pad = array<i64: 0, 0, 0, 0>, stride = array<i64: 2, 2>}} : (tensor<1x16x16x16xi8>) -> tensor<1x8x8x16xi8>
+    %1 = tosa.max_pool2d %0 kernel([2, 2]) stride([2, 2]) pad([0, 0, 0, 0]) : (tensor<1x16x16x16xi8>) -> tensor<1x8x8x16xi8>
 {second_custom}
     return %2 : tensor<1x8x8x16xi8>
   }}
