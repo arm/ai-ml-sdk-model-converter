@@ -16,6 +16,7 @@
 - Added GCC code coverage reporting for native Linux unit-test and lit builds.
 - Added explicit source and staged wheel modes so release wheels reuse validated
   native install trees without rebuilding them or modifying package sources.
+- Raised the minimum supported Python version from 3.10 to 3.11.
 
 ## Version 0.11.0 – *Partitioning & Graph Constant Bindings*
 
