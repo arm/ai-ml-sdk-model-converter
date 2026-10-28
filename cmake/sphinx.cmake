@@ -1,21 +1,26 @@
 #
-# SPDX-FileCopyrightText: Copyright 2023-2025 Arm Limited and/or its affiliates <open-source-office@arm.com>
+# SPDX-FileCopyrightText: Copyright 2023-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
-find_package(Sphinx)
-if(NOT SPHINX_FOUND)
-    message("Sphinx is not available. Cannot generate documentation.")
-    unset(SPHINX_EXECUTABLE CACHE)
-    return()
-endif()
 
-set(SPHINX_SRC_DIR_IN ${CMAKE_CURRENT_SOURCE_DIR}/docs/source)
-set(SPHINX_SRC_DIR ${CMAKE_CURRENT_BINARY_DIR}/docs/in)
-set(SPHINX_BLD_DIR ${CMAKE_CURRENT_BINARY_DIR}/docs/out)
-set(SPHINX_INDEX_HTML ${SPHINX_BLD_DIR}/index.html)
-set(DOXYGEN_XML_GEN ${CMAKE_CURRENT_BINARY_DIR}/docs/doxygen/xml)
-set(SPHINX_GEN_DIR ${CMAKE_CURRENT_BINARY_DIR}/docs/generated)
-set(SPHINX_SCRIPTS_DIR ${CMAKE_CURRENT_BINARY_DIR}/docs/scripts)
-set(SPHINX_SOURCES_DIR ${CMAKE_CURRENT_BINARY_DIR}/docs/sources)
+set(SPHINX_BLD_DIR "${MODEL_CONVERTER_DOCS_DIR}/out")
+set(SPHINX_INDEX_HTML "${SPHINX_BLD_DIR}/index.html")
+set(SPHINX_STAMP "${MODEL_CONVERTER_DOCS_DIR}/sphinx.stamp")
+set(DOXYGEN_XML_GEN "${DOXYGEN_OUTPUT_DIR}/xml")
 
-add_custom_target(model_converter_sphx_doc DEPENDS ${SPHINX_INDEX_HTML} model_converter_doxy_doc)
+add_custom_command(
+    OUTPUT "${SPHINX_STAMP}"
+    BYPRODUCTS "${SPHINX_INDEX_HTML}"
+    DEPENDS ${DOC_STAGED_FILES} "${DOC_STAGED_MANIFEST}"
+        "${DOXYGEN_STAMP}" "${DOXYGEN_INDEX_XML}"
+    COMMAND "${CMAKE_COMMAND}" -E rm -rf "${SPHINX_BLD_DIR}"
+    COMMAND "${SPHINX_EXECUTABLE}" -b html -W
+        "-Dbreathe_projects.ModelConverter=${DOXYGEN_XML_GEN}"
+        "${SPHINX_SRC_DIR}" "${SPHINX_BLD_DIR}"
+    COMMAND "${CMAKE_COMMAND}" -E touch "${SPHINX_STAMP}"
+    WORKING_DIRECTORY "${MODEL_CONVERTER_DOCS_BINARY_DIR}"
+    COMMENT "Generating API documentation with Sphinx"
+    VERBATIM)
+
+add_custom_target(model_converter_sphx_doc
+    DEPENDS "${SPHINX_STAMP}" "${SPHINX_INDEX_HTML}" model_converter_doxy_doc)
