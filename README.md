@@ -154,6 +154,20 @@ Run build commands with `uv run --no-sync python scripts/build.py` to use the
 locked environment. To build documentation, pass `--doc`; Doxygen must also be
 installed on the machine.
 
+To build only documentation without configuring or compiling Model Converter,
+use a separate CMake build directory. Doxygen 1.9.1 or newer, Ninja, and the
+locked tooling environment are required:
+
+```bash
+uv sync --locked --no-install-project --no-default-groups --group tooling
+uv run --no-sync cmake -S docs -B build-docs -G Ninja
+cmake --build build-docs
+```
+
+Open `build-docs/docs/out/index.html` to view the result. Keep `build-docs`
+separate from the native build directory; `--doc` continues to use the native
+build during the migration.
+
 You can install the project build artifacts into a specified location by passing
 the option `--install` with the required path.
 
