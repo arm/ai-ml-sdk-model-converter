@@ -28,7 +28,6 @@ endif()
 set(SPHINX_SRC_DIR_IN "${MODEL_CONVERTER_REPO_ROOT}/docs/source")
 set(SPHINX_SRC_DIR "${MODEL_CONVERTER_DOCS_DIR}/in")
 set(SPHINX_GEN_DIR "${MODEL_CONVERTER_DOCS_DIR}/generated")
-set(SPHINX_SOURCES_DIR "${MODEL_CONVERTER_DOCS_DIR}/sources")
 set(DOC_STAGED_FILES)
 
 foreach(SRC_IN README.md CONTRIBUTING.md SECURITY.md
@@ -50,22 +49,14 @@ foreach(SRC_IN IN LISTS DOC_SRC_FILES)
     list(APPEND DOC_STAGED_FILES "${DOC_SOURCE_FILE}")
 endforeach()
 
-# The legacy Doxyfile reads only files directly in src (RECURSIVE=NO).
+# Doxygen reads the checked-in top-level src files directly (RECURSIVE=NO).
 file(GLOB DOC_CODE_FILES CONFIGURE_DEPENDS LIST_DIRECTORIES false
     RELATIVE "${MODEL_CONVERTER_REPO_ROOT}/src"
-    "${MODEL_CONVERTER_REPO_ROOT}/src/*.c"
     "${MODEL_CONVERTER_REPO_ROOT}/src/*.cpp"
-    "${MODEL_CONVERTER_REPO_ROOT}/src/*.h"
-    "${MODEL_CONVERTER_REPO_ROOT}/src/*.hpp"
-    "${MODEL_CONVERTER_REPO_ROOT}/src/*.md"
-    "${MODEL_CONVERTER_REPO_ROOT}/src/*.dox")
+    "${MODEL_CONVERTER_REPO_ROOT}/src/*.hpp")
 set(DOC_DOXYGEN_FILES)
 foreach(SRC_IN IN LISTS DOC_CODE_FILES)
-    set(DOC_SOURCE_FILE "${SPHINX_SOURCES_DIR}/src/${SRC_IN}")
-    configure_file("${MODEL_CONVERTER_REPO_ROOT}/src/${SRC_IN}"
-        "${DOC_SOURCE_FILE}" COPYONLY)
-    list(APPEND DOC_STAGED_FILES "${DOC_SOURCE_FILE}")
-    list(APPEND DOC_DOXYGEN_FILES "${DOC_SOURCE_FILE}")
+    list(APPEND DOC_DOXYGEN_FILES "${MODEL_CONVERTER_REPO_ROOT}/src/${SRC_IN}")
 endforeach()
 
 # Manifests make deletions visible to render commands and remove staged leftovers.
