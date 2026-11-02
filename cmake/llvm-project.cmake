@@ -119,6 +119,8 @@ if(EXISTS ${LLVM_PATH}/llvm/CMakeLists.txt)
         set(LLVM_ENABLE_PROJECTS "mlir" CACHE STRING "")
         set(LLVM_ENABLE_RTTI ON CACHE BOOL "")
         set(LLVM_ENABLE_TERMINFO OFF CACHE BOOL "")
+        # Avoid an optional host zstd dependency in distributed binaries.
+        set(LLVM_ENABLE_ZSTD OFF CACHE STRING "")
         set(LLVM_INCLUDE_BENCHMARKS OFF CACHE BOOL "" FORCE)
         set(LLVM_INCLUDE_EXAMPLES OFF CACHE BOOL "" FORCE)
         set(LLVM_INCLUDE_TESTS OFF CACHE BOOL "" FORCE)

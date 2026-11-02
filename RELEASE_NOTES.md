@@ -11,6 +11,8 @@
 
 ### Build, Packaging & Dependencies
 
+- Disabled optional LLVM zstd support by default to avoid linking wheels
+  against host libraries that require a newer operating system version.
 - Locked development and test dependencies with `uv.lock` in place of the
   requirements files.
 - Added GCC code coverage reporting for native Linux unit-test and lit builds.
