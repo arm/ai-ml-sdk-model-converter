@@ -4,6 +4,11 @@
 
 ## Unreleased
 
+### Converter & Toolchain
+
+- Experimental: Added graph and compute tensor resource serialization for block-scaled
+  tensors. Sharing a scaled resource between graph and compute segments and scaled alias groups are currently not supported.
+
 ### Breaking Changes
 
 - Removed the duplicate `model-converter` Python console-script alias. Use
