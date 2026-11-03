@@ -6,7 +6,7 @@ import json
 
 import vgfpy
 from model_converter_helpers import converted_mlir
-from test_model_converter_core_v100 import main_mlir
+from test_model_converter_core import main_mlir
 from vgf_decoder import VK_FORMAT_R8_SINT
 
 OP_GRAPH_CONSTANT_ARM = 4181
