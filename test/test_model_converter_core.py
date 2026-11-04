@@ -13,11 +13,15 @@ from vgf_decoder import VK_FORMAT_R32_SFLOAT
 from vgf_decoder import VK_FORMAT_R32_SINT
 
 SPV_OP_EXTENSION = 10
+SPV_OP_EXT_INST_IMPORT = 11
 SPV_OP_CAPABILITY = 17
 SPV_OP_CONSTANT_COMPOSITE_REPLICATE_EXT = 4461
 SPV_OP_SPEC_CONSTANT_COMPOSITE_REPLICATE_EXT = 4462
 SPV_CAPABILITY_REPLICATED_COMPOSITES_EXT = 6024
 SPV_EXTENSION_REPLICATED_COMPOSITES = "SPV_EXT_replicated_composites"
+
+TOSA_1_0 = "TOSA.001000.1"
+TOSA_1_X = "TOSA.1x.1"
 
 CONV2D_CONSTANT_VALUES = [
     bytes.fromhex(
@@ -553,6 +557,15 @@ def spirv_literal_string(words):
     return data.split(b"\0", 1)[0].decode("utf-8")
 
 
+def tosa_imports(spirv_words):
+    imports = (
+        spirv_literal_string(operands[1:])
+        for opcode, operands in spirv_instructions(spirv_words)
+        if opcode == SPV_OP_EXT_INST_IMPORT
+    )
+    return [name for name in imports if name.startswith("TOSA.")]
+
+
 def test_disable_replicated_composites_removes_spirv_requirement(
     model_converter_exe_path,
 ):
@@ -578,3 +591,139 @@ def test_disable_replicated_composites_removes_spirv_requirement(
             opcode == SPV_OP_EXTENSION
             and spirv_literal_string(operands) == SPV_EXTENSION_REPLICATED_COMPOSITES
         )
+
+
+def public_conv2d_mlir(input_type):
+    # Public input, weight and bias tensors keep this independent of constant
+    # export and prevent the convolution from being folded away.
+    return f"""
+module {{
+  func.func @main(%input: tensor<1x3x3x1x{input_type}>, %weight: tensor<1x1x1x1xf32>, %bias: tensor<1xf32>) -> tensor<1x3x3x1xf32> {{
+    %input_zp = tosa.const values(dense<0.0> : tensor<1x{input_type}>) : () -> tensor<1x{input_type}>
+    %weight_zp = tosa.const values(dense<0.0> : tensor<1xf32>) : () -> tensor<1xf32>
+    %result = tosa.conv2d %input, %weight, %bias, %input_zp, %weight_zp pad([0, 0, 0, 0]) stride([1, 1]) dilation([1, 1]) acc_type(f32) : (tensor<1x3x3x1x{input_type}>, tensor<1x1x1x1xf32>, tensor<1xf32>, tensor<1x{input_type}>, tensor<1xf32>) -> tensor<1x3x3x1xf32>
+    return %result : tensor<1x3x3x1xf32>
+  }}
+}}
+"""
+
+
+def run_converter(model_converter_exe_path, tmp_path, mlir, extra_args=()):
+    input_path = tmp_path / "input.mlir"
+    output_path = tmp_path / "output.bin"
+    input_path.write_text(mlir)
+    result = subprocess.run(
+        [
+            model_converter_exe_path,
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+            *extra_args,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    return result, output_path
+
+
+@pytest.mark.parametrize(
+    "mlir, target, expected_imports",
+    [
+        pytest.param(
+            public_conv2d_mlir("f32"), None, [TOSA_1_0], id="ordinary-unlimited"
+        ),
+        pytest.param(
+            public_conv2d_mlir("f32"), TOSA_1_0, [TOSA_1_0], id="ordinary-target-1.0"
+        ),
+        pytest.param(
+            public_conv2d_mlir("f32"), TOSA_1_X, [TOSA_1_0], id="ordinary-target-1.x"
+        ),
+        # Mixed f16/f32 CONV2D requires the expanded 1.x type combinations.
+        # Scaled CONV2D coverage additionally needs VULKANMLSDK-3396/3397.
+        pytest.param(public_conv2d_mlir("f16"), None, [TOSA_1_X], id="mixed-unlimited"),
+        pytest.param(
+            public_conv2d_mlir("f16"), "", [TOSA_1_X], id="mixed-empty-target"
+        ),
+        pytest.param(
+            public_conv2d_mlir("f16"), TOSA_1_X, [TOSA_1_X], id="mixed-target-1.x"
+        ),
+        pytest.param(direct_passthrough_mlir(), None, [], id="no-tosa-unlimited"),
+        pytest.param(direct_passthrough_mlir(), TOSA_1_0, [], id="no-tosa-target-1.0"),
+        pytest.param(direct_passthrough_mlir(), TOSA_1_X, [], id="no-tosa-target-1.x"),
+    ],
+)
+def test_vgf_tosa_import_selection(
+    model_converter_exe_path, mlir, target, expected_imports
+):
+    extra_args = "" if target is None else f"--target-tosa-version={target}"
+    with converted_mlir(model_converter_exe_path, mlir, extra_args) as vgf:
+        assert vgf.modules.size() == 1
+        assert vgf.modules.hasSPIRVCode(0)
+        assert tosa_imports(vgf.modules.getSPIRVModuleCode(0)) == expected_imports
+
+
+def test_tosa_import_above_target_rejected_before_vgf_write(
+    model_converter_exe_path, tmp_path
+):
+    result, output_path = run_converter(
+        model_converter_exe_path,
+        tmp_path,
+        public_conv2d_mlir("f16"),
+        [f"--target-tosa-version={TOSA_1_0}"],
+    )
+    assert result.returncode != 0
+    assert (
+        f"instruction set family 'TOSA' selected import '{TOSA_1_X}' "
+        f"exceeds maximum import '{TOSA_1_0}'"
+    ) in result.stderr
+    assert not output_path.exists()
+
+
+@pytest.mark.parametrize(
+    "target", ["1.0", "TOSA.001001.1", "TOSA.1x.2", "GLSL.std.450"]
+)
+def test_invalid_target_rejected_before_vgf_write(
+    model_converter_exe_path, tmp_path, target
+):
+    result, output_path = run_converter(
+        model_converter_exe_path,
+        tmp_path,
+        public_conv2d_mlir("f32"),
+        [f"--target-tosa-version={target}"],
+    )
+    assert result.returncode != 0
+    assert f"unregistered maximum instruction-set import '{target}'" in result.stderr
+    assert not output_path.exists()
+
+
+def test_target_requires_a_value(model_converter_exe_path, tmp_path):
+    output_path = tmp_path / "output.vgf"
+    result = subprocess.run(
+        [
+            model_converter_exe_path,
+            "--input",
+            str(tmp_path / "does-not-exist.mlir"),
+            "--output",
+            str(output_path),
+            "--target-tosa-version",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert "--target-tosa-version" in result.stderr
+    assert "Error creating parser" in result.stderr
+    assert not output_path.exists()
+
+
+@pytest.mark.parametrize("target", [TOSA_1_0, "", "not-an-import"])
+def test_flatbuffer_output_ignores_target(model_converter_exe_path, tmp_path, target):
+    result, output_path = run_converter(
+        model_converter_exe_path,
+        tmp_path,
+        public_conv2d_mlir("f16"),
+        ["--tosa-flatbuffer", f"--target-tosa-version={target}"],
+    )
+    assert result.returncode == 0, result.stderr
+    assert output_path.read_bytes()[4:8] == b"TOSA"
