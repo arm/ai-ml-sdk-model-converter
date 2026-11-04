@@ -141,7 +141,7 @@ LogicalResult ResourcePlanner::addScaledTensorConfigToComputeView(Value value, S
     }
 
     VGFBuilder::VkFormat expectedFormat;
-    if (VGFBuilder::mlirTypeToVkFormat(info->valueType, expectedFormat, isUnsignedValue(value)).failed()) {
+    if (VGFBuilder::mlirTypeToVkFormat(info->valueType, expectedFormat, isUnsignedValue(value), true).failed()) {
         return _sequenceOp.emitError("unsupported type for ") << role << " in segment " << segmentName;
     }
     if (view.vkFormat != static_cast<FormatType>(expectedFormat)) {
@@ -237,25 +237,47 @@ FailureOr<ResourceViewKey> ResourcePlanner::getResourceViewFromType(Value value,
     }
 #endif
 
-    if (VGFBuilder::mlirTypeToVkFormat(valueType, vkFormat, isUnsignedValue(value)).failed()) {
+    if (VGFBuilder::mlirTypeToVkFormat(valueType, vkFormat, isUnsignedValue(value), scaledTensorConfig.has_value())
+            .failed()) {
         return _sequenceOp.emitError("unsupported type for ") << role << " in segment " << segmentName;
     }
 
     return ResourceViewKey{DESCRIPTOR_TYPE_TENSOR_ARM, static_cast<FormatType>(vkFormat), scaledTensorConfig};
 }
 
-FailureOr<ResourceViewKey> ResourcePlanner::getResourceViewFromShaderPlaceholder([[maybe_unused]] Value value,
-                                                                                 [[maybe_unused]] StringRef role,
-                                                                                 [[maybe_unused]] StringRef segmentName,
+FailureOr<ResourceViewKey> ResourcePlanner::getResourceViewFromShaderPlaceholder(Value value, StringRef role,
+                                                                                 StringRef segmentName,
                                                                                  Attribute descriptorType,
                                                                                  Attribute format) const {
+    if (auto type = llvm::dyn_cast<ShapedType>(value.getType());
+        type && VGFBuilder::requiresBlockScaling(type.getElementType())) {
+        return _sequenceOp.emitError("value type requires a block-scaled tensor for ")
+               << role << " in segment " << segmentName;
+    }
     ResourceViewKey view{NameToDescriptorType(llvm::cast<StringAttr>(descriptorType).getValue().str()),
                          NameToFormatType(llvm::cast<StringAttr>(format).getValue().str())};
+    if (view.vkFormat < 0) {
+        return _sequenceOp.emitError("unknown Vulkan value format ")
+               << llvm::cast<StringAttr>(format).getValue() << " for " << role << " in segment " << segmentName;
+    }
 #ifdef BLOCK_SCALED_TENSOR
     if (failed(addScaledTensorConfigToComputeView(value, role, segmentName, view))) {
         return failure();
     }
 #endif
+    switch (view.vkFormat) {
+    case VGFBuilder::VK_FORMAT_OCPMXFP_32_SFLOAT_BLOCK_FPENCODING_FLOAT6E2M3_ARM:
+    case VGFBuilder::VK_FORMAT_OCPMXFP_32_SFLOAT_BLOCK_FPENCODING_FLOAT6E3M2_ARM:
+    case VGFBuilder::VK_FORMAT_OCPMXFP_32_SFLOAT_BLOCK_FPENCODING_FLOAT4E2M1_ARM:
+    case VGFBuilder::VK_FORMAT_R8_SFLOAT_FPENCODING_MXINT8_ARM:
+        if (!view.scaledTensorConfig) {
+            return _sequenceOp.emitError("block-scaled Vulkan value format requires a block-scaled tensor type for ")
+                   << role << " in segment " << segmentName;
+        }
+        break;
+    default:
+        break;
+    }
     return view;
 }
 

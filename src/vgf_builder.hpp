@@ -57,9 +57,30 @@ class VGFBuilder {
         VK_FORMAT_R16_SFLOAT_FPENCODING_BFLOAT16_ARM = 1000460001,
         VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E4M3_ARM = 1000460002,
         VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E5M2_ARM = 1000460003,
+        VK_FORMAT_OCPMXFP_32_SFLOAT_BLOCK_FPENCODING_FLOAT6E2M3_ARM = 1000729000,
+        VK_FORMAT_OCPMXFP_32_SFLOAT_BLOCK_FPENCODING_FLOAT6E3M2_ARM = 1000729001,
+        VK_FORMAT_OCPMXFP_32_SFLOAT_BLOCK_FPENCODING_FLOAT4E2M1_ARM = 1000729002,
+        VK_FORMAT_R8_SFLOAT_FPENCODING_MXINT8_ARM = 1000729004,
     };
 
-    static mlir::LogicalResult mlirTypeToVkFormat(mlir::Type mlirType, VkFormat &format, bool useUnsignedForSignless) {
+    static bool requiresBlockScaling(mlir::Type mlirType) {
+#ifdef BLOCK_SCALED_TENSOR
+        if (llvm::isa<mlir::OCPInt8Type>(mlirType)) {
+            return true;
+        }
+#endif
+        return llvm::isa<mlir::Float4E2M1FNType, mlir::Float6E2M3FNType, mlir::Float6E3M2FNType>(mlirType);
+    }
+
+    static mlir::LogicalResult mlirTypeToVkFormat(mlir::Type mlirType, VkFormat &format, bool useUnsignedForSignless,
+                                                  bool isBlockScaledTensor = false) {
+        if (isBlockScaledTensor) {
+            if (!mlirType.isF8E4M3FN() && !mlirType.isF8E5M2() && !requiresBlockScaling(mlirType)) {
+                return mlir::failure();
+            }
+        } else if (requiresBlockScaling(mlirType)) {
+            return mlir::failure();
+        }
         if (mlirType.isInteger(1)) {
             format = VkFormat::VK_FORMAT_R8_BOOL_ARM;
         } else if (mlirType.isSignedInteger() || (mlirType.isSignlessInteger() && !useUnsignedForSignless)) {
@@ -105,6 +126,16 @@ class VGFBuilder {
             format = VkFormat::VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E4M3_ARM;
         } else if (mlirType.isF8E5M2()) {
             format = VkFormat::VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E5M2_ARM;
+        } else if (llvm::isa<mlir::Float6E2M3FNType>(mlirType)) {
+            format = VkFormat::VK_FORMAT_OCPMXFP_32_SFLOAT_BLOCK_FPENCODING_FLOAT6E2M3_ARM;
+        } else if (llvm::isa<mlir::Float6E3M2FNType>(mlirType)) {
+            format = VkFormat::VK_FORMAT_OCPMXFP_32_SFLOAT_BLOCK_FPENCODING_FLOAT6E3M2_ARM;
+        } else if (llvm::isa<mlir::Float4E2M1FNType>(mlirType)) {
+            format = VkFormat::VK_FORMAT_OCPMXFP_32_SFLOAT_BLOCK_FPENCODING_FLOAT4E2M1_ARM;
+#ifdef BLOCK_SCALED_TENSOR
+        } else if (llvm::isa<mlir::OCPInt8Type>(mlirType)) {
+            format = VkFormat::VK_FORMAT_R8_SFLOAT_FPENCODING_MXINT8_ARM;
+#endif
         } else {
             return mlir::failure();
         }
