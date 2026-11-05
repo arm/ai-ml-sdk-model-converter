@@ -11,7 +11,8 @@ as inputs:
 - TOSA MLIR textual format
 
 The ML SDK Model Converter can also produce TOSA FlatBuffers from its input,
-without performing any conversion.
+without lowering the model to SPIR-V™ or packaging it as VGF. Common input
+preparation, including type narrowing, still applies.
 
 You can also use the ML SDK Model Converter to check that all tensors specified
 in the input model are ranked and have fixed, non-dynamic shapes. If a dynamic
@@ -151,8 +152,8 @@ uv sync --locked --no-install-project --no-default-groups --group test --group t
 ```
 
 Run build commands with `uv run --no-sync python scripts/build.py` to use the
-locked environment. To build documentation, pass `--doc`; Doxygen must also be
-installed on the machine.
+locked environment. To build documentation, pass `--doc`; Doxygen, PlantUML,
+a compatible Java runtime, and Graphviz must also be installed on the machine.
 
 To build only documentation without configuring or compiling Model Converter,
 use a separate CMake build directory. Doxygen 1.9.1 or newer, Ninja, and the
