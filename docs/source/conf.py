@@ -32,7 +32,10 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosectionlabel",
     "myst_parser",
+    "sphinxcontrib.plantuml",
 ]
+
+plantuml_output_format = "svg_img"
 
 # Disable superfluous warnings
 suppress_warnings = [

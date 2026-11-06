@@ -1,0 +1,27 @@
+@startuml
+<style>
+root {
+  FontName SansSerif
+  Shadowing 0
+}
+element {
+  Shadowing 0
+}
+</style>
+start
+:TOSA FlatBuffer or MLIR input;
+:Import to TOSA MLIR\nTOSA Tools / MLIR parser;
+:Normalize, check, simplify and narrow\nModel Converter + LLVM/MLIR;
+if (Output format?) then (TOSA)
+  :Serialize TOSA FlatBuffer\nTOSA Tools;
+else (VGF)
+  :Fold constants and assign graph-constant IDs\nLLVM/MLIR;
+  :Partition into VGF sequence / segments\nModel Converter;
+  :Encode constants and assign graph ABI\nModel Converter + VGF Library;
+  :Lower graph TOSA to SPIR-V™ IR\nLLVM/MLIR;
+  :Finalize graph modules\nLLVM/MLIR;
+  :Plan resources and serialize modules\nModel Converter + LLVM/MLIR;
+  :Encode and write VGF file\nVGF Library;
+endif
+stop
+@enduml

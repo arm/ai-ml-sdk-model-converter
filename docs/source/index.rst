@@ -13,6 +13,7 @@ ML SDK Model Converter
   cloning.rst
   building.rst
   usage.rst
+  architecture.rst
   vkcustomshader-conversion.rst
   vkshader-custom-op-encoding.rst
   limitations.rst
