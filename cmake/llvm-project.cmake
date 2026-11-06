@@ -81,15 +81,11 @@ if(EXISTS ${LLVM_PATH}/llvm/CMakeLists.txt)
     if(NOT TARGET LLVMCore)
         message(STATUS "Building LLVM and MLIR from source")
 
-        set(TARGETS_TO_BUILD "all")
-        # We aim to build only for the specific target architectures of interest to us.
-        # This is due to building all target architectures adds an LLVM target named "SPIRV",
-        # which clashes with the glslang SPIRV target
-        if(${CMAKE_HOST_SYSTEM_PROCESSOR} MATCHES "^(x86|x86_64|AMD64|x64)$")
-            set(TARGETS_TO_BUILD "X86")
-        elseif(${CMAKE_HOST_SYSTEM_PROCESSOR} MATCHES "^(aarch64|arm64)$")
-            set(TARGETS_TO_BUILD "AArch64")
-        endif()
+        # SPIR-V is emitted by MLIR's serializer, without an LLVM code generator
+        # or JIT. Conversion patterns are implemented in C++ and do not use PDL.
+        set(LLVM_TARGETS_TO_BUILD "" CACHE STRING "LLVM target architectures to build")
+        set(MLIR_ENABLE_EXECUTION_ENGINE OFF CACHE BOOL "Enable the MLIR execution engine")
+        set(MLIR_ENABLE_PDL_IN_PATTERNMATCH OFF CACHE BOOL "Enable PDL in MLIR pattern matching")
 
         set(LLVM_ABI_BREAKING_CHECKS "FORCE_OFF" CACHE STRING "")
         set(LLVM_ENABLE_ASSERTIONS ON CACHE BOOL "")
@@ -113,8 +109,8 @@ if(EXISTS ${LLVM_PATH}/llvm/CMakeLists.txt)
         set(LLVM_PARALLEL_LINK_JOBS "2" CACHE STRING "")
         set(LLVM_REQUIRES_EH ON CACHE BOOL "")
         set(LLVM_REQUIRES_RTTI ON CACHE BOOL "")
-        set(LLVM_TARGETS_TO_BUILD "${TARGETS_TO_BUILD}" CACHE STRING "")
 
+        include(${CMAKE_CURRENT_LIST_DIR}/llvm-deps-cleanup.cmake)
         add_subdirectory(${LLVM_PATH}/llvm llvm SYSTEM EXCLUDE_FROM_ALL)
     endif()
 endif()
