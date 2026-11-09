@@ -6,6 +6,9 @@
 
 ### Converter & Toolchain
 
+- Added experimental extraction support for block-scaled `tosa.const` values, including
+  TOSA-packed FP4/FP6 payloads, E8M0 scales, formats, and logical and block
+  shapes.
 - Experimental: Added graph and compute tensor resource serialization for block-scaled
   tensors. Sharing a scaled resource between graph and compute segments and scaled alias groups are currently not supported.
 - Experimental support for MXFP4, MXFP6 and MXINT8 block-scaled tensor formats
