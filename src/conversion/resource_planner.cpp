@@ -5,6 +5,8 @@
 
 #include "conversion/resource_planner.hpp"
 
+#include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "utils.hpp"
 
 #define VGFLIB_VK_HELPERS
@@ -102,15 +104,42 @@ ResourcePlanner::ResourcePlanner(vgf::SequenceOp &sequenceOp)
 }
 
 LogicalResult ResourcePlanner::buildPlan() {
-    if (collectSequenceInputs().failed() || collectIntermediates().failed() || collectSequenceOutputs().failed()) {
+    if (verifySegmentResourceSharing().failed() || collectSequenceInputs().failed() ||
+        collectIntermediates().failed() || collectSequenceOutputs().failed()) {
         return failure();
     }
 
-    finalizePlannedValues();
-    return success();
+    return finalizePlannedValues();
 }
 
 const ResourcePlan &ResourcePlanner::getPlan() const { return _resourcePlan; }
+
+LogicalResult ResourcePlanner::verifySegmentResourceSharing() const {
+    DenseMap<Value, vgf::SegmentTypeEnum> segmentTypes;
+    const WalkResult result = _sequenceOp.walk([&](vgf::SegmentOp segmentOp) {
+        const auto segmentType = segmentOp.getSegmentType();
+        if (segmentType != vgf::SegmentTypeEnum::GRAPH && segmentType != vgf::SegmentTypeEnum::COMPUTE) {
+            return WalkResult::advance();
+        }
+        const auto hasMixedUse = [&](Value value) {
+            const auto type = llvm::dyn_cast<ShapedType>(value.getType());
+            if (!type || !llvm::isa<spirv::TensorScaledBlockArmType>(type.getElementType())) {
+                return false;
+            }
+            const auto [it, inserted] = segmentTypes.try_emplace(value, segmentType);
+            return !inserted && it->second != segmentType;
+        };
+        auto *runSegmentOp = segmentOp->getNextNode();
+        if (llvm::any_of(runSegmentOp->getOperands(), hasMixedUse) ||
+            llvm::any_of(runSegmentOp->getResults(), hasMixedUse)) {
+            segmentOp.emitError(
+                "block scaled tensor resources shared between graph and compute segments are not supported");
+            return WalkResult::interrupt();
+        }
+        return WalkResult::advance();
+    });
+    return success(!result.wasInterrupted());
+}
 
 bool ResourcePlanner::isSequenceInputOperand(Value operand) const {
     return std::any_of(_sequenceOp.getArguments().begin(), _sequenceOp.getArguments().end(),
@@ -143,9 +172,29 @@ FailureOr<std::vector<int64_t>> ResourcePlanner::getValueShape(Value value) cons
     return flagAnyDynamicDims(type.getShape());
 }
 
+LogicalResult
+ResourcePlanner::decodeScaledTensorType(Type &valueType, StringRef role, StringRef segmentName,
+                                        std::optional<ScaledTensorConfigValues> &scaledTensorConfig) const {
+    if (auto scaledType = llvm::dyn_cast<spirv::TensorScaledBlockArmType>(valueType)) {
+        if (!llvm::isa<Float8E8M0FNUType>(scaledType.getScaleType())) {
+            return _sequenceOp.emitError("unsupported scale type for ") << role << " in segment " << segmentName;
+        }
+        ScaledTensorConfigValues config{ScaleFormat::E8M0, {}};
+        for (const uint64_t dim : scaledType.getBlockShape()) {
+            if (dim > std::numeric_limits<uint32_t>::max()) {
+                return _sequenceOp.emitError("scaled tensor block dimension exceeds VGF uint32 range for ")
+                       << role << " in segment " << segmentName;
+            }
+            config.blockShape.push_back(static_cast<uint32_t>(dim));
+        }
+        scaledTensorConfig = std::move(config);
+        valueType = scaledType.getValueType();
+    }
+    return success();
+}
+
 LogicalResult ResourcePlanner::getGraphView(Value value, StringRef role, StringRef segmentName,
                                             ResourceViewKey &view) const {
-    VGFBuilder::VkFormat vkFormat;
     const ShapedType type = (isSequenceInputOperand(value) || isSequenceOutputOperand(value))
                                 ? llvm::dyn_cast<ShapedType>(value.getType())
                                 : convertShapedType(value.getType());
@@ -165,11 +214,47 @@ LogicalResult ResourcePlanner::getGraphView(Value value, StringRef role, StringR
         isUnsigned = getSequenceOutputUnsigned(outputIndexIt->second);
     }
 
-    if (VGFBuilder::mlirTypeToVkFormat(type.getElementType(), vkFormat, isUnsigned).failed()) {
+    Type valueType = type.getElementType();
+    std::optional<ScaledTensorConfigValues> scaledTensorConfig;
+    if (decodeScaledTensorType(valueType, role, segmentName, scaledTensorConfig).failed()) {
+        return failure();
+    }
+
+    VGFBuilder::VkFormat vkFormat;
+    if (VGFBuilder::mlirTypeToVkFormat(valueType, vkFormat, isUnsigned).failed()) {
         return _sequenceOp.emitError("unsupported type for ") << role << " in segment " << segmentName;
     }
 
-    view = {DESCRIPTOR_TYPE_TENSOR_ARM, static_cast<FormatType>(vkFormat)};
+    view = {DESCRIPTOR_TYPE_TENSOR_ARM, static_cast<FormatType>(vkFormat), std::move(scaledTensorConfig)};
+    return success();
+}
+
+LogicalResult ResourcePlanner::getComputeView(Value value, StringRef role, StringRef segmentName,
+                                              Attribute descriptorType, Attribute format, ResourceViewKey &view) const {
+    view = {NameToDescriptorType(llvm::cast<StringAttr>(descriptorType).getValue().str()),
+            NameToFormatType(llvm::cast<StringAttr>(format).getValue().str())};
+    const auto type = llvm::dyn_cast<ShapedType>(value.getType());
+    if (!type || !llvm::isa<spirv::TensorScaledBlockArmType>(type.getElementType())) {
+        return success();
+    }
+    if (view.descriptorType != DESCRIPTOR_TYPE_TENSOR_ARM) {
+        return _sequenceOp.emitError("block scaled compute resource requires a tensor descriptor for ")
+               << role << " in segment " << segmentName;
+    }
+
+    Type valueType = type.getElementType();
+    if (decodeScaledTensorType(valueType, role, segmentName, view.scaledTensorConfig).failed()) {
+        return failure();
+    }
+    VGFBuilder::VkFormat vkFormat;
+    if (VGFBuilder::mlirTypeToVkFormat(valueType, vkFormat, false).failed()) {
+        return _sequenceOp.emitError("unsupported type for ") << role << " in segment " << segmentName;
+    }
+    if (view.vkFormat != static_cast<FormatType>(vkFormat)) {
+        return _sequenceOp.emitError(
+                   "block scaled compute resource value format does not match its tensor value type for ")
+               << role << " in segment " << segmentName;
+    }
     return success();
 }
 
@@ -243,9 +328,11 @@ LogicalResult ResourcePlanner::collectSequenceInputs() {
                                    shaderPlaceholderOp.getInputVkFormats(),
                                    shaderPlaceholderOp.getInputDescriptorSets(), runSegmentOp->getOperands())) {
                         if (input == operand) {
-                            const ResourceViewKey view = {
-                                NameToDescriptorType(llvm::cast<StringAttr>(inputDescriptorType).str()),
-                                NameToFormatType(llvm::cast<StringAttr>(inputVkFormat).str())};
+                            ResourceViewKey view;
+                            if (getComputeView(input, "input", segmentName, inputDescriptorType, inputVkFormat, view)
+                                    .failed()) {
+                                return WalkResult::interrupt();
+                            }
                             appendAttachment(
                                 _resourcePlan.sequenceInputAttachments, segmentId, input, false,
                                 makeResourceKey(ResourceCategory::INPUT, view,
@@ -318,9 +405,11 @@ LogicalResult ResourcePlanner::collectIntermediates() {
                             _resourcePlan.intermediateValues.push_back(input);
                         }
 
-                        const ResourceViewKey view = {
-                            NameToDescriptorType(llvm::cast<StringAttr>(inputDescriptorType).str()),
-                            NameToFormatType(llvm::cast<StringAttr>(inputVkFormat).str())};
+                        ResourceViewKey view;
+                        if (getComputeView(input, "input", segmentName, inputDescriptorType, inputVkFormat, view)
+                                .failed()) {
+                            return WalkResult::interrupt();
+                        }
                         appendAttachment(
                             _resourcePlan.intermediateAttachments, segmentId, input, false,
                             makeResourceKey(ResourceCategory::INTERMEDIATE, view,
@@ -349,9 +438,11 @@ LogicalResult ResourcePlanner::collectIntermediates() {
                             _resourcePlan.intermediateValues.push_back(result);
                         }
 
-                        const ResourceViewKey view = {
-                            NameToDescriptorType(llvm::cast<StringAttr>(outputDescriptorType).str()),
-                            NameToFormatType(llvm::cast<StringAttr>(outputVkFormat).str())};
+                        ResourceViewKey view;
+                        if (getComputeView(result, "result", segmentName, outputDescriptorType, outputVkFormat, view)
+                                .failed()) {
+                            return WalkResult::interrupt();
+                        }
                         appendAttachment(
                             _resourcePlan.intermediateAttachments, segmentId, result, true,
                             makeResourceKey(ResourceCategory::INTERMEDIATE, view,
@@ -472,9 +563,12 @@ LogicalResult ResourcePlanner::collectSequenceOutputs() {
                                    shaderPlaceholderOp.getOutputVkFormats(),
                                    shaderPlaceholderOp.getOutputDescriptorSets(), runSegmentOp->getResults())) {
                         if (result == operand) {
-                            const ResourceViewKey view = {
-                                NameToDescriptorType(llvm::cast<StringAttr>(outputDescriptorType).str()),
-                                NameToFormatType(llvm::cast<StringAttr>(outputVkFormat).str())};
+                            ResourceViewKey view;
+                            if (getComputeView(result, "result", segmentName, outputDescriptorType, outputVkFormat,
+                                               view)
+                                    .failed()) {
+                                return WalkResult::interrupt();
+                            }
                             appendAttachment(
                                 _resourcePlan.sequenceOutputAttachments, segmentId, result, true,
                                 makeResourceKey(ResourceCategory::OUTPUT, view,
@@ -528,33 +622,46 @@ LogicalResult ResourcePlanner::collectSequenceOutputs() {
     return success();
 }
 
-void ResourcePlanner::finalizePlannedValues() {
+LogicalResult ResourcePlanner::finalizePlannedValues() {
     for (auto operand : _sequenceOp.getArguments()) {
-        finalizePlannedValue(operand);
+        if (finalizePlannedValue(operand).failed()) {
+            return failure();
+        }
     }
     for (auto value : _resourcePlan.intermediateValues) {
-        finalizePlannedValue(value);
+        if (finalizePlannedValue(value).failed()) {
+            return failure();
+        }
     }
     for (auto operand : _sequenceOutputOp->getOperands()) {
-        finalizePlannedValue(operand);
+        if (finalizePlannedValue(operand).failed()) {
+            return failure();
+        }
     }
+    return success();
 }
 
-void ResourcePlanner::finalizePlannedValue(Value value) {
+LogicalResult ResourcePlanner::finalizePlannedValue(Value value) {
     auto planIt = _resourcePlan.plannedValues.find(value);
     if (planIt == _resourcePlan.plannedValues.end()) {
-        return;
+        return success();
     }
 
     auto &plan = planIt->second;
     if (plan.resourceOrder.empty()) {
-        return;
+        return success();
     }
 
+    if (plan.resourceOrder.size() > 1 && llvm::any_of(plan.resourceOrder, [](const ResourceKey &key) {
+            return key.view.scaledTensorConfig.has_value();
+        })) {
+        return _sequenceOp.emitError("block scaled tensor resource alias groups are not supported");
+    }
     if (plan.resourceOrder.size() > 1 && !plan.aliasGroupId.has_value()) {
         assert(_nextAliasGroupId != INVALID_ALIAS_GROUP_ID && "exhausted alias group ids");
         plan.aliasGroupId = _nextAliasGroupId++;
     }
+    return success();
 }
 
 ResourcePlanEncoder::ResourcePlanEncoder(const ResourcePlan &resourcePlan, VGFBuilder &vgfBuilder)
@@ -625,6 +732,16 @@ void ResourcePlanEncoder::addSamplerConfig(ResourceRef resourceRef, const Resour
                                               samplerConfig.borderColor);
 }
 
+void ResourcePlanEncoder::addScaledTensorConfig(ResourceRef resourceRef, const ResourceKey &resourceKey) {
+    if (!resourceKey.view.scaledTensorConfig.has_value()) {
+        return;
+    }
+
+    const auto &scaledTensorConfig = *resourceKey.view.scaledTensorConfig;
+    _vgfBuilder.getEncoder().AddScaledTensorConfig(resourceRef, scaledTensorConfig.blockShape,
+                                                   scaledTensorConfig.scaleFormat);
+}
+
 ResourceRef ResourcePlanEncoder::getOrCreateResource(Value value, const ResourceKey &resourceKey) {
     auto planIt = _resourcePlan.plannedValues.find(value);
     assert(planIt != _resourcePlan.plannedValues.end());
@@ -635,6 +752,7 @@ ResourceRef ResourcePlanEncoder::getOrCreateResource(Value value, const Resource
     if (resourceIt == encodedValue.resources.end()) {
         const ResourceRef resourceRef = createResource(plan, resourceKey);
         addSamplerConfig(resourceRef, resourceKey);
+        addScaledTensorConfig(resourceRef, resourceKey);
         resourceIt = encodedValue.resources.emplace(resourceKey, resourceRef).first;
     }
 

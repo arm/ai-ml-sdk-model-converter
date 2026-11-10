@@ -42,16 +42,32 @@ struct SamplerConfigValues {
     }
 };
 
+struct ScaledTensorConfigValues {
+    ScaleFormat scaleFormat = ScaleFormat::E8M0;
+    std::vector<uint32_t> blockShape;
+
+    bool operator==(const ScaledTensorConfigValues &other) const {
+        return scaleFormat == other.scaleFormat && blockShape == other.blockShape;
+    }
+
+    bool operator<(const ScaledTensorConfigValues &other) const {
+        return std::tie(scaleFormat, blockShape) < std::tie(other.scaleFormat, other.blockShape);
+    }
+};
+
 struct ResourceViewKey {
     DescriptorType descriptorType;
     FormatType vkFormat;
+    std::optional<ScaledTensorConfigValues> scaledTensorConfig = std::nullopt;
 
     bool operator==(const ResourceViewKey &other) const {
-        return descriptorType == other.descriptorType && vkFormat == other.vkFormat;
+        return descriptorType == other.descriptorType && vkFormat == other.vkFormat &&
+               scaledTensorConfig == other.scaledTensorConfig;
     }
 
     bool operator<(const ResourceViewKey &other) const {
-        return std::tie(descriptorType, vkFormat) < std::tie(other.descriptorType, other.vkFormat);
+        return std::tie(descriptorType, vkFormat, scaledTensorConfig) <
+               std::tie(other.descriptorType, other.vkFormat, other.scaledTensorConfig);
     }
 };
 
@@ -65,8 +81,7 @@ struct ResourceKey {
     }
 
     bool operator<(const ResourceKey &other) const {
-        return std::tie(category, view.descriptorType, view.vkFormat, samplerConfig) <
-               std::tie(other.category, other.view.descriptorType, other.view.vkFormat, other.samplerConfig);
+        return std::tie(category, view, samplerConfig) < std::tie(other.category, other.view, other.samplerConfig);
     }
 };
 
@@ -133,12 +148,17 @@ class ResourcePlanner {
     const ResourcePlan &getPlan() const;
 
   private:
+    LogicalResult verifySegmentResourceSharing() const;
     bool isSequenceInputOperand(Value operand) const;
     bool isSequenceOutputOperand(Value operand) const;
     bool getSequenceInputUnsigned(uint32_t inputIndex) const;
     bool getSequenceOutputUnsigned(uint32_t outputIndex) const;
     FailureOr<std::vector<int64_t>> getValueShape(Value value) const;
+    LogicalResult decodeScaledTensorType(Type &valueType, StringRef role, StringRef segmentName,
+                                         std::optional<ScaledTensorConfigValues> &scaledTensorConfig) const;
     LogicalResult getGraphView(Value value, StringRef role, StringRef segmentName, ResourceViewKey &view) const;
+    LogicalResult getComputeView(Value value, StringRef role, StringRef segmentName, Attribute descriptorType,
+                                 Attribute format, ResourceViewKey &view) const;
     static ResourceKey makeResourceKey(ResourceCategory category, const ResourceViewKey &view,
                                        std::optional<SamplerConfigValues> samplerConfig = std::nullopt);
     FailureOr<PlannedValue *> ensurePlannedValue(Value value, std::optional<uint32_t> bindingIndex = std::nullopt);
@@ -151,8 +171,8 @@ class ResourcePlanner {
     bool hasResourceCategory(const PlannedValue &plan, ResourceCategory category) const;
     std::optional<ResourceKey> getCanonicalResource(const PlannedValue &plan, ResourceCategory category) const;
     LogicalResult collectSequenceOutputs();
-    void finalizePlannedValues();
-    void finalizePlannedValue(Value value);
+    LogicalResult finalizePlannedValues();
+    LogicalResult finalizePlannedValue(Value value);
 
     vgf::SequenceOp &_sequenceOp;
     Operation *_sequenceOutputOp = nullptr;
@@ -173,6 +193,7 @@ class ResourcePlanEncoder {
     void addBindingToDescriptorSet(SegmentId segmentId, int64_t descriptorSet, BindingSlotRef bindingSlotRef);
     ResourceRef createResource(const PlannedValue &plan, const ResourceKey &resourceKey);
     void addSamplerConfig(ResourceRef resourceRef, const ResourceKey &resourceKey);
+    void addScaledTensorConfig(ResourceRef resourceRef, const ResourceKey &resourceKey);
     ResourceRef getOrCreateResource(Value value, const ResourceKey &resourceKey);
     BindingSlotRef getOrCreateLogicalBindingSlot(Value value, const ResourceKey &resourceKey);
     BindingSlotRef getOrCreateDescriptorBindingSlot(Value value, const ResourceKey &resourceKey, uint32_t binding);

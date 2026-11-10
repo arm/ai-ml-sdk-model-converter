@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 import json
+import subprocess
 
 import pytest
 import vgfpy
@@ -15,6 +16,8 @@ from vgf_decoder import VK_FORMAT_R16_SFLOAT_FPENCODING_BFLOAT16_ARM
 from vgf_decoder import VK_FORMAT_R16_SINT
 from vgf_decoder import VK_FORMAT_R16_UINT
 from vgf_decoder import VK_FORMAT_R32_SINT
+
+VK_DESCRIPTOR_TYPE_TENSOR_ARM = 1000460000
 
 
 def io_vk_format_mlir(element_type):
@@ -230,3 +233,142 @@ def test_float_io_resource_formats(
         assert int(vgf.resources.getVkFormat(0)) == expected_format
         assert vgf.resources.getCategory(1) == vgfpy.ResourceCategory.Output
         assert int(vgf.resources.getVkFormat(1)) == expected_format
+
+
+def scaled_passthrough_mlir(
+    value_type="f8E4M3FN",
+    *,
+    scale_type="f8E8M0FNU",
+    block=32,
+    size=64,
+    alias_input_output=False,
+):
+    data_type = f"tensor<{size}x!spirv.arm.tensor_scaled_block<{value_type}, {scale_type}, [{block}]>>"
+    if alias_input_output:
+        function = f"""
+  func.func @main(%input: {data_type}, %ordinary: tensor<4xf32>) -> ({data_type}, tensor<4xf32>) {{
+    %result = tosa.reverse %ordinary axis(0) : (tensor<4xf32>) -> tensor<4xf32>
+    return %input, %result : {data_type}, tensor<4xf32>
+  }}
+"""
+    else:
+        function = f"""
+  func.func @main(%input: {data_type}) -> {data_type} {{
+    return %input : {data_type}
+  }}
+"""
+    return f"""
+module attributes {{
+  spirv.target_env = #spirv.target_env<#spirv.vce<v1.5,
+    [VulkanMemoryModel, Shader, Int64, Float8EXT, Float8UnsignedE8M0EXT, TensorsARM, GraphARM, TensorsBlockScaledARM, ReplicatedCompositesEXT],
+    [SPV_KHR_vulkan_memory_model, SPV_EXT_float8, SPV_EXT_ocp_microscaling_types, SPV_ARM_tensors, SPV_ARM_graph, SPV_ARM_tensors_block_scaled, SPV_EXT_replicated_composites]>, #spirv.resource_limits<>>
+}} {{
+{function}
+}}
+"""
+
+
+@pytest.mark.parametrize(
+    "value_type, value_format",
+    [
+        ("f8E4M3FN", VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E4M3_ARM),
+        ("f8E5M2", VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E5M2_ARM),
+    ],
+)
+def test_scaled_graph_resources(model_converter_exe_path, value_type, value_format):
+    with converted_mlir(
+        model_converter_exe_path, scaled_passthrough_mlir(value_type)
+    ) as vgf:
+        assert vgf.resources.size() == 2
+        assert vgf.modules.size() == 1
+        assert vgf.sequence.modelSequenceTableSize() == 1
+        assert vgf.modules.getModuleType(0) == vgfpy.ModuleType.Graph
+        assert vgf.sequence.getSegmentType(0) == vgfpy.ModuleType.Graph
+        assert vgf.modules.hasSPIRVCode(0)
+
+        bindings = {}
+        for handle, binding, category in [
+            (
+                vgf.sequence.getModelSequenceInputBindingSlotsHandle(),
+                0,
+                vgfpy.ResourceCategory.Input,
+            ),
+            (
+                vgf.sequence.getModelSequenceOutputBindingSlotsHandle(),
+                1,
+                vgfpy.ResourceCategory.Output,
+            ),
+        ]:
+            assert vgf.sequence.getBindingsSize(handle) == 1
+            slots = binding_slots_by_binding(vgf, handle)
+            assert list(slots) == [binding]
+            resource_index = slots[binding]
+            bindings[binding] = resource_index
+            assert vgf.resources.getCategory(resource_index) == category
+            assert (
+                vgf.resources.getDescriptorType(resource_index)
+                == VK_DESCRIPTOR_TYPE_TENSOR_ARM
+            )
+            assert int(vgf.resources.getVkFormat(resource_index)) == value_format
+            assert list(vgf.resources.getTensorShape(resource_index)) == [64]
+            assert vgf.resources.getAliasGroupId(resource_index) is None
+            config = vgf.resources.getScaledTensorConfigHandle(resource_index)
+            assert config is not None
+            assert list(vgf.resources.getScaledTensorConfigBlockShape(config)) == [32]
+            assert (
+                vgf.resources.getScaledTensorConfigScaleFormat(config)
+                == vgfpy.ScaleFormat.E8M0
+            )
+
+        assert bindings[0] != bindings[1]
+        for handle, expected in [
+            (vgf.sequence.getSegmentInputBindingSlotsHandle(0), {0: bindings[0]}),
+            (vgf.sequence.getSegmentOutputBindingSlotsHandle(0), {1: bindings[1]}),
+            (vgf.sequence.getDescriptorBindingSlotsHandle(0, 0), bindings),
+        ]:
+            assert vgf.sequence.getBindingsSize(handle) == len(expected)
+            assert binding_slots_by_binding(vgf, handle) == expected
+
+
+@pytest.mark.parametrize(
+    "mlir, diagnostic",
+    [
+        pytest.param(
+            scaled_passthrough_mlir(alias_input_output=True),
+            "block scaled tensor resource alias groups are not supported",
+            id="scaled-alias",
+        ),
+        pytest.param(
+            scaled_passthrough_mlir(scale_type="f32"),
+            "unsupported scale type",
+            id="unsupported-scale",
+        ),
+        pytest.param(
+            scaled_passthrough_mlir(block=4294967296, size=4294967296),
+            "scaled tensor block dimension exceeds VGF uint32 range",
+            id="block-dimension-overflow",
+        ),
+    ],
+)
+def test_unsupported_scaled_graph_resources(
+    model_converter_exe_path, tmp_path, mlir, diagnostic
+):
+    input_path = tmp_path / "input.mlir"
+    output_path = tmp_path / "output.vgf"
+    input_path.write_text(mlir)
+    result = subprocess.run(
+        [
+            model_converter_exe_path,
+            "--input",
+            str(input_path),
+            "--output",
+            str(output_path),
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert diagnostic in result.stderr
+    assert not output_path.exists()
