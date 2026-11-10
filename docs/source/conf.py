@@ -27,9 +27,7 @@ rst_epilog = """
 
 # Enabled extensions
 extensions = [
-    "breathe",
     "sphinx_rtd_theme",
-    "sphinx.ext.autodoc",
     "sphinx.ext.autosectionlabel",
     "myst_parser",
     "sphinxcontrib.plantuml",
@@ -43,11 +41,6 @@ suppress_warnings = [
     "myst.xref_missing",
     "myst.header",
 ]
-# Breathe Configuration
-breathe_projects = {"ModelConverter": "../generated/xml"}
-breathe_default_project = "ModelConverter"
-breathe_domain_by_extension = {"h": "c"}
-
 # Enable RTD theme
 html_theme = "sphinx_rtd_theme"
 

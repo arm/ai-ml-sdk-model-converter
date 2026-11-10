@@ -3,27 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 #
 
-# Shared by the native project and the standalone documentation project.
+# Standalone documentation project.
 get_filename_component(MODEL_CONVERTER_REPO_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 set(MODEL_CONVERTER_DOCS_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}")
 set(MODEL_CONVERTER_DOCS_DIR "${MODEL_CONVERTER_DOCS_BINARY_DIR}/docs")
 list(APPEND CMAKE_MODULE_PATH "${MODEL_CONVERTER_REPO_ROOT}/cmake")
 
-if(MODEL_CONVERTER_DOCS_STANDALONE)
-    find_package(Doxygen 1.9.1 REQUIRED)
-    find_package(Sphinx REQUIRED)
-else()
-    find_package(Doxygen)
-    find_package(Sphinx)
-    if(NOT DOXYGEN_FOUND OR NOT SPHINX_FOUND)
-        message(STATUS "Doxygen or Sphinx is not available. Cannot generate documentation.")
-        return()
-    endif()
-    if(CMAKE_CROSSCOMPILING)
-        message(WARNING "Cannot build the documentation when cross-compiling. Skipping.")
-        return()
-    endif()
-endif()
+find_package(Sphinx REQUIRED)
 
 set(SPHINX_SRC_DIR_IN "${MODEL_CONVERTER_REPO_ROOT}/docs/source")
 set(SPHINX_SRC_DIR "${MODEL_CONVERTER_DOCS_DIR}/in")
@@ -49,16 +35,6 @@ foreach(SRC_IN IN LISTS DOC_SRC_FILES)
     list(APPEND DOC_STAGED_FILES "${DOC_SOURCE_FILE}")
 endforeach()
 
-# Doxygen reads the checked-in top-level src files directly (RECURSIVE=NO).
-file(GLOB DOC_CODE_FILES CONFIGURE_DEPENDS LIST_DIRECTORIES false
-    RELATIVE "${MODEL_CONVERTER_REPO_ROOT}/src"
-    "${MODEL_CONVERTER_REPO_ROOT}/src/*.cpp"
-    "${MODEL_CONVERTER_REPO_ROOT}/src/*.hpp")
-set(DOC_DOXYGEN_FILES)
-foreach(SRC_IN IN LISTS DOC_CODE_FILES)
-    list(APPEND DOC_DOXYGEN_FILES "${MODEL_CONVERTER_REPO_ROOT}/src/${SRC_IN}")
-endforeach()
-
 # Manifests make deletions visible to render commands and remove staged leftovers.
 set(DOC_STAGED_MANIFEST "${MODEL_CONVERTER_DOCS_DIR}/staged-files.txt")
 if(EXISTS "${DOC_STAGED_MANIFEST}")
@@ -73,13 +49,8 @@ if(EXISTS "${DOC_STAGED_MANIFEST}")
 endif()
 list(JOIN DOC_STAGED_FILES "\n" DOC_STAGED_CONTENT)
 file(CONFIGURE OUTPUT "${DOC_STAGED_MANIFEST}" CONTENT "${DOC_STAGED_CONTENT}\n" @ONLY)
-set(DOC_DOXYGEN_MANIFEST "${MODEL_CONVERTER_DOCS_DIR}/doxygen-inputs.txt")
-list(JOIN DOC_DOXYGEN_FILES "\n" DOC_DOXYGEN_CONTENT)
-file(CONFIGURE OUTPUT "${DOC_DOXYGEN_MANIFEST}" CONTENT "${DOC_DOXYGEN_CONTENT}\n" @ONLY)
-
-include("${MODEL_CONVERTER_REPO_ROOT}/cmake/doxygen.cmake")
 include("${MODEL_CONVERTER_REPO_ROOT}/cmake/sphinx.cmake")
 
 add_custom_target(model_converter_doc ALL
-    DEPENDS model_converter_doxy_doc model_converter_sphx_doc
+    DEPENDS model_converter_sphx_doc
     SOURCES "${SPHINX_SRC_DIR}/index.rst")

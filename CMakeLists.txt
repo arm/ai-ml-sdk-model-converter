@@ -35,7 +35,6 @@ endif()
 # Options
 #############################################################################
 
-option(MODEL_CONVERTER_BUILD_DOCS "Build documentation" OFF)
 option(MODEL_CONVERTER_BUILD_TESTS "Build Model Converter tests" OFF)
 option(MODEL_CONVERTER_ENABLE_COVERAGE "Enable coverage build" OFF)
 option(MODEL_CONVERTER_ENABLE_LTO "Enable Link Time Optimization when CMAKE_BUILD_TYPE=Release" ON)
@@ -221,10 +220,6 @@ add_executable(${MODEL_CONVERTER_NAMESPACE}::model-converter ALIAS model-convert
 
 install(TARGETS model-converter EXPORT ${MODEL_CONVERTER_PACKAGE_NAME}Config)
 
-if(ML_SDK_BUILD_DOCS OR MODEL_CONVERTER_BUILD_DOCS)
-    include(docs/docs.cmake)
-endif()
-unset(MODEL_CONVERTER_BUILD_DOCS CACHE)
 
 if(MODEL_CONVERTER_BUILD_TESTS)
     add_custom_target(model-converter-tests ALL DEPENDS vgfpy)
