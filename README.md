@@ -144,20 +144,19 @@ If the components are in their default locations, it is not necessary to specify
 the `--vgf-lib-path`, `--flatbuffers-path`, `--argparse-path`,
 `--tosa-tools-path`, and `--external-llvm` options.
 
-Tests can be enabled and run with `--test` and linting by `--lint`. To enable
-tests and documentation building python dependencies must be installed:
+Tests can be enabled and run with `--test` and linting by `--lint`. Install
+their Python dependencies with:
 
 ```bash
 uv sync --locked --no-install-project --no-default-groups --group test --group tooling
 ```
 
 Run build commands with `uv run --no-sync python scripts/build.py` to use the
-locked environment. To build documentation, pass `--doc`; Doxygen, PlantUML,
-a compatible Java runtime, and Graphviz must also be installed on the machine.
+locked environment.
 
-To build only documentation without configuring or compiling Model Converter,
-use a separate CMake build directory. Doxygen 1.9.1 or newer, Ninja, and the
-locked tooling environment are required:
+To build documentation without configuring or compiling Model Converter, use a
+separate CMake build directory. Ninja, PlantUML, a compatible Java runtime,
+Graphviz, and the locked tooling environment are required:
 
 ```bash
 uv sync --locked --no-install-project --no-default-groups --group tooling
@@ -166,8 +165,8 @@ cmake --build build-docs
 ```
 
 Open `build-docs/docs/out/index.html` to view the result. Keep `build-docs`
-separate from the native build directory; `--doc` continues to use the native
-build during the migration.
+separate from the native build directory. The native build wrapper no longer
+builds documentation.
 
 You can install the project build artifacts into a specified location by passing
 the option `--install` with the required path.
