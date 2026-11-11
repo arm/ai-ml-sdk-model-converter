@@ -104,8 +104,12 @@ ResourcePlanner::ResourcePlanner(vgf::SequenceOp &sequenceOp)
 }
 
 LogicalResult ResourcePlanner::buildPlan() {
-    if (verifySegmentResourceSharing().failed() || collectSequenceInputs().failed() ||
-        collectIntermediates().failed() || collectSequenceOutputs().failed()) {
+#ifdef BLOCK_SCALED_TENSOR
+    if (failed(verifySegmentResourceSharing())) {
+        return failure();
+    }
+#endif
+    if (collectSequenceInputs().failed() || collectIntermediates().failed() || collectSequenceOutputs().failed()) {
         return failure();
     }
 
@@ -114,6 +118,7 @@ LogicalResult ResourcePlanner::buildPlan() {
 
 const ResourcePlan &ResourcePlanner::getPlan() const { return _resourcePlan; }
 
+#ifdef BLOCK_SCALED_TENSOR
 LogicalResult ResourcePlanner::verifySegmentResourceSharing() const {
     DenseMap<Value, vgf::SegmentTypeEnum> segmentTypes;
     const WalkResult result = _sequenceOp.walk([&](vgf::SegmentOp segmentOp) {
@@ -140,6 +145,7 @@ LogicalResult ResourcePlanner::verifySegmentResourceSharing() const {
     });
     return success(!result.wasInterrupted());
 }
+#endif
 
 bool ResourcePlanner::isSequenceInputOperand(Value operand) const {
     return std::any_of(_sequenceOp.getArguments().begin(), _sequenceOp.getArguments().end(),
@@ -172,6 +178,7 @@ FailureOr<std::vector<int64_t>> ResourcePlanner::getValueShape(Value value) cons
     return flagAnyDynamicDims(type.getShape());
 }
 
+#ifdef BLOCK_SCALED_TENSOR
 LogicalResult
 ResourcePlanner::decodeScaledTensorType(Type &valueType, StringRef role, StringRef segmentName,
                                         std::optional<ScaledTensorConfigValues> &scaledTensorConfig) const {
@@ -192,6 +199,7 @@ ResourcePlanner::decodeScaledTensorType(Type &valueType, StringRef role, StringR
     }
     return success();
 }
+#endif
 
 LogicalResult ResourcePlanner::getGraphView(Value value, StringRef role, StringRef segmentName,
                                             ResourceViewKey &view) const {
@@ -216,9 +224,11 @@ LogicalResult ResourcePlanner::getGraphView(Value value, StringRef role, StringR
 
     Type valueType = type.getElementType();
     std::optional<ScaledTensorConfigValues> scaledTensorConfig;
+#ifdef BLOCK_SCALED_TENSOR
     if (decodeScaledTensorType(valueType, role, segmentName, scaledTensorConfig).failed()) {
         return failure();
     }
+#endif
 
     VGFBuilder::VkFormat vkFormat;
     if (VGFBuilder::mlirTypeToVkFormat(valueType, vkFormat, isUnsigned).failed()) {
@@ -229,10 +239,12 @@ LogicalResult ResourcePlanner::getGraphView(Value value, StringRef role, StringR
     return success();
 }
 
-LogicalResult ResourcePlanner::getComputeView(Value value, StringRef role, StringRef segmentName,
-                                              Attribute descriptorType, Attribute format, ResourceViewKey &view) const {
+LogicalResult ResourcePlanner::getComputeView([[maybe_unused]] Value value, [[maybe_unused]] StringRef role,
+                                              [[maybe_unused]] StringRef segmentName, Attribute descriptorType,
+                                              Attribute format, ResourceViewKey &view) const {
     view = {NameToDescriptorType(llvm::cast<StringAttr>(descriptorType).getValue().str()),
             NameToFormatType(llvm::cast<StringAttr>(format).getValue().str())};
+#ifdef BLOCK_SCALED_TENSOR
     const auto type = llvm::dyn_cast<ShapedType>(value.getType());
     if (!type || !llvm::isa<spirv::TensorScaledBlockArmType>(type.getElementType())) {
         return success();
@@ -255,6 +267,7 @@ LogicalResult ResourcePlanner::getComputeView(Value value, StringRef role, Strin
                    "block scaled compute resource value format does not match its tensor value type for ")
                << role << " in segment " << segmentName;
     }
+#endif
     return success();
 }
 

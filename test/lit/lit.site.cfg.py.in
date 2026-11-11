@@ -10,6 +10,7 @@ config.model_converter_lit_source_dir = "@CMAKE_CURRENT_SOURCE_DIR@"
 config.model_converter_lit_binary_dir = "@CMAKE_CURRENT_BINARY_DIR@"
 config.llvm_tools_dir = "@MODEL_CONVERTER_LIT_TOOLS_DIR@"
 config.llvm_shlib_ext = "@SHLIBEXT@"
+config.block_scaled_tensor = "@BLOCK_SCALED_TENSOR@" == "ON"
 
 import lit.llvm
 lit.llvm.initialize(lit_config, config)

@@ -126,6 +126,18 @@ def resource_formats(vgf, binding_slots):
     ]
 
 
+@pytest.fixture(scope="module")
+def block_scaled_tensors_enabled(request):
+    cache = request.config.getoption("--build-dir") / "CMakeCache.txt"
+    enabled = any(
+        line.startswith("BLOCK_SCALED_TENSOR:")
+        and line.partition("=")[2].upper() in {"1", "ON", "TRUE", "YES"}
+        for line in cache.read_text().splitlines()
+    )
+    if not enabled:
+        pytest.skip("Model Converter was built without block-scaled tensor support")
+
+
 @pytest.mark.parametrize(
     "input_unsigned, output_unsigned, expected_input_format, expected_output_format",
     [
@@ -275,6 +287,7 @@ module attributes {{
         ("f8E5M2", VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E5M2_ARM),
     ],
 )
+@pytest.mark.usefixtures("block_scaled_tensors_enabled")
 def test_scaled_graph_resources(model_converter_exe_path, value_type, value_format):
     with converted_mlir(
         model_converter_exe_path, scaled_passthrough_mlir(value_type)
@@ -350,6 +363,7 @@ def test_scaled_graph_resources(model_converter_exe_path, value_type, value_form
         ),
     ],
 )
+@pytest.mark.usefixtures("block_scaled_tensors_enabled")
 def test_unsupported_scaled_graph_resources(
     model_converter_exe_path, tmp_path, mlir, diagnostic
 ):

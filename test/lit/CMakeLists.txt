@@ -31,3 +31,7 @@ add_lit_testsuite(check-model-converter-lit "Running ML SDK Model Converter lit 
         not
 )
 set_target_properties(check-model-converter-lit PROPERTIES FOLDER "Tests")
+
+if(TARGET split-file)
+    add_dependencies(check-model-converter-lit split-file)
+endif()

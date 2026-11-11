@@ -174,6 +174,7 @@ set(CONVERTER_DRIVER_LIB_DEPENDENCIES
 add_library(model-converter-passes-lib STATIC ${CONVERTER_PASS_LIB_SOURCES})
 target_compile_definitions(model-converter-passes-lib PRIVATE
     $<$<BOOL:${MODEL_CONVERTER_LOG_TRACE_MASK}>:LOG_TRACE_ENABLE=${MODEL_CONVERTER_LOG_TRACE_MASK}>
+    $<$<BOOL:${BLOCK_SCALED_TENSOR}>:BLOCK_SCALED_TENSOR>
 )
 target_include_directories(model-converter-passes-lib PUBLIC src)
 target_include_directories(model-converter-passes-lib SYSTEM PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
