@@ -280,6 +280,46 @@ module attributes {{
 """
 
 
+def scaled_unsigned_custom_shader_mlir():
+    data_type = "tensor<64x!spirv.arm.tensor_scaled_block<i8, f8E8M0FNU, [32]>>"
+    return f"""
+module {{
+  vgf.sequence @main(%input: {data_type} {{mlsdk.unsigned_input_output = true}}) -> ({data_type} {{mlsdk.unsigned_input_output = true}}) {{
+    vgf.segment @compute_segment_0(%arg0: {data_type}) -> {data_type} attributes {{segment_id = 0 : ui32, segment_type = 1 : i32}} {{
+      %0 = vgf.shader_placeholder(%arg0) <shader_name = "unsigned_scaled_shader", entry_point = "main", input_bindings = [0], output_bindings = [1], input_descriptor_sets = [0], output_descriptor_sets = [0], input_vk_descriptor_types = ["VK_DESCRIPTOR_TYPE_TENSOR_ARM"], output_vk_descriptor_types = ["VK_DESCRIPTOR_TYPE_TENSOR_ARM"], input_vk_formats = ["VK_FORMAT_R8_UINT"], output_vk_formats = ["VK_FORMAT_R8_UINT"], workgroup_sizes = [1, 1, 1]> : ({data_type}) -> {data_type}
+      vgf.segment_output %0 : {data_type}
+    }}
+    %0 = vgf.run_segment @compute_segment_0 : (%input) ({data_type}) -> {data_type} {{segment_id = 0 : ui32}}
+    vgf.sequence_output %0 : {data_type}
+  }}
+}}
+"""
+
+
+def scaled_mixed_segment_mlir():
+    data_type = "tensor<64x!spirv.arm.tensor_scaled_block<f8E4M3FN, f8E8M0FNU, [32]>>"
+    target_env = "#spirv.target_env<#spirv.vce<v1.5, [VulkanMemoryModel, Shader, Int64, Float8EXT, Float8UnsignedE8M0EXT, TensorsARM, GraphARM, TensorsBlockScaledARM, ReplicatedCompositesEXT], [SPV_KHR_vulkan_memory_model, SPV_EXT_float8, SPV_EXT_ocp_microscaling_types, SPV_ARM_tensors, SPV_ARM_graph, SPV_ARM_tensors_block_scaled, SPV_EXT_replicated_composites]>, #spirv.resource_limits<>>"
+    return f"""
+module attributes {{spirv.target_env = {target_env}}} {{
+  vgf.sequence @main(%input: {data_type}) -> {data_type} {{
+    vgf.segment @graph_segment(%arg0: {data_type}) -> {data_type} attributes {{segment_id = 0 : ui32, segment_type = 0 : i32}} {{
+      func.func @graph_segment(%arg1: {data_type}) -> {data_type} attributes {{segment_id = 0 : ui32}} {{
+        return %arg1 : {data_type}
+      }}
+      vgf.segment_output
+    }}
+    %graphResult = vgf.run_segment @graph_segment : (%input) ({data_type}) -> {data_type} {{segment_id = 0 : ui32}}
+    vgf.segment @compute_segment(%arg0: {data_type}) -> {data_type} attributes {{segment_id = 1 : ui32, segment_type = 1 : i32}} {{
+      %shader = vgf.shader_placeholder(%arg0) <shader_name = "scaled_shader", entry_point = "main", input_bindings = [0], output_bindings = [1], input_descriptor_sets = [0], output_descriptor_sets = [0], input_vk_descriptor_types = ["VK_DESCRIPTOR_TYPE_TENSOR_ARM"], output_vk_descriptor_types = ["VK_DESCRIPTOR_TYPE_TENSOR_ARM"], input_vk_formats = ["VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E4M3_ARM"], output_vk_formats = ["VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E4M3_ARM"], workgroup_sizes = [1, 1, 1]> : ({data_type}) -> {data_type}
+      vgf.segment_output %shader : {data_type}
+    }}
+    %computeResult = vgf.run_segment @compute_segment : (%input) ({data_type}) -> {data_type} {{segment_id = 1 : ui32}}
+    vgf.sequence_output %computeResult : {data_type}
+  }}
+}}
+"""
+
+
 @pytest.mark.parametrize(
     "value_type, value_format",
     [
@@ -343,12 +383,38 @@ def test_scaled_graph_resources(model_converter_exe_path, value_type, value_form
             assert binding_slots_by_binding(vgf, handle) == expected
 
 
+@pytest.mark.usefixtures("block_scaled_tensors_enabled")
+def test_unsigned_scaled_compute_resources(model_converter_exe_path):
+    with converted_mlir(
+        model_converter_exe_path, scaled_unsigned_custom_shader_mlir()
+    ) as vgf:
+        assert vgf.sequence.modelSequenceTableSize() == 1
+        assert vgf.sequence.getSegmentType(0) == vgfpy.ModuleType.Compute
+        assert vgf.resources.size() == 2
+
+        for index, category in enumerate(
+            [vgfpy.ResourceCategory.Input, vgfpy.ResourceCategory.Output]
+        ):
+            assert vgf.resources.getCategory(index) == category
+            assert (
+                vgf.resources.getDescriptorType(index) == VK_DESCRIPTOR_TYPE_TENSOR_ARM
+            )
+            assert int(vgf.resources.getVkFormat(index)) == VK_FORMAT_R8_UINT
+            config = vgf.resources.getScaledTensorConfigHandle(index)
+            assert config is not None
+            assert list(vgf.resources.getScaledTensorConfigBlockShape(config)) == [32]
+            assert (
+                vgf.resources.getScaledTensorConfigScaleFormat(config)
+                == vgfpy.ScaleFormat.E8M0
+            )
+
+
 @pytest.mark.parametrize(
     "mlir, diagnostic",
     [
         pytest.param(
             scaled_passthrough_mlir(alias_input_output=True),
-            "block scaled tensor resource alias groups are not supported",
+            "block-scaled tensor resource alias groups are not supported",
             id="scaled-alias",
         ),
         pytest.param(
@@ -361,10 +427,15 @@ def test_scaled_graph_resources(model_converter_exe_path, value_type, value_form
             "scaled tensor block dimension exceeds VGF uint32 range",
             id="block-dimension-overflow",
         ),
+        pytest.param(
+            scaled_mixed_segment_mlir(),
+            "block-scaled tensor resources shared between graph and compute segments are not supported",
+            id="mixed-segment-types",
+        ),
     ],
 )
 @pytest.mark.usefixtures("block_scaled_tensors_enabled")
-def test_unsupported_scaled_graph_resources(
+def test_unsupported_scaled_resources(
     model_converter_exe_path, tmp_path, mlir, diagnostic
 ):
     input_path = tmp_path / "input.mlir"

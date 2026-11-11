@@ -148,24 +148,25 @@ class ResourcePlanner {
     const ResourcePlan &getPlan() const;
 
   private:
-    LogicalResult verifySegmentResourceSharing() const;
     bool isSequenceInputOperand(Value operand) const;
     bool isSequenceOutputOperand(Value operand) const;
     bool getSequenceInputUnsigned(uint32_t inputIndex) const;
     bool getSequenceOutputUnsigned(uint32_t outputIndex) const;
+    bool isUnsignedValue(Value value) const;
     FailureOr<std::vector<int64_t>> getValueShape(Value value) const;
-    LogicalResult decodeScaledTensorType(Type &valueType, StringRef role, StringRef segmentName,
-                                         std::optional<ScaledTensorConfigValues> &scaledTensorConfig) const;
-    LogicalResult getGraphView(Value value, StringRef role, StringRef segmentName, ResourceViewKey &view) const;
-    LogicalResult getComputeView(Value value, StringRef role, StringRef segmentName, Attribute descriptorType,
-                                 Attribute format, ResourceViewKey &view) const;
+    FailureOr<ResourceViewKey> getResourceViewFromType(Value value, StringRef role, StringRef segmentName) const;
+    FailureOr<ResourceViewKey> getResourceViewFromShaderPlaceholder(Value value, StringRef role, StringRef segmentName,
+                                                                    Attribute descriptorType, Attribute format) const;
+    LogicalResult addScaledTensorConfigToComputeView(Value value, StringRef role, StringRef segmentName,
+                                                     ResourceViewKey &view) const;
     static ResourceKey makeResourceKey(ResourceCategory category, const ResourceViewKey &view,
                                        std::optional<SamplerConfigValues> samplerConfig = std::nullopt);
     FailureOr<PlannedValue *> ensurePlannedValue(Value value, std::optional<uint32_t> bindingIndex = std::nullopt);
     void appendResourceRequirement(PlannedValue &plan, const ResourceKey &resourceKey, bool isProducer);
-    void appendAttachment(std::vector<SegmentAttachment> &attachments, SegmentId segmentId, Value value, bool isOutput,
-                          const ResourceKey &resourceKey, std::optional<int64_t> descriptorSet = std::nullopt,
-                          std::optional<uint32_t> descriptorBinding = std::nullopt, bool isProducer = false);
+    LogicalResult appendAttachment(std::vector<SegmentAttachment> &attachments, vgf::SegmentOp segmentOp, Value value,
+                                   bool isOutput, const ResourceKey &resourceKey,
+                                   std::optional<int64_t> descriptorSet = std::nullopt,
+                                   std::optional<uint32_t> descriptorBinding = std::nullopt, bool isProducer = false);
     LogicalResult collectSequenceInputs();
     LogicalResult collectIntermediates();
     bool hasResourceCategory(const PlannedValue &plan, ResourceCategory category) const;
@@ -177,6 +178,7 @@ class ResourcePlanner {
     vgf::SequenceOp &_sequenceOp;
     Operation *_sequenceOutputOp = nullptr;
     DenseMap<Value, uint32_t> _sequenceOutputIndices;
+    DenseMap<Value, vgf::SegmentTypeEnum> _scaledSegmentTypes;
     ResourcePlan _resourcePlan;
     AliasGroupId _nextAliasGroupId = 0;
     uint32_t _bindingId = 0;
