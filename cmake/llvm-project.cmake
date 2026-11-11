@@ -8,6 +8,13 @@ set(LLVM_VERSION "unknown")
 set(MLIR_VERSION "unknown")
 
 option(MODEL_CONVERTER_APPLY_LLVM_PATCH "Apply LLVM patch" ON)
+# The internal LLVM used without the bundled patch provides block-scaled tensors.
+if(MODEL_CONVERTER_APPLY_LLVM_PATCH)
+    set(BLOCK_SCALED_TENSOR OFF)
+else()
+    set(BLOCK_SCALED_TENSOR ON)
+endif()
+set(BLOCK_SCALED_TENSOR ${BLOCK_SCALED_TENSOR} CACHE INTERNAL "Block-scaled tensor support" FORCE)
 
 if(EXISTS ${LLVM_PATH}/llvm/CMakeLists.txt)
     if(MODEL_CONVERTER_APPLY_LLVM_PATCH)

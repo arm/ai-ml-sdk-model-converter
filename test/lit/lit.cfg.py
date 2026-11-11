@@ -13,6 +13,9 @@ config.suffixes = [".mlir"]
 config.test_source_root = config.model_converter_lit_source_dir
 config.test_exec_root = config.model_converter_lit_binary_dir
 
+if config.block_scaled_tensor:
+    config.available_features.add("block-scaled-tensors")
+
 config.excludes = [
     "Inputs",
     "CMakeLists.txt",
@@ -34,6 +37,7 @@ tools = [
     "FileCheck",
     "not",
     "count",
+    "split-file",
 ]
 
 llvm_config.add_tool_substitutions(tools, tool_dirs)
