@@ -6,6 +6,7 @@
 #include "conversion/resource_planner.hpp"
 
 #include "mlir/Dialect/SPIRV/IR/SPIRVTypes.h"
+#include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "utils.hpp"
 
@@ -99,21 +100,34 @@ struct ScaledTensorTypeInfo {
     ScaledTensorConfigValues config;
 };
 
-FailureOr<ScaledTensorTypeInfo> decodeScaledTensorType(spirv::TensorScaledBlockArmType type, vgf::SequenceOp sequenceOp,
-                                                       StringRef role, StringRef segmentName) {
-    if (!llvm::isa<Float8E8M0FNUType>(type.getScaleType())) {
+FailureOr<ScaledTensorTypeInfo> decodeScaledTensorType(Type type, vgf::SequenceOp sequenceOp, StringRef role,
+                                                       StringRef segmentName) {
+    ScaledTensorTypeInfo info;
+    Type scaleType;
+    if (auto tosaType = llvm::dyn_cast<tosa::BlockScaledType>(type)) {
+        info.valueType = tosaType.getValueType();
+        info.config.blockShape = {tosa::BlockShapeAttr::getBlockShapeValue(tosaType.getBlockShape())};
+        scaleType = tosaType.getScaleType();
+    }
+    if (auto spirvType = llvm::dyn_cast<spirv::TensorScaledBlockArmType>(type)) {
+        info.valueType = spirvType.getValueType();
+        scaleType = spirvType.getScaleType();
+        for (const uint64_t dim : spirvType.getBlockShape()) {
+            if (dim > std::numeric_limits<uint32_t>::max()) {
+                sequenceOp.emitError("scaled tensor block dimension exceeds VGF uint32 range for ")
+                    << role << " in segment " << segmentName;
+                return failure();
+            }
+            info.config.blockShape.push_back(static_cast<uint32_t>(dim));
+        }
+    }
+    if (!scaleType || !llvm::isa<Float8E8M0FNUType>(scaleType)) {
         sequenceOp.emitError("unsupported scale type for ") << role << " in segment " << segmentName;
         return failure();
     }
-
-    ScaledTensorTypeInfo info{type.getValueType(), {ScaleFormat::E8M0, {}}};
-    for (const uint64_t dim : type.getBlockShape()) {
-        if (dim > std::numeric_limits<uint32_t>::max()) {
-            sequenceOp.emitError("scaled tensor block dimension exceeds VGF uint32 range for ")
-                << role << " in segment " << segmentName;
-            return failure();
-        }
-        info.config.blockShape.push_back(static_cast<uint32_t>(dim));
+    if (!llvm::isa<Float8E4M3FNType, Float8E5M2Type>(info.valueType) && !requiresBlockScaling(info.valueType)) {
+        sequenceOp.emitError("unsupported type for ") << role << " in segment " << segmentName;
+        return failure();
     }
     return info;
 }
@@ -126,8 +140,8 @@ LogicalResult ResourcePlanner::addScaledTensorConfigToComputeView(Value value, S
     if (!type) {
         return success();
     }
-    const auto scaledType = llvm::dyn_cast<spirv::TensorScaledBlockArmType>(type.getElementType());
-    if (!scaledType) {
+    const auto elementType = type.getElementType();
+    if (!llvm::isa<tosa::BlockScaledType, spirv::TensorScaledBlockArmType>(elementType)) {
         return success();
     }
     if (view.descriptorType != DESCRIPTOR_TYPE_TENSOR_ARM) {
@@ -135,13 +149,13 @@ LogicalResult ResourcePlanner::addScaledTensorConfigToComputeView(Value value, S
                << role << " in segment " << segmentName;
     }
 
-    auto info = decodeScaledTensorType(scaledType, _sequenceOp, role, segmentName);
+    auto info = decodeScaledTensorType(elementType, _sequenceOp, role, segmentName);
     if (failed(info)) {
         return failure();
     }
 
     VGFBuilder::VkFormat expectedFormat;
-    if (VGFBuilder::mlirTypeToVkFormat(info->valueType, expectedFormat, isUnsignedValue(value), true).failed()) {
+    if (VGFBuilder::mlirTypeToVkFormat(info->valueType, expectedFormat, isUnsignedValue(value)).failed()) {
         return _sequenceOp.emitError("unsupported type for ") << role << " in segment " << segmentName;
     }
     if (view.vkFormat != static_cast<FormatType>(expectedFormat)) {
@@ -217,28 +231,30 @@ FailureOr<std::vector<int64_t>> ResourcePlanner::getValueShape(Value value) cons
 FailureOr<ResourceViewKey> ResourcePlanner::getResourceViewFromType(Value value, StringRef role,
                                                                     StringRef segmentName) const {
     VGFBuilder::VkFormat vkFormat;
-    const ShapedType type = (isSequenceInputOperand(value) || isSequenceOutputOperand(value))
-                                ? llvm::dyn_cast<ShapedType>(value.getType())
-                                : convertShapedType(value.getType());
-    if (!type) {
+    const ShapedType shapedType = (isSequenceInputOperand(value) || isSequenceOutputOperand(value))
+                                      ? llvm::dyn_cast<ShapedType>(value.getType())
+                                      : convertShapedType(value.getType());
+    if (!shapedType) {
         return _sequenceOp.emitError("expected shaped value for ") << role << " in segment " << segmentName;
     }
 
-    Type valueType = type.getElementType();
+    Type type = shapedType.getElementType();
+    if (requiresBlockScaling(type)) {
+        return _sequenceOp.emitError("unsupported type for ") << role << " in segment " << segmentName;
+    }
     std::optional<ScaledTensorConfigValues> scaledTensorConfig;
 #ifdef BLOCK_SCALED_TENSOR
-    if (auto scaledType = llvm::dyn_cast<spirv::TensorScaledBlockArmType>(valueType)) {
-        auto info = decodeScaledTensorType(scaledType, _sequenceOp, role, segmentName);
+    if (llvm::isa<tosa::BlockScaledType, spirv::TensorScaledBlockArmType>(type)) {
+        auto info = decodeScaledTensorType(type, _sequenceOp, role, segmentName);
         if (failed(info)) {
             return failure();
         }
-        valueType = info->valueType;
+        type = info->valueType;
         scaledTensorConfig = info->config;
     }
 #endif
 
-    if (VGFBuilder::mlirTypeToVkFormat(valueType, vkFormat, isUnsignedValue(value), scaledTensorConfig.has_value())
-            .failed()) {
+    if (VGFBuilder::mlirTypeToVkFormat(type, vkFormat, isUnsignedValue(value)).failed()) {
         return _sequenceOp.emitError("unsupported type for ") << role << " in segment " << segmentName;
     }
 
@@ -249,8 +265,7 @@ FailureOr<ResourceViewKey> ResourcePlanner::getResourceViewFromShaderPlaceholder
                                                                                  StringRef segmentName,
                                                                                  Attribute descriptorType,
                                                                                  Attribute format) const {
-    if (auto type = llvm::dyn_cast<ShapedType>(value.getType());
-        type && VGFBuilder::requiresBlockScaling(type.getElementType())) {
+    if (auto type = llvm::dyn_cast<ShapedType>(value.getType()); type && requiresBlockScaling(type.getElementType())) {
         return _sequenceOp.emitError("value type requires a block-scaled tensor for ")
                << role << " in segment " << segmentName;
     }

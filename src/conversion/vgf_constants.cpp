@@ -35,10 +35,7 @@ namespace {
 struct BlockScaledConstant {
     mlir::Type valueType;
     mlir::Type scaleType;
-    // Shape metadata is consumed by the serialization follow-up.
-    // cppcheck-suppress unusedStructMember
     std::vector<int64_t> shape;
-    // cppcheck-suppress unusedStructMember
     std::vector<uint32_t> blockShape;
     std::vector<uint8_t> valueBytes;
     std::vector<uint8_t> scaleBytes;
@@ -83,7 +80,7 @@ mlir::LogicalResult packValueBytes(mlir::tosa::ConstOp constOp, mlir::Type value
 }
 
 /// Extract packed values and E8M0 scales, reporting errors on the constant.
-[[maybe_unused]] mlir::FailureOr<BlockScaledConstant> extractBlockScaledConst(mlir::tosa::ConstOp constOp) {
+mlir::FailureOr<BlockScaledConstant> extractBlockScaledConst(mlir::tosa::ConstOp constOp) {
     if (!constOp) {
         return mlir::failure();
     }
@@ -114,7 +111,7 @@ mlir::LogicalResult packValueBytes(mlir::tosa::ConstOp constOp, mlir::Type value
         return constOp.emitError("block-scaled CONST scale type must be E8M0");
     }
     if (!mlir::isa<mlir::Float8E4M3FNType, mlir::Float8E5M2Type, mlir::Float6E3M2FNType, mlir::Float6E2M3FNType,
-                   mlir::Float4E2M1FNType, mlir::tosa::mxint8Type>(blockScaledType.getValueType())) {
+                   mlir::Float4E2M1FNType, mlir::tosa::mxint8Type, mlir::OCPInt8Type>(blockScaledType.getValueType())) {
         return constOp.emitError("block-scaled CONST has an unsupported value type");
     }
 
@@ -175,13 +172,10 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
     }
 
   private:
-    template <typename T>
-    void serializeConstantData(uint32_t graphConstantId, T &attr, ResourceRef resource,
+    void serializeConstantData(uint32_t graphConstantId, const void *data, size_t size, ResourceRef resource,
                                int64_t sparsityDimension = -1) {
-        mlir::AccessData(attr, [&](const char *data, size_t size) {
-            ConstantRef constRef = _VGFBuilder->getEncoder().AddConstant(resource, data, size, sparsityDimension);
-            _VGFBuilder->AddConstantBinding(graphConstantId, constRef);
-        });
+        ConstantRef constRef = _VGFBuilder->getEncoder().AddConstant(resource, data, size, sparsityDimension);
+        _VGFBuilder->AddConstantBinding(graphConstantId, constRef);
     }
 
     bool checkIfUnsignedRequired(tosa::ConstOp constOp) {
@@ -209,8 +203,36 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
 
         for (auto &[id, constOp] : constantsById) {
             const ShapedType type = convertShapedType(constOp.getResult().getType());
+#ifdef BLOCK_SCALED_TENSOR
+            if (llvm::isa<tosa::BlockScaledType>(type.getElementType())) {
+                if (constOp->hasAttr("constant_2_4_sparse_on_dimension")) {
+                    return constOp.emitError("block-scaled graph constants cannot be sparse");
+                }
+
+                auto data = extractBlockScaledConst(constOp);
+                if (mlir::failed(data)) {
+                    return mlir::failure();
+                }
+                VGFBuilder::VkFormat format;
+                if (mlir::failed(VGFBuilder::mlirTypeToVkFormat(data->valueType, format, false))) {
+                    return constOp.emitError("unsupported block-scaled graph constant format");
+                }
+
+                const ResourceRef resourceRef =
+                    _VGFBuilder->getEncoder().AddConstantResource(static_cast<FormatType>(format), data->shape, {});
+                _VGFBuilder->getEncoder().AddScaledTensorConfig(resourceRef, data->blockShape, ScaleFormat::E8M0);
+
+                std::vector<uint8_t> payload = std::move(data->valueBytes);
+                payload.reserve(payload.size() + data->scaleBytes.size());
+                payload.insert(payload.end(), data->scaleBytes.begin(), data->scaleBytes.end());
+                serializeConstantData(id, payload.data(), payload.size(), resourceRef);
+                continue;
+            }
+#endif
+
             VGFBuilder::VkFormat vkFormat;
-            if (VGFBuilder::mlirTypeToVkFormat(type.getElementType(), vkFormat, checkIfUnsignedRequired(constOp))
+            if (requiresBlockScaling(type.getElementType()) ||
+                VGFBuilder::mlirTypeToVkFormat(type.getElementType(), vkFormat, checkIfUnsignedRequired(constOp))
                     .failed()) {
                 return constOp.emitError("unsupported type for tosa.const op: ") << type.getElementType();
             }
@@ -226,7 +248,9 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
             }
 
             auto attrVal = llvm::dyn_cast<DenseTypedElementsAttr>(constOp.getValuesAttr());
-            serializeConstantData(id, attrVal, resourceRef, sparsityDimension);
+            mlir::AccessData(attrVal, [&, id = id](const char *data, size_t size) {
+                serializeConstantData(id, data, size, resourceRef, sparsityDimension);
+            });
         }
 
         return mlir::success();
