@@ -8,6 +8,7 @@
 
 - Experimental: Added graph and compute tensor resource serialization for block-scaled
   tensors. Sharing a scaled resource between graph and compute segments and scaled alias groups are currently not supported.
+- Experimental support for MXFP4, MXFP6 and MXINT8 block-scaled tensor formats
 
 ### Breaking Changes
 

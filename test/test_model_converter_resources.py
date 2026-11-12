@@ -8,8 +8,12 @@ import subprocess
 import pytest
 import vgfpy
 from model_converter_helpers import converted_mlir
+from vgf_decoder import VK_FORMAT_OCPMXFP_32_SFLOAT_BLOCK_FPENCODING_FLOAT4E2M1_ARM
+from vgf_decoder import VK_FORMAT_OCPMXFP_32_SFLOAT_BLOCK_FPENCODING_FLOAT6E2M3_ARM
+from vgf_decoder import VK_FORMAT_OCPMXFP_32_SFLOAT_BLOCK_FPENCODING_FLOAT6E3M2_ARM
 from vgf_decoder import VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E4M3_ARM
 from vgf_decoder import VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E5M2_ARM
+from vgf_decoder import VK_FORMAT_R8_SFLOAT_FPENCODING_MXINT8_ARM
 from vgf_decoder import VK_FORMAT_R8_SINT
 from vgf_decoder import VK_FORMAT_R8_UINT
 from vgf_decoder import VK_FORMAT_R16_SFLOAT_FPENCODING_BFLOAT16_ARM
@@ -272,10 +276,26 @@ def scaled_passthrough_mlir(
     return f"""
 module attributes {{
   spirv.target_env = #spirv.target_env<#spirv.vce<v1.5,
-    [VulkanMemoryModel, Shader, Int64, Float8EXT, Float8UnsignedE8M0EXT, TensorsARM, GraphARM, TensorsBlockScaledARM, ReplicatedCompositesEXT],
+    [VulkanMemoryModel, Shader, Int8, Int64, Float4EXT, Float6EXT, Float8EXT, MXInt8EXT, Float8UnsignedE8M0EXT, TensorsARM, GraphARM, TensorsBlockScaledARM, ReplicatedCompositesEXT],
     [SPV_KHR_vulkan_memory_model, SPV_EXT_float8, SPV_EXT_ocp_microscaling_types, SPV_ARM_tensors, SPV_ARM_graph, SPV_ARM_tensors_block_scaled, SPV_EXT_replicated_composites]>, #spirv.resource_limits<>>
 }} {{
 {function}
+}}
+"""
+
+
+def tensor_shader_placeholder_mlir(element_type, value_format):
+    data_type = f"tensor<64x{element_type}>"
+    return f"""
+module {{
+  vgf.sequence @main(%input: {data_type}) -> {data_type} {{
+    vgf.segment @compute_segment(%arg0: {data_type}) -> {data_type} attributes {{segment_id = 0 : ui32, segment_type = 1 : i32}} {{
+      %shader = vgf.shader_placeholder(%arg0) <shader_name = "tensor_shader", entry_point = "main", input_bindings = [0], output_bindings = [1], input_descriptor_sets = [0], output_descriptor_sets = [0], input_vk_descriptor_types = ["VK_DESCRIPTOR_TYPE_TENSOR_ARM"], output_vk_descriptor_types = ["VK_DESCRIPTOR_TYPE_TENSOR_ARM"], input_vk_formats = ["{value_format}"], output_vk_formats = ["{value_format}"], workgroup_sizes = [1, 1, 1]> : ({data_type}) -> {data_type}
+      vgf.segment_output %shader : {data_type}
+    }}
+    %result = vgf.run_segment @compute_segment : (%input) ({data_type}) -> {data_type} {{segment_id = 0 : ui32}}
+    vgf.sequence_output %result : {data_type}
+  }}
 }}
 """
 
@@ -325,6 +345,19 @@ module attributes {{spirv.target_env = {target_env}}} {{
     [
         ("f8E4M3FN", VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E4M3_ARM),
         ("f8E5M2", VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E5M2_ARM),
+        (
+            "f6E2M3FN",
+            VK_FORMAT_OCPMXFP_32_SFLOAT_BLOCK_FPENCODING_FLOAT6E2M3_ARM,
+        ),
+        (
+            "f6E3M2FN",
+            VK_FORMAT_OCPMXFP_32_SFLOAT_BLOCK_FPENCODING_FLOAT6E3M2_ARM,
+        ),
+        (
+            "f4E2M1FN",
+            VK_FORMAT_OCPMXFP_32_SFLOAT_BLOCK_FPENCODING_FLOAT4E2M1_ARM,
+        ),
+        ("ocp_int8", VK_FORMAT_R8_SFLOAT_FPENCODING_MXINT8_ARM),
     ],
 )
 @pytest.mark.usefixtures("block_scaled_tensors_enabled")
@@ -383,23 +416,35 @@ def test_scaled_graph_resources(model_converter_exe_path, value_type, value_form
             assert binding_slots_by_binding(vgf, handle) == expected
 
 
+@pytest.mark.parametrize(
+    "value_type, value_format, value_format_name",
+    [
+        (
+            "f8E4M3FN",
+            VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E4M3_ARM,
+            "VK_FORMAT_R8_SFLOAT_FPENCODING_FLOAT8E4M3_ARM",
+        ),
+        (
+            "ocp_int8",
+            VK_FORMAT_R8_SFLOAT_FPENCODING_MXINT8_ARM,
+            "VK_FORMAT_R8_SFLOAT_FPENCODING_MXINT8_ARM",
+        ),
+    ],
+)
 @pytest.mark.usefixtures("block_scaled_tensors_enabled")
-def test_unsigned_scaled_compute_resources(model_converter_exe_path):
+def test_scaled_compute_resources(
+    model_converter_exe_path, value_type, value_format, value_format_name
+):
+    element_type = f"!spirv.arm.tensor_scaled_block<{value_type}, f8E8M0FNU, [32]>"
     with converted_mlir(
-        model_converter_exe_path, scaled_unsigned_custom_shader_mlir()
+        model_converter_exe_path,
+        tensor_shader_placeholder_mlir(element_type, value_format_name),
     ) as vgf:
         assert vgf.sequence.modelSequenceTableSize() == 1
         assert vgf.sequence.getSegmentType(0) == vgfpy.ModuleType.Compute
         assert vgf.resources.size() == 2
-
-        for index, category in enumerate(
-            [vgfpy.ResourceCategory.Input, vgfpy.ResourceCategory.Output]
-        ):
-            assert vgf.resources.getCategory(index) == category
-            assert (
-                vgf.resources.getDescriptorType(index) == VK_DESCRIPTOR_TYPE_TENSOR_ARM
-            )
-            assert int(vgf.resources.getVkFormat(index)) == VK_FORMAT_R8_UINT
+        for index in range(2):
+            assert int(vgf.resources.getVkFormat(index)) == value_format
             config = vgf.resources.getScaledTensorConfigHandle(index)
             assert config is not None
             assert list(vgf.resources.getScaledTensorConfigBlockShape(config)) == [32]
@@ -431,6 +476,16 @@ def test_unsigned_scaled_compute_resources(model_converter_exe_path):
             scaled_mixed_segment_mlir(),
             "block-scaled tensor resources shared between graph and compute segments are not supported",
             id="mixed-segment-types",
+        ),
+        pytest.param(
+            scaled_unsigned_custom_shader_mlir(),
+            "unsupported type for input in segment",
+            id="unsupported-scaled-unsigned-i8-compute",
+        ),
+        pytest.param(
+            scaled_passthrough_mlir("i8"),
+            "unsupported type for input in segment",
+            id="unsupported-scaled-i8-graph",
         ),
     ],
 )
