@@ -180,6 +180,10 @@ target_include_directories(model-converter-passes-lib PUBLIC src)
 target_include_directories(model-converter-passes-lib SYSTEM PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(model-converter-passes-lib PUBLIC ${CONVERTER_PASS_LIB_DEPENDENCIES})
 target_compile_options(model-converter-passes-lib PRIVATE ${ML_SDK_MODEL_CONVERTER_COMPILE_OPTIONS})
+if(BLOCK_SCALED_TENSOR)
+    target_link_libraries(model-converter-passes-lib PUBLIC tosa::tosa_serialization_lib)
+    target_compile_options(model-converter-passes-lib PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/Zc:preprocessor>)
+endif()
 model_converter_enable_coverage(model-converter-passes-lib)
 
 add_dependencies(model-converter-passes-lib

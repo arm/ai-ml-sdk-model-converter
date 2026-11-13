@@ -22,3 +22,12 @@ if(EXISTS ${TOSA_TOOLS_PATH}/CMakeLists.txt)
 else()
     find_package(tosa_serialize REQUIRED CONFIG)
 endif()
+
+if(BLOCK_SCALED_TENSOR)
+    if(TARGET tosa_serialization_lib AND NOT TARGET tosa::tosa_serialization_lib)
+        add_library(tosa::tosa_serialization_lib ALIAS tosa_serialization_lib)
+    elseif(NOT TARGET tosa::tosa_serialization_lib)
+        find_package(tosa_serialization_lib REQUIRED CONFIG
+            CONFIGS TosaSerializationLibTargets.cmake)
+    endif()
+endif()
