@@ -5,7 +5,7 @@
 
 @LIT_SITE_CFG_IN_HEADER@
 
-config.model_converter_tools_dir = "@CMAKE_BINARY_DIR@"
+config.model_converter_tools_dir = "@PROJECT_BINARY_DIR@"
 config.model_converter_lit_source_dir = "@CMAKE_CURRENT_SOURCE_DIR@"
 config.model_converter_lit_binary_dir = "@CMAKE_CURRENT_BINARY_DIR@"
 config.llvm_tools_dir = "@MODEL_CONVERTER_LIT_TOOLS_DIR@"

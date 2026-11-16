@@ -1,0 +1,19 @@
+@startuml
+' Source: src/conversion/serialize_vgf.cpp and resource_planner.cpp.
+' Illustrative IDs; resource categories/views can require more than one MRT entry.
+top to bottom direction
+skinparam shadowing false
+rectangle "MRT 0\nmodel input" as r0
+rectangle "Segment 0: GRAPH\nmodule 0: tosa.abs" as s0
+rectangle "MRT 1" as r1
+rectangle "Segment 1: COMPUTE\nmodule 1: custom shader" as s1
+rectangle "MRT 2" as r2
+rectangle "Segment 2: GRAPH\nmodule 2: tosa.abs" as s2
+rectangle "MRT 3\nmodel output" as r3
+r0 --> s0
+s0 --> r1
+r1 --> s1 : logical input 1\nset 2 / binding 7
+s1 --> r2 : logical output 2\nset 2 / binding 9
+r2 --> s2
+s2 --> r3
+@enduml
