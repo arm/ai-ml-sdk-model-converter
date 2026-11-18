@@ -21,6 +21,8 @@ void AccessData(const AttrType &attr, std::function<void(const char *, size_t)> 
 
 ShapedType convertShapedType(Type type);
 
+bool requiresBlockScaling(Type type);
+
 std::vector<int64_t> flagAnyDynamicDims(ArrayRef<int64_t> shape);
 
 void SplitString(std::string text, const std::string &del, std::vector<std::string> &parts);

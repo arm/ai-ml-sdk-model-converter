@@ -130,18 +130,6 @@ def resource_formats(vgf, binding_slots):
     ]
 
 
-@pytest.fixture(scope="module")
-def block_scaled_tensors_enabled(request):
-    cache = request.config.getoption("--build-dir") / "CMakeCache.txt"
-    enabled = any(
-        line.startswith("BLOCK_SCALED_TENSOR:")
-        and line.partition("=")[2].upper() in {"1", "ON", "TRUE", "YES"}
-        for line in cache.read_text().splitlines()
-    )
-    if not enabled:
-        pytest.skip("Model Converter was built without block-scaled tensor support")
-
-
 @pytest.mark.parametrize(
     "input_unsigned, output_unsigned, expected_input_format, expected_output_format",
     [
@@ -251,6 +239,13 @@ def test_float_io_resource_formats(
         assert int(vgf.resources.getVkFormat(1)) == expected_format
 
 
+def scaled_element_type(value_type, scale_type="f8E8M0FNU", block=32, dialect="spirv"):
+    if dialect == "tosa":
+        value_type = "!tosa.mxint8" if value_type == "ocp_int8" else value_type
+        return f"!tosa.block_scaled<BLOCK_SHAPE_{block}:{scale_type}:{value_type}>"
+    return f"!spirv.arm.tensor_scaled_block<{value_type}, {scale_type}, [{block}]>"
+
+
 def scaled_passthrough_mlir(
     value_type="f8E4M3FN",
     *,
@@ -258,8 +253,10 @@ def scaled_passthrough_mlir(
     block=32,
     size=64,
     alias_input_output=False,
+    dialect="spirv",
 ):
-    data_type = f"tensor<{size}x!spirv.arm.tensor_scaled_block<{value_type}, {scale_type}, [{block}]>>"
+    element_type = scaled_element_type(value_type, scale_type, block, dialect)
+    data_type = f"tensor<{size}x{element_type}>"
     if alias_input_output:
         function = f"""
   func.func @main(%input: {data_type}, %ordinary: tensor<4xf32>) -> ({data_type}, tensor<4xf32>) {{
@@ -361,9 +358,12 @@ module attributes {{spirv.target_env = {target_env}}} {{
     ],
 )
 @pytest.mark.usefixtures("block_scaled_tensors_enabled")
-def test_scaled_graph_resources(model_converter_exe_path, value_type, value_format):
+@pytest.mark.parametrize("dialect", ["spirv", "tosa"])
+def test_scaled_graph_resources(
+    model_converter_exe_path, value_type, value_format, dialect
+):
     with converted_mlir(
-        model_converter_exe_path, scaled_passthrough_mlir(value_type)
+        model_converter_exe_path, scaled_passthrough_mlir(value_type, dialect=dialect)
     ) as vgf:
         assert vgf.resources.size() == 2
         assert vgf.modules.size() == 1
@@ -432,10 +432,11 @@ def test_scaled_graph_resources(model_converter_exe_path, value_type, value_form
     ],
 )
 @pytest.mark.usefixtures("block_scaled_tensors_enabled")
+@pytest.mark.parametrize("dialect", ["spirv", "tosa"])
 def test_scaled_compute_resources(
-    model_converter_exe_path, value_type, value_format, value_format_name
+    model_converter_exe_path, value_type, value_format, value_format_name, dialect
 ):
-    element_type = f"!spirv.arm.tensor_scaled_block<{value_type}, f8E8M0FNU, [32]>"
+    element_type = scaled_element_type(value_type, dialect=dialect)
     with converted_mlir(
         model_converter_exe_path,
         tensor_shader_placeholder_mlir(element_type, value_format_name),
@@ -486,6 +487,16 @@ def test_scaled_compute_resources(
             scaled_passthrough_mlir("i8"),
             "unsupported type for input in segment",
             id="unsupported-scaled-i8-graph",
+        ),
+        pytest.param(
+            tensor_shader_placeholder_mlir("ocp_int8", "VK_FORMAT_R8_SINT"),
+            "value type requires a block-scaled tensor",
+            id="unscaled-ocp-int8-compute",
+        ),
+        pytest.param(
+            tensor_shader_placeholder_mlir("!tosa.mxint8", "VK_FORMAT_R8_SINT"),
+            "value type requires a block-scaled tensor",
+            id="unscaled-tosa-mxint8-compute",
         ),
     ],
 )

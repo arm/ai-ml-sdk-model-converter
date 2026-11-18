@@ -47,6 +47,18 @@ def model_converter_exe_path(request):
     return exe_path(model_converter_build_path, "model-converter")
 
 
+@pytest.fixture(scope="module")
+def block_scaled_tensors_enabled(request):
+    cache = request.config.getoption("--build-dir") / "CMakeCache.txt"
+    enabled = any(
+        line.startswith("BLOCK_SCALED_TENSOR:")
+        and line.partition("=")[2].upper() in {"1", "ON", "TRUE", "YES"}
+        for line in cache.read_text().splitlines()
+    )
+    if not enabled:
+        pytest.skip("Model Converter was built without block-scaled tensor support")
+
+
 def pytest_configure(config):
     model_converter_build_path = config.getoption("--build-dir")
     vgf_pylib_path = pathlib.Path(model_converter_build_path) / "vgf-lib" / "src"

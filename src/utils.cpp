@@ -5,6 +5,10 @@
 
 #include "utils.hpp"
 
+#ifdef BLOCK_SCALED_TENSOR
+#    include "mlir/Dialect/Tosa/IR/TosaOps.h"
+#endif
+
 #include <algorithm>
 #include <iterator>
 
@@ -57,6 +61,15 @@ ShapedType convertShapedType(Type type) {
         return shapedType.cloneWith(shape, shapedType.getElementType());
     }
     return shapedType;
+}
+
+bool requiresBlockScaling(Type type) {
+#ifdef BLOCK_SCALED_TENSOR
+    if (llvm::isa<OCPInt8Type, tosa::mxint8Type>(type)) {
+        return true;
+    }
+#endif
+    return llvm::isa<Float4E2M1FNType, Float6E2M3FNType, Float6E3M2FNType>(type);
 }
 
 std::vector<int64_t> flagAnyDynamicDims(ArrayRef<int64_t> shape) {
