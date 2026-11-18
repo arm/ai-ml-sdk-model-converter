@@ -12,6 +12,7 @@
 #include "mlir/Pass/PassManager.h"
 #include "llvm/Support/SourceMgr.h"
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -25,6 +26,7 @@ class Compiler {
     struct Options {
         std::string filename_output;
         std::string tosa_fb_schema;
+        std::optional<std::string> target_tosa_version;
         bool tosa_serialize = false;
         bool enable_verifier = false;
         bool enable_statistics = false;

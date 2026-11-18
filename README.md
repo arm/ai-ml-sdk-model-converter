@@ -205,6 +205,18 @@ To generate a VGF file, run:
 ./build/model-converter --input ${INPUT_TOSA} --output ${OUTPUT_VGF}
 ```
 
+The optional `--target-tosa-version` argument accepts a supported TOSA SPIR-V
+instruction-set import name, for example
+`--target-tosa-version=TOSA.001000.1`. Omitting it or supplying an empty value
+sets no target version. Unsupported names are rejected during SPIR-V compilation.
+The option is ignored when producing TOSA FlatBuffer output.
+
+During VGF generation, the converter selects the oldest sufficient TOSA import
+for each generated SPIR-V module and rejects graphs that require a newer import
+than the target. The target is a ceiling: targeting `TOSA.1x.1` still produces
+`TOSA.001000.1` when that is sufficient. Modules without TOSA operations receive
+no TOSA import.
+
 To generate a TOSA flatbuffer file, run:
 
 ```bash

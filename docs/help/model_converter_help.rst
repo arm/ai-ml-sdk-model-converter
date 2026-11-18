@@ -1,4 +1,4 @@
-Usage: ./model-converter [--help] [--version] [--input VAR] [--output VAR] [--tosa-flatbuffer] [--tosa-flatbuffer-schema VAR] [--dump-mlir] [--emit-debug-info] [--disable-replicated-composites] [--require-static-shape] [--experimental-analysis] [--custom-op-domain-to-opcode VAR]... [--enable-bespoke] [--type-narrowing VAR]
+Usage: ./model-converter [--help] [--version] [--input VAR] [--output VAR] [--tosa-flatbuffer] [--tosa-flatbuffer-schema VAR] [--target-tosa-version VAR] [--dump-mlir] [--emit-debug-info] [--disable-replicated-composites] [--require-static-shape] [--experimental-analysis] [--custom-op-domain-to-opcode VAR]... [--enable-bespoke] [--type-narrowing VAR]
 
 Optional arguments:
   -h, --help                       shows help message and exits
@@ -7,6 +7,7 @@ Optional arguments:
   -o, --output                     the output file to write VGF data to [nargs=0..1] [default: "-"]
   --tosa-flatbuffer                write tosa FlatBuffer instead of VGF
   --tosa-flatbuffer-schema         path to the tosa FlatBuffer schema [nargs=0..1] [default: ""]
+  --target-tosa-version            Set the target TOSA import ceiling for VGF output (ignored with --tosa-flatbuffer)
   --dump-mlir                      Dump MLIR between each pass to std error
   --emit-debug-info                Produce debug info instructions in SPIR-V assembly
   --disable-replicated-composites  Do not emit SPIR-V features that require VK_EXT_shader_replicated_composites

@@ -9,6 +9,7 @@
 #include "mlir/Dialect/SPIRV/IR/SPIRVDialect.h"
 #include "mlir/Dialect/SPIRV/Transforms/Passes.h"
 #include "mlir/Dialect/Tosa/Transforms/Passes.h"
+#include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/Passes.h"
 #include "vgf-dialect/VGFDialect.h"
 #include "vgf_builder.hpp"
@@ -187,7 +188,9 @@ void Compiler::SetPassManager() {
                 spirvNestedPM.addPass(mlir::spirv::createSPIRVReplicatedConstantCompositePass());
             }
             spirvNestedPM.addPass(mlir::spirv::createSPIRVLowerABIAttributesPass());
-            spirvNestedPM.addPass(mlir::spirv::createSPIRVUpdateVCEPass());
+            mlir::spirv::SPIRVUpdateVCEPassOptions vceOptions;
+            vceOptions.importLimitOverride = _options.target_tosa_version.value_or("");
+            spirvNestedPM.addPass(mlir::spirv::createSPIRVUpdateVCEPass(vceOptions));
 
             // Sequence Module Passes
             sequenceNestedPM.addPass(
