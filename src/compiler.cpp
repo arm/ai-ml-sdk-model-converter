@@ -188,9 +188,13 @@ void Compiler::SetPassManager() {
                 spirvNestedPM.addPass(mlir::spirv::createSPIRVReplicatedConstantCompositePass());
             }
             spirvNestedPM.addPass(mlir::spirv::createSPIRVLowerABIAttributesPass());
+#ifdef BLOCK_SCALED_TENSOR
             mlir::spirv::SPIRVUpdateVCEPassOptions vceOptions;
             vceOptions.importLimitOverride = _options.target_tosa_version.value_or("");
             spirvNestedPM.addPass(mlir::spirv::createSPIRVUpdateVCEPass(vceOptions));
+#else
+            spirvNestedPM.addPass(mlir::spirv::createSPIRVUpdateVCEPass());
+#endif
 
             // Sequence Module Passes
             sequenceNestedPM.addPass(

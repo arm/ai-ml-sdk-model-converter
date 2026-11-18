@@ -65,8 +65,10 @@ std::unique_ptr<argparse::ArgumentParser> createParser(int argc, const char *arg
         parser->add_argument("--tosa-flatbuffer-schema")
             .help("path to the tosa FlatBuffer schema")
             .default_value(std::string{""});
+#ifdef BLOCK_SCALED_TENSOR
         parser->add_argument("--target-tosa-version")
             .help("Set the target TOSA import ceiling for VGF output (ignored with --tosa-flatbuffer)");
+#endif
         parser->add_argument("--dump-mlir")
             .help("Dump MLIR between each pass to std error")
             .default_value(false)
@@ -148,7 +150,9 @@ int main(int argc, const char *argv[]) {
         options.filename_output = parser->get("--output");
         options.tosa_serialize = parser->get<bool>("--tosa-flatbuffer");
         options.tosa_fb_schema = options.tosa_serialize ? parser->get("--tosa-flatbuffer-schema") : "";
+#ifdef BLOCK_SCALED_TENSOR
         options.target_tosa_version = parser->present<std::string>("--target-tosa-version");
+#endif
         options.dump_mlir = parser->get<bool>("--dump-mlir");
         options.emit_debug_info = parser->get<bool>("--emit-debug-info");
         options.disable_replicated_composites = parser->get<bool>("--disable-replicated-composites");
