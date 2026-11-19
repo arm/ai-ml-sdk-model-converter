@@ -63,10 +63,8 @@ struct TosaCustomOpRewriter : public OpConversionPattern<tosa::CustomOp> {
             return failure();
         }
 
-        json map;
-        try {
-            map = json::parse(adaptor.getImplementationAttrs().str());
-        } catch (...) {
+        const json map = json::parse(adaptor.getImplementationAttrs().str(), nullptr, /*allow_exceptions=*/false);
+        if (map.is_discarded()) {
             llvm::errs() << "Invalid JSON implementation_attrs in tosa.custom op at " << customOp->getLoc() << "\n";
             return failure();
         }
