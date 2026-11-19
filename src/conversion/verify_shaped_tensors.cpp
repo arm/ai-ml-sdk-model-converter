@@ -6,6 +6,8 @@
 #include "include/passes.hpp"
 #include "utils.hpp"
 
+#include "llvm/ADT/STLExtras.h"
+
 #include <memory>
 
 namespace mlir::model_converter_passes {
@@ -23,104 +25,40 @@ class TosaShapedVerificationPass : public impl::TosaShapedVerificationPassBase<T
     void runOnOperation() final {
         auto funcOp = getOperation();
 
-        auto tfEntryFunctionAttr = funcOp->getAttrDictionary().get("tf.entry_function");
-        if (!tfEntryFunctionAttr) {
-            llvm::errs() << "Can't identify input tensors without entry functions.\n";
-            signalPassFailure();
-            return;
-        }
-
-        auto tfEntryFunctionDictionaryAttr = llvm::dyn_cast<DictionaryAttr>(tfEntryFunctionAttr);
-        if (!tfEntryFunctionDictionaryAttr) {
-            llvm::errs() << "\"entry_function\" is not a dictionary attribute.\n";
-            signalPassFailure();
-            return;
-        }
-
-        auto inputsAttr = tfEntryFunctionDictionaryAttr.get("inputs");
-        if (!inputsAttr) {
-            llvm::outs() << "Function has no \"inputs\" attribute. No shape verification is needed.\n";
-            return;
-        }
-
-        auto inputsStringAttr = llvm::dyn_cast<StringAttr>(inputsAttr);
-        if (!inputsStringAttr) {
-            llvm::errs() << "\"inputs\" is not a string attribute.\n";
-            signalPassFailure();
-            return;
-        }
-
-        llvm::SmallVector<llvm::StringRef> inputNames;
-        inputsStringAttr.strref().split(inputNames, ",", -1, false);
-
-        FunctionType funcTy = funcOp.getFunctionType();
-        bool dynamicInputs = false;
-        for (auto [inputName, inputType] : llvm::zip_equal(inputNames, funcTy.getInputs())) {
-            auto tensorType = llvm::dyn_cast<TensorType>(inputType);
-            if (!tensorType) {
-                continue;
+        const auto checkType = [&](Type type, Operation *owner) {
+            const auto tensor = llvm::dyn_cast<TensorType>(type);
+            if (!tensor) {
+                return;
             }
-            if (!isRealizedShape(tensorType.getShape())) {
-                llvm::errs() << "Input tensor \'" << inputName << "\' is dynamic: " << tensorType << "\n";
-                dynamicInputs = true;
-            } else if (!tensorType.hasRank()) {
-                llvm::errs() << "Input tensor \'" << inputName << "\' is unranked: " << tensorType << "\n";
-                dynamicInputs = true;
+            if (!tensor.hasRank()) {
+                owner->emitError() << "Unranked tensor is not supported: " << tensor;
+                signalPassFailure();
+                return;
             }
-        }
+            if (!isRealizedShape(tensor.getShape())) {
+                owner->emitError() << "Tensor dimensions must be statically positive: " << tensor;
+                signalPassFailure();
+            }
+        };
 
-        std::vector<std::string> dynamicOps;
+        // Shape validation must not depend on optional input-name metadata.
+        // Signatures include declarations and results without SSA users.
+        const auto functionType = funcOp.getFunctionType();
+        for (Type type : llvm::concat<const Type>(functionType.getInputs(), functionType.getResults())) {
+            checkType(type, funcOp);
+        }
         funcOp->walk([&](Operation *op) {
-            for (Value operand : op->getOperands()) {
-                auto type = operand.getType();
-                TensorType tensorType;
-                if (!(tensorType = llvm::dyn_cast<TensorType>(type))) {
-                    continue;
-                }
-                // Verify tensor has rank
-                if (!tensorType.hasRank()) {
-                    std::string str;
-                    llvm::raw_string_ostream stream(str);
-                    stream << "(unranked) " << tensorType << " in: " << operand;
-                    dynamicOps.push_back(str);
-                    return;
-                }
-
-                // Verify all elements > 0
-                ArrayRef<int64_t> shape = tensorType.getShape();
-                if (!isRealizedShape(shape)) {
-                    std::string str;
-                    llvm::raw_string_ostream stream(str);
-                    stream << "(dynamic) " << tensorType << " in: " << operand;
-                    dynamicOps.push_back(str);
-                    return;
+            for (Type type : llvm::concat<const Type>(op->getOperandTypes(), op->getResultTypes())) {
+                checkType(type, op);
+            }
+            for (Region &region : op->getRegions()) {
+                for (Block &block : region) {
+                    for (BlockArgument argument : block.getArguments()) {
+                        checkType(argument.getType(), op);
+                    }
                 }
             }
         });
-
-        if (dynamicInputs) {
-            llvm::errs() << "There was found a further " << dynamicOps.size() << " dynamic tensors in the graph.\n";
-            signalPassFailure();
-            return;
-        }
-
-        if (!dynamicOps.empty()) {
-            llvm::errs() << "Dynamic shapes found in the graph, but none of the inputs were dynamic:\n";
-            constexpr size_t showNum = 25;
-            constexpr size_t maxChar = 300;
-            for (size_t i = 0; i < dynamicOps.size() && i < showNum; i++) {
-                llvm::errs() << "\t" << i << "/" << dynamicOps.size() << ": \""
-                             << (dynamicOps[i].size() < maxChar
-                                     ? dynamicOps[i]
-                                     : std::string(dynamicOps[i].substr(0, maxChar)) + "... (Another " +
-                                           std::to_string(dynamicOps[i].size() - maxChar) + " chars.)")
-                             << "\"\n";
-            }
-            if (showNum <= dynamicOps.size()) {
-                llvm::errs() << "... (Another " << (dynamicOps.size() - showNum) << " entries hidden for brevity.)\n";
-            }
-            llvm::errs() << "Hint: The '--shape-override' flag forces shape inference from inputs.\n";
-        }
     }
 };
 

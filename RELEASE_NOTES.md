@@ -4,6 +4,12 @@
 
 ## Unreleased
 
+### Bug Fixes
+
+- Fixed tensor shape verification to reject unranked tensors and non-positive
+  or dynamic dimensions in function signatures, intermediate values, and nested
+  block arguments, even when optional input-name metadata is absent.
+
 ### Converter & Toolchain
 
 - Added experimental extraction support for block-scaled `tosa.const` values, including
