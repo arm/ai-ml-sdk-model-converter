@@ -717,7 +717,7 @@ def test_target_requires_a_value(model_converter_exe_path, tmp_path):
     )
     assert result.returncode != 0
     assert "--target-tosa-version" in result.stderr
-    assert "Error creating parser" in result.stderr
+    assert "requires a value" in result.stderr
     assert not output_path.exists()
 
 

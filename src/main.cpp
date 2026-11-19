@@ -2,19 +2,15 @@
  * SPDX-FileCopyrightText: Copyright 2023-2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  */
-#include <argparse/argparse.hpp>
 #include <vgf/logging.hpp>
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/CommandLine.h"
 
 #include "compiler.hpp"
 #include "version.hpp"
 
-#include <cassert>
-#include <cstdint>
-#include <cstring>
 #include <fstream>
-#include <sstream>
 #include <string_view>
 #include <vector>
 
@@ -29,7 +25,61 @@ using namespace mlsdk::vgflib;
 
 namespace {
 
+namespace cl = llvm::cl;
+
 constexpr std::string_view bespokeCustomOpDomain = "com.arm.bespoke";
+
+struct CommandLineOptions {
+    cl::OptionCategory category{"Model Converter options"};
+    cl::opt<std::string> input{"input", cl::desc("the input file to read TOSA FlatBuffer or TOSA MLIR data from"),
+                               cl::init("-"), cl::cat(category)};
+    cl::alias inputAlias{"i", cl::desc("Alias for --input"), cl::aliasopt(input), cl::cat(category), cl::NotHidden};
+    cl::opt<std::string> output{"output", cl::desc("the output file to write VGF data to"), cl::init("-"),
+                                cl::cat(category)};
+    cl::alias outputAlias{"o", cl::desc("Alias for --output"), cl::aliasopt(output), cl::cat(category), cl::NotHidden};
+    cl::opt<bool> tosaFlatbuffer{"tosa-flatbuffer", cl::desc("write tosa FlatBuffer instead of VGF"),
+                                 cl::ValueDisallowed, cl::cat(category)};
+    cl::opt<std::string> tosaFlatbufferSchema{"tosa-flatbuffer-schema", cl::desc("path to the tosa FlatBuffer schema"),
+                                              cl::cat(category)};
+#ifdef BLOCK_SCALED_TENSOR
+    cl::opt<std::string> targetTosaVersion{
+        "target-tosa-version",
+        cl::desc("Set the target TOSA import ceiling for VGF output (ignored with --tosa-flatbuffer)"),
+        cl::cat(category)};
+#endif
+    cl::opt<bool> dumpMlir{"dump-mlir", cl::desc("Dump MLIR between each pass to std error"), cl::ValueDisallowed,
+                           cl::cat(category)};
+    cl::opt<bool> emitDebugInfo{"emit-debug-info", cl::desc("Produce debug info instructions in SPIR-V assembly"),
+                                cl::ValueDisallowed, cl::cat(category)};
+    cl::opt<bool> disableReplicatedComposites{
+        "disable-replicated-composites",
+        cl::desc("Do not emit SPIR-V features that require VK_EXT_shader_replicated_composites"), cl::ValueDisallowed,
+        cl::cat(category)};
+    cl::opt<bool> requireStaticShape{
+        "require-static-shape",
+        cl::desc("Require all tensors to be ranked and have a specified shape. Terminate on deviation."),
+        cl::ValueDisallowed, cl::cat(category)};
+    cl::opt<bool> experimentalAnalysis{
+        "experimental-analysis",
+        cl::desc("Print analysis output (what operator lower and which errors out) for the input. [EXPERIMENTAL]"),
+        cl::ValueDisallowed, cl::cat(category)};
+    cl::list<std::string> customOpDomainToOpcode{
+        "custom-op-domain-to-opcode",
+        cl::desc("Map TOSA custom op domains to Arm.ExperimentalMLOperations CALL Opcode literal integers. Entries "
+                 "use <domain>:<opcode> and can be specified multiple times."),
+        cl::ZeroOrMore, cl::cat(category)};
+    cl::opt<bool> enableBespoke{
+        "enable-bespoke",
+        cl::desc("Enable com.arm.bespoke custom op lowering as an Arm.ExperimentalMLOperations CALL with Opcode 0."),
+        cl::ValueDisallowed, cl::cat(category)};
+    cl::opt<TypeNarrowingMode> typeNarrowing{
+        "type-narrowing", cl::desc("Perform type-narrowing to all operator operands/results from fp32 -> fp16"),
+        cl::values(clEnumValN(TypeNarrowingMode::None, "none", "Disable type narrowing"),
+                   clEnumValN(TypeNarrowingMode::Full, "full", "Narrow all supported operations"),
+                   clEnumValN(TypeNarrowingMode::Partial, "partial", "Narrow supported operations selectively"),
+                   clEnumValN(TypeNarrowingMode::FullPreserveIO, "full_preserve_io", "Preserve input/output types")),
+        cl::init(TypeNarrowingMode::None), cl::cat(category)};
+};
 
 bool validateCustomOpDomainToOpcode(const std::vector<std::string> &mappings) {
     auto reservedMapping = llvm::find_if(mappings, [](const std::string &mapping) {
@@ -45,70 +95,6 @@ bool validateCustomOpDomainToOpcode(const std::vector<std::string> &mappings) {
     llvm::errs() << "Bad custom op domain mapping: " << bespokeCustomOpDomain << " is reserved. "
                  << "Use --enable-bespoke instead of --custom-op-domain-to-opcode " << *reservedMapping << "\n";
     return false;
-}
-
-std::unique_ptr<argparse::ArgumentParser> createParser(int argc, const char *argv[]) {
-    std::unique_ptr<argparse::ArgumentParser> parser;
-    try {
-        parser = std::make_unique<argparse::ArgumentParser>(argv[0], details::version);
-
-        parser->add_argument("-i", "--input")
-            .help("the input file to read TOSA FlatBuffer or TOSA MLIR data from")
-            .default_value(std::string{"-"});
-        parser->add_argument("-o", "--output")
-            .help("the output file to write VGF data to")
-            .default_value(std::string{"-"});
-        parser->add_argument("--tosa-flatbuffer")
-            .help("write tosa FlatBuffer instead of VGF")
-            .default_value(false)
-            .implicit_value(true);
-        parser->add_argument("--tosa-flatbuffer-schema")
-            .help("path to the tosa FlatBuffer schema")
-            .default_value(std::string{""});
-#ifdef BLOCK_SCALED_TENSOR
-        parser->add_argument("--target-tosa-version")
-            .help("Set the target TOSA import ceiling for VGF output (ignored with --tosa-flatbuffer)");
-#endif
-        parser->add_argument("--dump-mlir")
-            .help("Dump MLIR between each pass to std error")
-            .default_value(false)
-            .implicit_value(true);
-        parser->add_argument("--emit-debug-info")
-            .help("Produce debug info instructions in SPIR-V assembly")
-            .default_value(false)
-            .implicit_value(true);
-        parser->add_argument("--disable-replicated-composites")
-            .help("Do not emit SPIR-V features that require VK_EXT_shader_replicated_composites")
-            .default_value(false)
-            .implicit_value(true);
-        parser->add_argument("--require-static-shape")
-            .help("Require all tensors to be ranked and have a specified shape. Terminate on deviation.")
-            .default_value(false)
-            .implicit_value(true);
-        parser->add_argument("--experimental-analysis")
-            .help("Print analysis output (what operator lower and which errors out) for the input. [EXPERIMENTAL]")
-            .default_value(false)
-            .implicit_value(true);
-        parser->add_argument("--custom-op-domain-to-opcode")
-            .help("Map TOSA custom op domains to Arm.ExperimentalMLOperations CALL Opcode literal integers. Entries "
-                  "use <domain>:<opcode> and can be specified multiple times.")
-            .append()
-            .default_value(std::vector<std::string>{});
-        parser->add_argument("--enable-bespoke")
-            .help("Enable com.arm.bespoke custom op lowering as an Arm.ExperimentalMLOperations CALL with Opcode 0.")
-            .default_value(false)
-            .implicit_value(true);
-        // Optimisation Options
-        parser->add_argument("--type-narrowing")
-            .help("Perform type-narrowing to all operator operands/results from fp32 -> fp16")
-            .default_value("none")
-            .choices("none", "full", "partial", "full_preserve_io");
-        parser->parse_args(argc, argv);
-        return parser;
-    } catch (const std::exception &err) {
-        llvm::errs() << err.what() << "\n";
-        return nullptr;
-    }
 }
 
 void vgfLoggingHandler(logging::LogLevel vgfLogLevel, const std::string &message) {
@@ -135,56 +121,44 @@ void vgfLoggingHandler(logging::LogLevel vgfLogLevel, const std::string &message
 } // namespace
 
 int main(int argc, const char *argv[]) {
-    std::unique_ptr<argparse::ArgumentParser> parser = createParser(argc, argv);
-    if (parser == nullptr) {
-        llvm::errs() << "Error creating parser\n";
+    // Dependencies register global options, including tosa-flatbuffer-schema.
+    // MC owns its command line and configures compiler passes explicitly.
+    cl::ResetCommandLineParser();
+    // Construction registers the options and their defaults with LLVM.
+    // ParseCommandLineOptions below populates args from argv.
+    CommandLineOptions args;
+    cl::SetVersionPrinter([](llvm::raw_ostream &stream) { stream << details::version << "\n"; });
+    cl::alias versionAlias{"v", cl::desc("Alias for --version"),
+                           cl::aliasopt(*cl::getRegisteredOptions().lookup("version")), cl::cat(args.category),
+                           cl::NotHidden};
+    cl::HideUnrelatedOptions(args.category);
+    if (!cl::ParseCommandLineOptions(argc, argv, "ML SDK Model Converter\n", &llvm::errs())) {
         return -1;
     }
 
-    std::string input;
+    const std::string &input = args.input.getValue();
     Compiler::Options options;
     options.enable_verifier = true;
-
-    try {
-        input = parser->get("--input");
-        options.filename_output = parser->get("--output");
-        options.tosa_serialize = parser->get<bool>("--tosa-flatbuffer");
-        options.tosa_fb_schema = options.tosa_serialize ? parser->get("--tosa-flatbuffer-schema") : "";
+    options.filename_output = args.output;
+    options.tosa_serialize = args.tosaFlatbuffer;
+    options.tosa_fb_schema = options.tosa_serialize ? args.tosaFlatbufferSchema.getValue() : "";
 #ifdef BLOCK_SCALED_TENSOR
-        options.target_tosa_version = parser->present<std::string>("--target-tosa-version");
+    if (args.targetTosaVersion.getNumOccurrences() > 0) {
+        options.target_tosa_version = args.targetTosaVersion.getValue();
+    }
 #endif
-        options.dump_mlir = parser->get<bool>("--dump-mlir");
-        options.emit_debug_info = parser->get<bool>("--emit-debug-info");
-        options.disable_replicated_composites = parser->get<bool>("--disable-replicated-composites");
-        options.require_static_shape = parser->get<bool>("--require-static-shape");
-        options.analysis = parser->get<bool>("--experimental-analysis");
-        options.custom_op_domain_to_opcode = parser->get<std::vector<std::string>>("--custom-op-domain-to-opcode");
-        if (!validateCustomOpDomainToOpcode(options.custom_op_domain_to_opcode)) {
-            return -1;
-        }
-        if (parser->get<bool>("--enable-bespoke")) {
-            options.custom_op_domain_to_opcode.push_back(std::string(bespokeCustomOpDomain) + ":0");
-        }
-        const std::string typeNarrowing = parser->get("--type-narrowing");
-        if (typeNarrowing == "full") {
-            options.type_narrowing = TypeNarrowingMode::Full;
-        } else if (typeNarrowing == "partial") {
-            options.type_narrowing = TypeNarrowingMode::Partial;
-        } else if (typeNarrowing == "full_preserve_io") {
-            options.type_narrowing = TypeNarrowingMode::FullPreserveIO;
-        } else {
-            options.type_narrowing = TypeNarrowingMode::None;
-        }
-    } catch (const std::exception &err) {
-        llvm::errs() << err.what() << "\n";
-        try {
-            std::ostringstream oss;
-            oss << *parser;
-            llvm::errs() << oss.str() << "\n";
-        } catch (...) {
-            llvm::errs() << "Unable to print parser\n";
-        }
+    options.dump_mlir = args.dumpMlir;
+    options.emit_debug_info = args.emitDebugInfo;
+    options.disable_replicated_composites = args.disableReplicatedComposites;
+    options.require_static_shape = args.requireStaticShape;
+    options.analysis = args.experimentalAnalysis;
+    options.custom_op_domain_to_opcode.assign(args.customOpDomainToOpcode.begin(), args.customOpDomainToOpcode.end());
+    options.type_narrowing = args.typeNarrowing;
+    if (!validateCustomOpDomainToOpcode(options.custom_op_domain_to_opcode)) {
         return -1;
+    }
+    if (args.enableBespoke) {
+        options.custom_op_domain_to_opcode.push_back(std::string(bespokeCustomOpDomain) + ":0");
     }
 
     if (input == "-") {

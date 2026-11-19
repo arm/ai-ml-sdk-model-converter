@@ -23,16 +23,6 @@
       "copyrightText": "Copyright (c) Arm Limited"
     },
     {
-      "SPDXID": "SPDXRef-argparse",
-      "name": "p-ranav/argparse",
-      "downloadLocation": "NOASSERTION",
-      "filesAnalyzed": false,
-      "licenseConcluded": "NOASSERTION",
-      "licenseDeclared": "MIT",
-      "copyrightText": "NOASSERTION",
-      "versionInfo": "v3.2"
-    },
-    {
       "SPDXID": "SPDXRef-component-vgf-lib",
       "name": "arm/ai-ml-sdk-vgf-library",
       "downloadLocation": "NOASSERTION",
@@ -127,11 +117,6 @@
       "spdxElementId": "SPDXRef-DOCUMENT",
       "relationshipType": "DESCRIBES",
       "relatedSpdxElement": "SPDXRef-component-model-converter"
-    },
-    {
-      "spdxElementId": "SPDXRef-component-model-converter",
-      "relationshipType": "DEPENDS_ON",
-      "relatedSpdxElement": "SPDXRef-argparse"
     },
     {
       "spdxElementId": "SPDXRef-component-model-converter",

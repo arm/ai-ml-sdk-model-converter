@@ -77,7 +77,6 @@ endif()
 # Definitions
 #############################################################################
 
-include(argparse)
 include(flatbuffers)
 include(vgf-lib)
 include(llvm-project)
@@ -207,7 +206,7 @@ add_executable(model-converter "src/main.cpp")
 target_compile_definitions(model-converter PRIVATE
     $<$<BOOL:${BLOCK_SCALED_TENSOR}>:BLOCK_SCALED_TENSOR>
 )
-target_link_libraries(model-converter PRIVATE model-converter-driver-lib argparse::argparse)
+target_link_libraries(model-converter PRIVATE model-converter-driver-lib)
 target_compile_options(model-converter PRIVATE ${ML_SDK_MODEL_CONVERTER_COMPILE_OPTIONS})
 model_converter_enable_coverage(model-converter)
 
@@ -216,7 +215,6 @@ mlsdk_generate_version_header(
     SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/src/version.hpp.in"
     DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/generated/version.hpp"
     DEPENDENCIES
-        argparse
         flatbuffers
         LLVM
         MLIR
