@@ -5,18 +5,17 @@
 
 #pragma once
 
+#include "mlir/Support/LogicalResult.h"
+
 #ifdef BLOCK_SCALED_TENSOR
 #    include "mlir/Dialect/Tosa/IR/TosaOps.h"
 #endif
 
 #include <vgf/encoder.hpp>
 
-#include <algorithm>
 #include <cstdint>
-#include <iterator>
 #include <map>
 #include <memory>
-#include <stdexcept>
 #include <vector>
 
 namespace mlsdk::model_converter {
@@ -25,23 +24,22 @@ class VGFBuilder {
   public:
     mlsdk::vgflib::Encoder &getEncoder() { return *_encoder; }
 
-    std::vector<mlsdk::vgflib::GraphConstantBindingRef>
+    mlir::FailureOr<std::vector<mlsdk::vgflib::GraphConstantBindingRef>>
     getConstantBindings(const std::vector<uint32_t> &graphConstantIds) const {
         std::vector<mlsdk::vgflib::GraphConstantBindingRef> bindings;
         bindings.reserve(graphConstantIds.size());
-        std::transform(graphConstantIds.begin(), graphConstantIds.end(), std::back_inserter(bindings),
-                       [this](uint32_t graphConstantId) {
-                           return mlsdk::vgflib::GraphConstantBindingRef{graphConstantId,
-                                                                         _constantRefsByGraphId.at(graphConstantId)};
-                       });
+        for (uint32_t graphConstantId : graphConstantIds) {
+            const auto it = _constantRefsByGraphId.find(graphConstantId);
+            if (it == _constantRefsByGraphId.end()) {
+                return mlir::failure();
+            }
+            bindings.push_back({graphConstantId, it->second});
+        }
         return bindings;
     }
 
-    void AddConstantBinding(uint32_t graphConstantId, mlsdk::vgflib::ConstantRef constantRef) {
-        const auto [_, inserted] = _constantRefsByGraphId.emplace(graphConstantId, constantRef);
-        if (!inserted) {
-            throw std::runtime_error("Duplicate graph constant ID");
-        }
+    mlir::LogicalResult addConstantBinding(uint32_t graphConstantId, mlsdk::vgflib::ConstantRef constantRef) {
+        return mlir::success(_constantRefsByGraphId.emplace(graphConstantId, constantRef).second);
     }
 
     // We only support a small handful of Formats for now so redefine the ones
