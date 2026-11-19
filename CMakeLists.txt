@@ -195,6 +195,7 @@ add_dependencies(model-converter-passes-lib
 add_library(model-converter-driver-lib STATIC "src/compiler.cpp")
 target_compile_definitions(model-converter-driver-lib PRIVATE
     $<$<BOOL:${MODEL_CONVERTER_LOG_TRACE_MASK}>:LOG_TRACE_ENABLE=${MODEL_CONVERTER_LOG_TRACE_MASK}>
+    $<$<BOOL:${BLOCK_SCALED_TENSOR}>:BLOCK_SCALED_TENSOR>
 )
 target_include_directories(model-converter-driver-lib PUBLIC src)
 target_include_directories(model-converter-driver-lib SYSTEM PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
@@ -203,6 +204,9 @@ target_compile_options(model-converter-driver-lib PRIVATE ${ML_SDK_MODEL_CONVERT
 model_converter_enable_coverage(model-converter-driver-lib)
 
 add_executable(model-converter "src/main.cpp")
+target_compile_definitions(model-converter PRIVATE
+    $<$<BOOL:${BLOCK_SCALED_TENSOR}>:BLOCK_SCALED_TENSOR>
+)
 target_link_libraries(model-converter PRIVATE model-converter-driver-lib argparse::argparse)
 target_compile_options(model-converter PRIVATE ${ML_SDK_MODEL_CONVERTER_COMPILE_OPTIONS})
 model_converter_enable_coverage(model-converter)

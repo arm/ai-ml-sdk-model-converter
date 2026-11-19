@@ -653,6 +653,7 @@ def run_converter(model_converter_exe_path, tmp_path, mlir, extra_args=()):
         pytest.param(direct_passthrough_mlir(), TOSA_1_X, [], id="no-tosa-target-1.x"),
     ],
 )
+@pytest.mark.usefixtures("block_scaled_tensors_enabled")
 def test_vgf_tosa_import_selection(
     model_converter_exe_path, mlir, target, expected_imports
 ):
@@ -663,6 +664,7 @@ def test_vgf_tosa_import_selection(
         assert tosa_imports(vgf.modules.getSPIRVModuleCode(0)) == expected_imports
 
 
+@pytest.mark.usefixtures("block_scaled_tensors_enabled")
 def test_tosa_import_above_target_rejected_before_vgf_write(
     model_converter_exe_path, tmp_path
 ):
@@ -683,6 +685,7 @@ def test_tosa_import_above_target_rejected_before_vgf_write(
 @pytest.mark.parametrize(
     "target", ["1.0", "TOSA.001001.1", "TOSA.1x.2", "GLSL.std.450"]
 )
+@pytest.mark.usefixtures("block_scaled_tensors_enabled")
 def test_invalid_target_rejected_before_vgf_write(
     model_converter_exe_path, tmp_path, target
 ):
@@ -697,6 +700,7 @@ def test_invalid_target_rejected_before_vgf_write(
     assert not output_path.exists()
 
 
+@pytest.mark.usefixtures("block_scaled_tensors_enabled")
 def test_target_requires_a_value(model_converter_exe_path, tmp_path):
     output_path = tmp_path / "output.vgf"
     result = subprocess.run(
@@ -718,6 +722,7 @@ def test_target_requires_a_value(model_converter_exe_path, tmp_path):
 
 
 @pytest.mark.parametrize("target", [TOSA_1_0, "", "not-an-import"])
+@pytest.mark.usefixtures("block_scaled_tensors_enabled")
 def test_flatbuffer_output_ignores_target(model_converter_exe_path, tmp_path, target):
     result, output_path = run_converter(
         model_converter_exe_path,
