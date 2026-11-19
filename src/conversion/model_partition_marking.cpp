@@ -327,9 +327,9 @@ class PartitionPlan {
     }
 
     void shiftPartitionsFrom(int64_t firstPartitionToShift) {
-        for (auto &[_, partitionId] : partitionByOp) {
-            if (partitionId >= firstPartitionToShift) {
-                ++partitionId;
+        for (auto &partition : partitionByOp) {
+            if (partition.second >= firstPartitionToShift) {
+                ++partition.second;
             }
         }
 

@@ -248,8 +248,8 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
             }
 
             auto attrVal = llvm::dyn_cast<DenseTypedElementsAttr>(constOp.getValuesAttr());
-            mlir::AccessData(attrVal, [&, id = id](const char *data, size_t size) {
-                serializeConstantData(id, data, size, resourceRef, sparsityDimension);
+            mlir::AccessData(attrVal, [&, graphConstantId = id](const char *data, size_t size) {
+                serializeConstantData(graphConstantId, data, size, resourceRef, sparsityDimension);
             });
         }
 
