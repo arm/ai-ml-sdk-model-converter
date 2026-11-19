@@ -50,7 +50,15 @@ if(MODEL_CONVERTER_ENABLE_COVERAGE)
 endif()
 
 function(model_converter_configure_target target_name)
-    target_compile_options(${target_name} PRIVATE ${ML_SDK_MODEL_CONVERTER_COMPILE_OPTIONS})
+    # Enforce exception-free C++ even when a custom toolchain is used.
+    target_compile_options(${target_name} PRIVATE
+        ${ML_SDK_MODEL_CONVERTER_COMPILE_OPTIONS}
+        "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:-fno-exceptions>"
+        "$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/EHs-c->"
+    )
+    target_compile_definitions(${target_name} PRIVATE
+        "$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:_HAS_EXCEPTIONS=0>"
+    )
 
     if(NOT MODEL_CONVERTER_ENABLE_COVERAGE)
         return()
