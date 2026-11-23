@@ -172,10 +172,13 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
     }
 
   private:
-    void serializeConstantData(uint32_t graphConstantId, const void *data, size_t size, ResourceRef resource,
-                               int64_t sparsityDimension = -1) {
+    mlir::LogicalResult serializeConstantData(tosa::ConstOp constOp, uint32_t graphConstantId, const void *data,
+                                              size_t size, ResourceRef resource, int64_t sparsityDimension = -1) {
         ConstantRef constRef = _VGFBuilder->getEncoder().AddConstant(resource, data, size, sparsityDimension);
-        _VGFBuilder->AddConstantBinding(graphConstantId, constRef);
+        if (mlir::failed(_VGFBuilder->addConstantBinding(graphConstantId, constRef))) {
+            return constOp.emitError("Duplicate graph constant ID ") << graphConstantId;
+        }
+        return mlir::success();
     }
 
     bool checkIfUnsignedRequired(tosa::ConstOp constOp) {
@@ -225,7 +228,9 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
                 std::vector<uint8_t> payload = std::move(data->valueBytes);
                 payload.reserve(payload.size() + data->scaleBytes.size());
                 payload.insert(payload.end(), data->scaleBytes.begin(), data->scaleBytes.end());
-                serializeConstantData(id, payload.data(), payload.size(), resourceRef);
+                if (mlir::failed(serializeConstantData(constOp, id, payload.data(), payload.size(), resourceRef))) {
+                    return mlir::failure();
+                }
                 continue;
             }
 #endif
@@ -248,9 +253,13 @@ class VGFConstantsPass : public impl::VGFConstantsPassBase<VGFConstantsPass> {
             }
 
             auto attrVal = llvm::dyn_cast<DenseTypedElementsAttr>(constOp.getValuesAttr());
-            mlir::AccessData(attrVal, [&, graphConstantId = id](const char *data, size_t size) {
-                serializeConstantData(graphConstantId, data, size, resourceRef, sparsityDimension);
+            mlir::LogicalResult result = mlir::failure();
+            mlir::AccessData(attrVal, [&, constantOp = constOp, graphConstantId = id](const char *data, size_t size) {
+                result = serializeConstantData(constantOp, graphConstantId, data, size, resourceRef, sparsityDimension);
             });
+            if (mlir::failed(result)) {
+                return mlir::failure();
+            }
         }
 
         return mlir::success();

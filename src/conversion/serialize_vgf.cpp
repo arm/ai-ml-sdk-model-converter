@@ -60,7 +60,8 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
     }
 
   private:
-    std::vector<GraphConstantBindingRef> getSegmentConstantBindings(spirv::ModuleOp spirvModuleOp) const {
+    mlir::FailureOr<std::vector<GraphConstantBindingRef>>
+    getSegmentConstantBindings(spirv::ModuleOp spirvModuleOp) const {
         std::vector<uint32_t> ids;
         spirvModuleOp.walk(
             [&](spirv::GraphConstantARMOp graphConstantOp) { ids.push_back(graphConstantOp.getGraphConstantId()); });
@@ -207,10 +208,14 @@ class SerializeVGFPass : public impl::SerializeVGFPassBase<SerializeVGFPass> {
                         const DescriptorSetInfoRef descSetInfo =
                             _VGFBuilder->getEncoder().AddDescriptorSetInfo(segmentAllBindings);
                         const auto segmentConstants = getSegmentConstantBindings(spirvModuleOp);
+                        if (mlir::failed(segmentConstants)) {
+                            spirvModuleOp.emitError("Missing binding for graph constant");
+                            return WalkResult::interrupt();
+                        }
 
                         _VGFBuilder->getEncoder().AddSegmentInfo(
                             graphModuleRef, "graph_segment_" + std::to_string(graphSegmentId++), {descSetInfo},
-                            segmentInputBindings, segmentOutputBindings, segmentConstants);
+                            segmentInputBindings, segmentOutputBindings, *segmentConstants);
 
                         return WalkResult::advance();
                     });
