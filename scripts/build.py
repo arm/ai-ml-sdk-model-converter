@@ -49,7 +49,6 @@ class Builder:
         self.json_path = args.json_path
         self.flatbuffers_path = args.flatbuffers_path
         self.tosa_tools_path = args.tosa_tools_path
-        self.argparse_path = args.argparse_path
         self.pybind11_path = args.pybind11_path
         self.lint = args.lint
         self.enable_sanitizers = args.enable_sanitizers
@@ -186,9 +185,6 @@ class Builder:
 
         if self.tosa_tools_path:
             cmake_setup_cmd.append(f"-DTOSA_TOOLS_PATH={self.tosa_tools_path}")
-
-        if self.argparse_path:
-            cmake_setup_cmd.append(f"-DARGPARSE_PATH={self.argparse_path}")
 
         if self.pybind11_path:
             cmake_setup_cmd.append(f"-DPYBIND11_PATH={self.pybind11_path}")
@@ -489,11 +485,6 @@ def parse_arguments(argv=None):
         "--vgf-lib-path",
         help="Path to the ai-ml-sdk-vgf-library repo",
         default=f"{MODEL_CONVERTER_DIR / '..' / 'vgf-lib'}",
-    )
-    parser.add_argument(
-        "--argparse-path",
-        help="Path to argparse repo",
-        default=f"{DEPENDENCY_DIR / 'argparse'}",
     )
     parser.add_argument(
         "--flatbuffers-path",

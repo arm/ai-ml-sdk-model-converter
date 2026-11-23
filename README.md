@@ -102,7 +102,6 @@ The build system must have:
 
 The following dependencies are also needed:
 
-- [Argument Parser for Modern C++](https://github.com/p-ranav/argparse).
 - [LLVM](https://github.com/llvm/llvm-project).
 - [TOSA Tools](https://gitlab.arm.com/tosa/tosa-tools).
 
@@ -122,7 +121,6 @@ SDK_PATH="path/to/sdk"
 python3 ${SDK_PATH}/sw/model-converter/scripts/build.py -j $(nproc) \
     --vgf-lib-path ${SDK_PATH}/sw/vgf-lib \
     --flatbuffers-path ${SDK_PATH}/dependencies/flatbuffers \
-    --argparse-path ${SDK_PATH}/dependencies/argparse \
     --tosa-tools-path ${SDK_PATH}/dependencies/tosa-tools \
     --external-llvm ${SDK_PATH}/dependencies/llvm-project
 ```
@@ -135,14 +133,13 @@ $cores = [System.Environment]::ProcessorCount
 python3 "$env:SDK_PATH\sw\model-converter\scripts\build.py" -j $cores `
     --vgf-lib-path "$env:SDK_PATH\sw\vgf-lib" `
     --flatbuffers-path "$env:SDK_PATH\dependencies\flatbuffers" `
-    --argparse-path "$env:SDK_PATH\dependencies\argparse" `
     --tosa-tools-path "$env:SDK_PATH\dependencies\tosa-tools" `
     --external-llvm "$env:SDK_PATH\dependencies\llvm-project"
 ```
 
 If the components are in their default locations, it is not necessary to specify
-the `--vgf-lib-path`, `--flatbuffers-path`, `--argparse-path`,
-`--tosa-tools-path`, and `--external-llvm` options.
+the `--vgf-lib-path`, `--flatbuffers-path`, `--tosa-tools-path`, and
+`--external-llvm` options.
 
 Tests can be enabled and run with `--test` and linting by `--lint`. Install
 their Python dependencies with:
