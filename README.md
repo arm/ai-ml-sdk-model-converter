@@ -107,6 +107,10 @@ The following dependencies are also needed:
 
 For the preferred dependency versions see the manifest file.
 
+Model Converter C++ targets are built without exceptions. The build enforces
+`-fno-exceptions` for GCC and Clang, and disables exceptions for MSVC. Report
+errors through return values and diagnostics when contributing C++ code.
+
 ## Building with the script
 
 Arm® provides a python build script to make build configuration options easily
