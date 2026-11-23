@@ -49,7 +49,9 @@ if(MODEL_CONVERTER_ENABLE_COVERAGE)
     endif()
 endif()
 
-function(model_converter_enable_coverage target_name)
+function(model_converter_configure_target target_name)
+    target_compile_options(${target_name} PRIVATE ${ML_SDK_MODEL_CONVERTER_COMPILE_OPTIONS})
+
     if(NOT MODEL_CONVERTER_ENABLE_COVERAGE)
         return()
     endif()
@@ -178,12 +180,11 @@ target_compile_definitions(model-converter-passes-lib PRIVATE
 target_include_directories(model-converter-passes-lib PUBLIC src)
 target_include_directories(model-converter-passes-lib SYSTEM PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(model-converter-passes-lib PUBLIC ${CONVERTER_PASS_LIB_DEPENDENCIES})
-target_compile_options(model-converter-passes-lib PRIVATE ${ML_SDK_MODEL_CONVERTER_COMPILE_OPTIONS})
 if(BLOCK_SCALED_TENSOR)
     target_link_libraries(model-converter-passes-lib PUBLIC tosa::tosa_serialization_lib)
     target_compile_options(model-converter-passes-lib PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/Zc:preprocessor>)
 endif()
-model_converter_enable_coverage(model-converter-passes-lib)
+model_converter_configure_target(model-converter-passes-lib)
 
 add_dependencies(model-converter-passes-lib
                 MLIRModelConverterPasses
@@ -199,16 +200,14 @@ target_compile_definitions(model-converter-driver-lib PRIVATE
 target_include_directories(model-converter-driver-lib PUBLIC src)
 target_include_directories(model-converter-driver-lib SYSTEM PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_link_libraries(model-converter-driver-lib PUBLIC ${CONVERTER_DRIVER_LIB_DEPENDENCIES})
-target_compile_options(model-converter-driver-lib PRIVATE ${ML_SDK_MODEL_CONVERTER_COMPILE_OPTIONS})
-model_converter_enable_coverage(model-converter-driver-lib)
+model_converter_configure_target(model-converter-driver-lib)
 
 add_executable(model-converter "src/main.cpp")
 target_compile_definitions(model-converter PRIVATE
     $<$<BOOL:${BLOCK_SCALED_TENSOR}>:BLOCK_SCALED_TENSOR>
 )
 target_link_libraries(model-converter PRIVATE model-converter-driver-lib)
-target_compile_options(model-converter PRIVATE ${ML_SDK_MODEL_CONVERTER_COMPILE_OPTIONS})
-model_converter_enable_coverage(model-converter)
+model_converter_configure_target(model-converter)
 
 mlsdk_generate_version_header(
     TARGET model-converter
@@ -261,7 +260,7 @@ if(MODEL_CONVERTER_BUILD_TESTS)
     add_dependencies(model-converter-opt model-converter-passes-lib)
 
     llvm_update_compile_flags(model-converter-opt)
-    model_converter_enable_coverage(model-converter-opt)
+    model_converter_configure_target(model-converter-opt)
     mlir_check_all_link_libraries(model-converter-opt)
 
     # LLVM applies this stack size to targets in its own directory tree, but
